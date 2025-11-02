@@ -113,12 +113,8 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
     }
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Dev fallback: allow client-provided token when ALLOW_DEV_TOKEN=true
-    const allowDev = process.env.ALLOW_DEV_TOKEN === 'true';
-    const devHeaderToken = allowDev ? String(req.headers['x-dev-token'] || '').trim() : '';
-
-    // Prefer direct write with FITREP_DATA or dev token when available
-    const fitrepToken = process.env.FITREP_DATA || devHeaderToken;
+    // Prefer direct write with FITREP_DATA when available
+    const fitrepToken = process.env.FITREP_DATA;
     if (fitrepToken) {
       try {
         const prefix = sanitizePrefix(email);
@@ -182,7 +178,7 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
     }
 
     // Fallback: repository_dispatch when direct write not possible
-    const dispatchToken = DISPATCH_TOKEN || devHeaderToken;
+    const dispatchToken = DISPATCH_TOKEN;
     if (!dispatchToken) {
       console.error('create-account: Missing DISPATCH_TOKEN');
       return res.status(500).json({ error: 'Server missing DISPATCH_TOKEN' });
@@ -227,10 +223,7 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
     if (!isValidEmail(email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
-    // Dev fallback: allow client-provided token when ALLOW_DEV_TOKEN=true
-    const allowDev = process.env.ALLOW_DEV_TOKEN === 'true';
-    const devHeaderToken = allowDev ? String(req.headers['x-dev-token'] || '').trim() : '';
-    const token = process.env.FITREP_DATA || devHeaderToken;
+    const token = process.env.FITREP_DATA;
     if (!token) {
       console.error('login: Missing FITREP_DATA');
       return res.status(500).json({ error: 'Server missing FITREP_DATA for login' });
@@ -372,11 +365,8 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       return res.status(400).json({ error: 'Invalid rsEmail format' });
     }
 
-    // Dev fallback: allow client-provided token when ALLOW_DEV_TOKEN=true
-    const allowDev = process.env.ALLOW_DEV_TOKEN === 'true';
-    const devHeaderToken = allowDev ? String(req.headers['x-dev-token'] || '').trim() : '';
-    const fitrepToken = process.env.FITREP_DATA || devHeaderToken;
-    const dispatchToken = DISPATCH_TOKEN || devHeaderToken;
+    const fitrepToken = process.env.FITREP_DATA;
+    const dispatchToken = DISPATCH_TOKEN;
 
     // Prefer direct write when FITREP_DATA is available
     if (fitrepToken) {
