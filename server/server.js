@@ -54,6 +54,20 @@ function emailPrefix(email) {
 // Lightweight rate limiter per IP
 function rateLimit({ windowMs, limit }) {
   const hits = new Map();
+
+  // Periodically clean up expired entries to prevent memory leak
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of hits.entries()) {
+      if (now > entry.reset) {
+        hits.delete(ip);
+      }
+    }
+  }, windowMs * 2); // Run cleanup every 2 windows
+
+  // Ensure interval doesn't keep Node.js process alive if it's the only thing running
+  cleanupInterval.unref();
+
   return (req, res, next) => {
     if (req.method === 'OPTIONS') return next();
     const ip = req.ip || req.connection?.remoteAddress || 'unknown';
@@ -310,7 +324,8 @@ function sanitizePrefix(email) {
 function isValidEmail(email) {
   const e = String(email || '').trim();
   if (e.length < 5 || e.length > 254) return false;
-  return /.+@.+\..+/.test(e);
+  // More strict regex that disallows whitespace and requires proper email format
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
 function isStrongPassword(pw) {
   const p = String(pw || '');
@@ -373,18 +388,21 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         return res.status(502).json({ error: `Read failed: ${text}` });
       }
 
-      // Build new data and preserve critical fields
-      const bodyObj = buildUserDataJson(userData);
-      if (existingUser && existingUser.passwordHash) {
+      // Build new data preserving flat structure and critical fields
+      const now = new Date().toISOString();
+      const bodyObj = {
+        rsEmail: userData.rsEmail,
+        rsName: userData.rsName || existingUser?.rsName || '',
+        rsRank: userData.rsRank || existingUser?.rsRank || '',
+        evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : (existingUser?.evaluations || []),
+        evaluationFiles: existingUser?.evaluationFiles || [],
+        createdDate: existingUser?.createdDate || now,
+        lastUpdated: now
+      };
+
+      // SECURITY: Only preserve passwordHash from existing user, never from client input
+      if (existingUser?.passwordHash) {
         bodyObj.passwordHash = existingUser.passwordHash;
-      } else if (userData && userData.passwordHash) {
-        bodyObj.passwordHash = userData.passwordHash;
-      }
-      if (existingUser && existingUser.createdDate) {
-        bodyObj.createdDate = existingUser.createdDate;
-      }
-      if (existingUser && Array.isArray(existingUser.evaluationFiles)) {
-        bodyObj.evaluationFiles = existingUser.evaluationFiles;
       }
 
       const contentStr = JSON.stringify(bodyObj, null, 2);
