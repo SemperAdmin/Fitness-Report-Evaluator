@@ -560,6 +560,200 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
   }
 });
 
+// Save a single evaluation as a unique file and update aggregate user file
+// Path: users/{email_local}/evaluations/{evaluationId}.json
+app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
+  try {
+    const { evaluation, userEmail } = req.body || {};
+    if (!evaluation || !evaluation.evaluationId) {
+      return res.status(400).json({ error: 'Missing evaluation.evaluationId' });
+    }
+    if (!userEmail || !isValidEmail(userEmail)) {
+      return res.status(400).json({ error: 'Invalid or missing userEmail' });
+    }
+
+    const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
+
+    // Helper: safe local-part for directory naming and file names
+    const prefix = sanitizePrefix(userEmail);
+    const evalIdSafe = String(evaluation.evaluationId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const filePath = `users/${prefix}/evaluations/${evalIdSafe}.json`;
+
+    // Attempt direct write via GitHub Contents API when token available
+    if (fitrepToken) {
+      const apiBase = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
+
+      // Check for existing file SHA
+      let existingSha = '';
+      const getResp = await fetch(apiBase, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (getResp.status === 200) {
+        const existing = await getResp.json();
+        existingSha = existing.sha || '';
+      } else if (getResp.status !== 404 && !getResp.ok) {
+        const text = await getResp.text();
+        console.error('save evaluation: get SHA failed:', text);
+        return res.status(502).json({ error: `Read failed: ${text}` });
+      }
+
+      // Build content payload with minimal metadata + evaluation
+      const contentStr = JSON.stringify({
+        version: '1.0',
+        savedAt: new Date().toISOString(),
+        rsEmail: userEmail,
+        rsName: evaluation?.rsInfo?.name || '',
+        rsRank: evaluation?.rsInfo?.rank || '',
+        evaluation
+      }, null, 2);
+      const contentB64 = Buffer.from(contentStr, 'utf8').toString('base64');
+      const msg = existingSha
+        ? `Update evaluation ${evaluation.evaluationId} for ${userEmail}`
+        : `Create evaluation ${evaluation.evaluationId} for ${userEmail}`;
+      const putBody = { message: msg, content: contentB64, branch: 'main', ...(existingSha && { sha: existingSha }) };
+
+      const putResp = await fetch(apiBase, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(putBody)
+      });
+      if (!putResp.ok) {
+        const text = await putResp.text();
+        console.error('save evaluation: put failed:', text);
+        return res.status(502).json({ error: `Write failed: ${text}` });
+      }
+      const putResult = await putResp.json();
+
+      // Also update aggregate user file to include/merge this evaluation
+      const userApi = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      let userSha = '';
+      let existingUser = null;
+      const userGet = await fetch(userApi, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (userGet.status === 200) {
+        const existing = await userGet.json();
+        userSha = existing.sha || '';
+        try {
+          const existingStr = Buffer.from(existing.content || '', 'base64').toString('utf8');
+          existingUser = existingStr ? JSON.parse(existingStr) : null;
+        } catch (_) {
+          existingUser = null;
+        }
+      } else if (userGet.status !== 404 && !userGet.ok) {
+        const text = await userGet.text();
+        console.error('save evaluation: read aggregate failed:', text);
+        // Continue without blocking unique file save
+      }
+
+      const now = new Date().toISOString();
+      const agg = {
+        rsEmail: userEmail,
+        rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
+        rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
+        evaluations: Array.isArray(existingUser?.evaluations) ? existingUser.evaluations.slice() : []
+      };
+      const idx = agg.evaluations.findIndex(e => e && e.evaluationId === evaluation.evaluationId);
+      if (idx >= 0) {
+        agg.evaluations[idx] = evaluation;
+      } else {
+        agg.evaluations.push(evaluation);
+      }
+      const bodyObj = {
+        rsEmail: agg.rsEmail,
+        rsName: agg.rsName,
+        rsRank: agg.rsRank,
+        evaluations: agg.evaluations,
+        evaluationFiles: Array.isArray(existingUser?.evaluationFiles) ? Array.from(new Set([...existingUser.evaluationFiles, filePath])) : [filePath],
+        createdDate: existingUser?.createdDate || now,
+        lastUpdated: now,
+        ...(existingUser?.passwordHash ? { passwordHash: existingUser.passwordHash } : {})
+      };
+      const bodyStr = JSON.stringify(bodyObj, null, 2);
+      const bodyB64 = Buffer.from(bodyStr, 'utf8').toString('base64');
+      const aggMsg = userSha ? `Update profile via Server - ${now}` : `Create profile via Server - ${now}`;
+      const userPutBody = { message: aggMsg, content: bodyB64, branch: 'main', ...(userSha && { sha: userSha }) };
+
+      const userPut = await fetch(userApi, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userPutBody)
+      });
+      if (!userPut.ok) {
+        const text = await userPut.text();
+        console.warn('save evaluation: aggregate put failed (non-blocking):', text);
+      }
+
+      return res.json({ ok: true, path: putResult?.content?.path || filePath, commit: putResult?.commit?.sha || null, method: 'direct' });
+    }
+
+    // Local filesystem fallback when no tokens are available
+    try {
+      const now = new Date().toISOString();
+      const evalDir = path.join(LOCAL_DATA_DIR, prefix, 'evaluations');
+      try { await fsp.mkdir(evalDir, { recursive: true }); } catch (_) {}
+      const evalPath = path.join(evalDir, `${evalIdSafe}.json`);
+      const evalStr = JSON.stringify({
+        version: '1.0',
+        savedAt: now,
+        rsEmail: userEmail,
+        rsName: evaluation?.rsInfo?.name || '',
+        rsRank: evaluation?.rsInfo?.rank || '',
+        evaluation
+      }, null, 2);
+      await fsp.writeFile(evalPath, evalStr, 'utf8');
+
+      // Update aggregate local user file
+      const existingUser = await readLocalUser(prefix);
+      const agg = {
+        rsEmail: userEmail,
+        rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
+        rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
+        evaluations: Array.isArray(existingUser?.evaluations) ? existingUser.evaluations.slice() : []
+      };
+      const idx = agg.evaluations.findIndex(e => e && e.evaluationId === evaluation.evaluationId);
+      if (idx >= 0) {
+        agg.evaluations[idx] = evaluation;
+      } else {
+        agg.evaluations.push(evaluation);
+      }
+      const bodyObj = {
+        rsEmail: agg.rsEmail,
+        rsName: agg.rsName,
+        rsRank: agg.rsRank,
+        evaluations: agg.evaluations,
+        evaluationFiles: Array.isArray(existingUser?.evaluationFiles) ? Array.from(new Set([...existingUser.evaluationFiles, `local:${prefix}/evaluations/${evalIdSafe}.json`])) : [`local:${prefix}/evaluations/${evalIdSafe}.json`],
+        createdDate: existingUser?.createdDate || now,
+        lastUpdated: now,
+        ...(existingUser?.passwordHash ? { passwordHash: existingUser.passwordHash } : {})
+      };
+      await writeLocalUser(prefix, bodyObj);
+
+      return res.json({ ok: true, path: `local:${prefix}/evaluations/${evalIdSafe}.json`, method: 'local' });
+    } catch (err) {
+      console.error('save evaluation: local write failed:', err);
+      return res.status(500).json({ error: 'Local write failed' });
+    }
+  } catch (err) {
+    console.error('save evaluation error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Load user data via server using FITREP_DATA
 app.get('/api/user/load', async (req, res) => {
   try {

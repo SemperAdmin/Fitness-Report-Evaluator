@@ -786,16 +786,51 @@ class GitHubDataService {
      * @returns {Promise<Object>} Result object
      */
     async saveEvaluationUniqueFile(evaluation, userEmail) {
-        if (!this.initialized) {
-            throw new Error('GitHubDataService not initialized. Call initialize() first.');
-        }
-
         if (!evaluation?.evaluationId) {
             throw new Error('evaluationId is required to save unique evaluation file');
         }
 
         if (!userEmail) {
             throw new Error('User email is required');
+        }
+
+        // Backend fallback path when no client token is available
+        if (!this.initialized || !this.token) {
+            const ep = this.resolveBackendEndpoint('/api/evaluation/save');
+            if (!ep) {
+                throw new Error('Backend API base URL is not configured');
+            }
+            if ('blocked' in ep && ep.blocked) {
+                throw new Error('Backend evaluation save blocked by origin allowlist');
+            }
+
+            const headers = { 'Content-Type': 'application/json' };
+            // Dev-only optional header token if present and explicitly allowed
+            let assembledToken = null;
+            try {
+                if (typeof window !== 'undefined' && window.USE_ASSEMBLED_TOKEN && window.GITHUB_CONFIG?.token) {
+                    assembledToken = window.GITHUB_CONFIG.token;
+                }
+            } catch (_) {}
+            if (assembledToken) {
+                headers['X-GitHub-Token'] = assembledToken;
+            }
+
+            const resp = await fetch(ep.url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ evaluation, userEmail })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data?.ok) {
+                throw new Error(data?.error || 'Backend evaluation save failed');
+            }
+            return {
+                success: true,
+                filePath: data.path,
+                commitSha: data.commit || null,
+                message: data.method === 'direct' ? 'Unique evaluation saved via server' : 'Unique evaluation saved locally'
+            };
         }
 
         const cfg = this.getConfig();
