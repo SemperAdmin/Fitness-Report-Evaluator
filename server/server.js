@@ -33,6 +33,7 @@ console.log('[env] MAIN_REPO:', MAIN_REPO);
 console.log('[env] DATA_REPO:', DATA_REPO);
 console.log('[env] DISPATCH_TOKEN set:', Boolean(DISPATCH_TOKEN));
 console.log('[env] FITREP_DATA set:', Boolean(process.env.FITREP_DATA));
+console.log('[env] ALLOW_DEV_TOKEN:', process.env.ALLOW_DEV_TOKEN === 'true');
 
 function emailPrefix(email) {
   return String(email || '').trim().toLowerCase().split('@')[0];
@@ -142,8 +143,28 @@ app.get('/health', (req, res) => {
     MAIN_REPO,
     DATA_REPO,
     hasDispatchToken: Boolean(DISPATCH_TOKEN),
-    hasFitrepData: Boolean(process.env.FITREP_DATA)
+    hasFitrepData: Boolean(process.env.FITREP_DATA),
+    allowDevToken: process.env.ALLOW_DEV_TOKEN === 'true'
   });
+});
+
+// Development-only endpoint to provide a GitHub token to the client.
+// This should NEVER be enabled in production.
+app.get('/api/github-token', (req, res) => {
+  try {
+    const allow = process.env.ALLOW_DEV_TOKEN === 'true';
+    const token = process.env.FITREP_DATA || '';
+    if (!allow) {
+      return res.status(403).json({ error: 'Token exposure disabled. Set ALLOW_DEV_TOKEN=true for local dev only.' });
+    }
+    if (!token) {
+      return res.status(500).json({ error: 'Server missing FITREP_DATA token' });
+    }
+    return res.json({ token });
+  } catch (err) {
+    console.error('github-token error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Start server if executed directly
