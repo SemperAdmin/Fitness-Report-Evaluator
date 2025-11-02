@@ -149,11 +149,14 @@ async function postJson(url, body) {
         ? window.API_BASE_URL
         : window.location.origin;
 
-    // Resolve against base and enforce same-origin to prevent protocol-relative open redirects
+    // Resolve against base and enforce allowlisted origins
     const resolvedUrl = new URL(url, base);
     const baseOrigin = new URL(base).origin;
-    if (resolvedUrl.origin !== baseOrigin) {
-        throw new Error('Cross-origin requests are not allowed.');
+    const allowedOrigins = Array.isArray(window.API_ALLOWED_ORIGINS)
+        ? window.API_ALLOWED_ORIGINS
+        : [baseOrigin];
+    if (!allowedOrigins.includes(resolvedUrl.origin)) {
+        throw new Error('Requests to untrusted origins are blocked.');
     }
     const endpoint = resolvedUrl.toString();
     const resp = await fetch(endpoint, {

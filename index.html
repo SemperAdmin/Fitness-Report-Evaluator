@@ -632,6 +632,13 @@
         console.log('HTML loaded successfully');
     </script>
     <!-- API base configuration must load before any scripts that issue API requests -->
+    <!-- Define trusted API origins and an optional override BEFORE loading config.js -->
+    <script>
+        // Replace with your production API origin(s) when deploying
+        window.TRUSTED_API_ORIGINS = ['http://localhost:5173'];
+        // Optional: set an override to a trusted origin
+        window.API_BASE_URL_OVERRIDE = 'http://localhost:5173';
+    </script>
     <script src="js/config.js"></script>
     <script src="js/data.js"></script>
     <script src="js/githubService.js"></script>
