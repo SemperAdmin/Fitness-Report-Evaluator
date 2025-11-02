@@ -40,6 +40,14 @@ const GITHUB_CONFIG = {
 // Dev-only token injection (localhost)
 function maybeInjectDevToken() {
     try {
+        // Default-enable dev token embedding on localhost if not explicitly set
+        if (typeof window !== 'undefined') {
+            const isLocalHost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+            if (isLocalHost && typeof window.DEV_ENABLE_EMBEDDED_TOKEN === 'undefined') {
+                window.DEV_ENABLE_EMBEDDED_TOKEN = true;
+            }
+        }
+
         const isLocal = typeof window !== 'undefined' && (
             window.location.hostname === 'localhost' ||
             window.location.hostname === '127.0.0.1'
