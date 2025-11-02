@@ -392,8 +392,8 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       const now = new Date().toISOString();
       const bodyObj = {
         rsEmail: userData.rsEmail,
-        rsName: userData.rsName || existingUser?.rsName || '',
-        rsRank: userData.rsRank || existingUser?.rsRank || '',
+        rsName: userData.rsName ?? existingUser?.rsName ?? '',
+        rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
         evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : (existingUser?.evaluations || []),
         evaluationFiles: existingUser?.evaluationFiles || [],
         createdDate: existingUser?.createdDate || now,
