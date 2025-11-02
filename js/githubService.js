@@ -15,13 +15,8 @@
  * Secret Name: FITREP_DATA
  */
 
-// Configuration
-const GITHUB_CONFIG = {
-    owner: 'SemperAdmin',
-    repo: 'Fitness-Report-Evaluator-Data',
-    branch: 'main',
-    apiBase: 'https://api.github.com'
-};
+// Configuration is provided by global app config (js/config.js)
+// Avoid redeclaring GITHUB_CONFIG; derive data repo settings from window.GITHUB_CONFIG
 
 /**
  * GitHub API Service Class
@@ -30,6 +25,20 @@ class GitHubDataService {
     constructor() {
         this.token = null;
         this.initialized = false;
+    }
+
+    /**
+     * Resolve configuration from global app config
+     * Uses dataRepo for contents operations; falls back to workflows repo
+     */
+    getConfig() {
+        const cfg = (typeof window !== 'undefined' && window.GITHUB_CONFIG) ? window.GITHUB_CONFIG : {};
+        return {
+            owner: cfg.owner || 'SemperAdmin',
+            repo: cfg.dataRepo || 'Fitness-Report-Evaluator-Data',
+            branch: cfg.branch || 'main',
+            apiBase: cfg.apiBase || 'https://api.github.com'
+        };
     }
 
     /**
@@ -203,8 +212,8 @@ class GitHubDataService {
         if (!this.initialized) {
             throw new Error('GitHubDataService not initialized. Call initialize() first.');
         }
-
-        const url = `${GITHUB_CONFIG.apiBase}/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${filePath}`;
+        const cfg = this.getConfig();
+        const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
 
         try {
             const response = await fetch(url, {
@@ -250,7 +259,8 @@ class GitHubDataService {
             throw new Error('GitHubDataService not initialized. Call initialize() first.');
         }
 
-        const url = `${GITHUB_CONFIG.apiBase}/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${filePath}`;
+        const cfg = this.getConfig();
+        const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
 
         // Encode content to Base64
         const base64Content = this.encodeToBase64(content);
@@ -539,7 +549,8 @@ class GitHubDataService {
 
         try {
             // Try to access the repository
-            const url = `${GITHUB_CONFIG.apiBase}/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
+            const cfg = this.getConfig();
+            const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}`;
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
