@@ -394,25 +394,59 @@ function renderProfileHeader() {
 
 // Edit Profile UI handlers
 function openEditProfile() {
-    const modal = document.getElementById('editProfileModal');
-    if (!modal) return;
-    const nameInput = document.getElementById('editRsNameInput');
-    const emailInput = document.getElementById('editRsEmailInput');
-    const rankInput = document.getElementById('editRsRankInput');
+    try {
+        console.group('ProfileEdit: openEditProfile');
+        const modal = document.getElementById('editProfileModal');
+        if (!modal) {
+            console.error('[Modal] editProfileModal not found');
+            console.groupEnd('ProfileEdit: openEditProfile');
+            return;
+        }
+        const nameInput = document.getElementById('editRsNameInput');
+        const emailInput = document.getElementById('editRsEmailInput');
+        const rankInput = document.getElementById('editRsRankInput');
+        console.debug('[Inputs] found', {
+            nameFound: !!nameInput,
+            emailFound: !!emailInput,
+            rankFound: !!rankInput
+        });
 
-    if (nameInput && currentProfile?.rsName) nameInput.value = currentProfile.rsName;
-    if (emailInput && currentProfile?.rsEmail) emailInput.value = currentProfile.rsEmail;
-    if (rankInput && currentProfile?.rsRank) rankInput.value = currentProfile.rsRank;
+        if (nameInput && currentProfile?.rsName) nameInput.value = currentProfile.rsName;
+        if (emailInput && currentProfile?.rsEmail) emailInput.value = currentProfile.rsEmail;
+        if (rankInput && currentProfile?.rsRank) rankInput.value = currentProfile.rsRank;
+        console.info('[Prefill] applied from currentProfile', {
+            name: currentProfile?.rsName,
+            email: currentProfile?.rsEmail,
+            rank: currentProfile?.rsRank
+        });
 
-    modal.style.display = 'block';
-    modal.classList.add('active');
+        modal.style.display = 'block';
+        modal.classList.add('active');
+        console.info('[Modal] opened');
+        console.groupEnd('ProfileEdit: openEditProfile');
+    } catch (err) {
+        console.error('openEditProfile error:', err);
+        try { console.groupEnd('ProfileEdit: openEditProfile'); } catch(_) {}
+    }
 }
 
 function closeEditProfileModal() {
-    const modal = document.getElementById('editProfileModal');
-    if (!modal) return;
-    modal.classList.remove('active');
-    modal.style.display = 'none';
+    try {
+        console.group('ProfileEdit: closeEditProfileModal');
+        const modal = document.getElementById('editProfileModal');
+        if (!modal) {
+            console.error('[Modal] editProfileModal not found');
+            console.groupEnd('ProfileEdit: closeEditProfileModal');
+            return;
+        }
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+        console.info('[Modal] closed');
+        console.groupEnd('ProfileEdit: closeEditProfileModal');
+    } catch (err) {
+        console.error('closeEditProfileModal error:', err);
+        try { console.groupEnd('ProfileEdit: closeEditProfileModal'); } catch(_) {}
+    }
 }
 
 async function saveProfileUpdates() {
