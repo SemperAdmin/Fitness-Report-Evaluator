@@ -640,11 +640,16 @@
     <!-- API base configuration must load before any scripts that issue API requests -->
     <!-- Define trusted API origins and an optional override BEFORE loading config.js -->
     <script>
-        // Runtime API config for production
+        // Runtime API config
         // Trusted origins: generally leave empty; base origin is always allowed
         window.TRUSTED_API_ORIGINS = [];
-        // Point the app at the deployed backend on Render
-        window.API_BASE_URL_OVERRIDE = 'https://fitness-report-evaluator.onrender.com';
+        // Use Render backend only when running on GitHub Pages; otherwise use local server
+        if (window.location.origin.includes('semperadmin.github.io')) {
+          window.API_BASE_URL_OVERRIDE = 'https://fitness-report-evaluator.onrender.com';
+        } else {
+          // Clear override so config.js defaults to the current origin (localhost)
+          window.API_BASE_URL_OVERRIDE = '';
+        }
         // Disable client-side token assembly; backend should manage auth/secrets
         window.USE_ASSEMBLED_TOKEN = false;
     </script>
