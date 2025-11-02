@@ -423,6 +423,39 @@ function isValidRank(rank) {
   return r.length >= 2 && r.length <= 20;
 }
 
+// Build updated aggregate user object by merging a new evaluation
+// Preserves passwordHash and createdDate from existing user when present
+function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, newEvaluationFilePath) {
+  const now = new Date().toISOString();
+  const base = {
+    rsEmail: userEmail,
+    rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
+    rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
+    evaluations: Array.isArray(existingUser?.evaluations) ? existingUser.evaluations.slice() : []
+  };
+  const idx = base.evaluations.findIndex(e => e && e.evaluationId === evaluation.evaluationId);
+  if (idx >= 0) {
+    base.evaluations[idx] = evaluation;
+  } else {
+    base.evaluations.push(evaluation);
+  }
+  const obj = {
+    rsEmail: base.rsEmail,
+    rsName: base.rsName,
+    rsRank: base.rsRank,
+    evaluations: base.evaluations,
+    evaluationFiles: Array.isArray(existingUser?.evaluationFiles)
+      ? Array.from(new Set([...existingUser.evaluationFiles, newEvaluationFilePath]))
+      : [newEvaluationFilePath],
+    createdDate: existingUser?.createdDate || now,
+    lastUpdated: now
+  };
+  if (existingUser?.passwordHash) {
+    obj.passwordHash = existingUser.passwordHash;
+  }
+  return obj;
+}
+
 // Save user data: either direct write via FITREP_DATA or dispatch workflow via DISPATCH_TOKEN
 app.post('/api/user/save', saveRateLimit, async (req, res) => {
   try {
@@ -652,33 +685,12 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
         }
       } else if (userGet.status !== 404 && !userGet.ok) {
         const text = await userGet.text();
-        console.error('save evaluation: read aggregate failed:', text);
+        console.warn('save evaluation: read aggregate failed:', text);
         // Continue without blocking unique file save
       }
 
+      const bodyObj = buildUpdatedUserAggregate(userEmail, evaluation, existingUser, filePath);
       const now = new Date().toISOString();
-      const agg = {
-        rsEmail: userEmail,
-        rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
-        rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
-        evaluations: Array.isArray(existingUser?.evaluations) ? existingUser.evaluations.slice() : []
-      };
-      const idx = agg.evaluations.findIndex(e => e && e.evaluationId === evaluation.evaluationId);
-      if (idx >= 0) {
-        agg.evaluations[idx] = evaluation;
-      } else {
-        agg.evaluations.push(evaluation);
-      }
-      const bodyObj = {
-        rsEmail: agg.rsEmail,
-        rsName: agg.rsName,
-        rsRank: agg.rsRank,
-        evaluations: agg.evaluations,
-        evaluationFiles: Array.isArray(existingUser?.evaluationFiles) ? Array.from(new Set([...existingUser.evaluationFiles, filePath])) : [filePath],
-        createdDate: existingUser?.createdDate || now,
-        lastUpdated: now,
-        ...(existingUser?.passwordHash ? { passwordHash: existingUser.passwordHash } : {})
-      };
       const bodyStr = JSON.stringify(bodyObj, null, 2);
       const bodyB64 = Buffer.from(bodyStr, 'utf8').toString('base64');
       const aggMsg = userSha ? `Update profile via Server - ${now}` : `Create profile via Server - ${now}`;
@@ -705,7 +717,7 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
     try {
       const now = new Date().toISOString();
       const evalDir = path.join(LOCAL_DATA_DIR, prefix, 'evaluations');
-      try { await fsp.mkdir(evalDir, { recursive: true }); } catch (_) {}
+      try { await fsp.mkdir(evalDir, { recursive: true }); } catch (err) { console.warn('Could not create local eval directory, may fail if it does not exist:', err); }
       const evalPath = path.join(evalDir, `${evalIdSafe}.json`);
       const evalStr = JSON.stringify({
         version: '1.0',
@@ -719,28 +731,8 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
 
       // Update aggregate local user file
       const existingUser = await readLocalUser(prefix);
-      const agg = {
-        rsEmail: userEmail,
-        rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
-        rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
-        evaluations: Array.isArray(existingUser?.evaluations) ? existingUser.evaluations.slice() : []
-      };
-      const idx = agg.evaluations.findIndex(e => e && e.evaluationId === evaluation.evaluationId);
-      if (idx >= 0) {
-        agg.evaluations[idx] = evaluation;
-      } else {
-        agg.evaluations.push(evaluation);
-      }
-      const bodyObj = {
-        rsEmail: agg.rsEmail,
-        rsName: agg.rsName,
-        rsRank: agg.rsRank,
-        evaluations: agg.evaluations,
-        evaluationFiles: Array.isArray(existingUser?.evaluationFiles) ? Array.from(new Set([...existingUser.evaluationFiles, `local:${prefix}/evaluations/${evalIdSafe}.json`])) : [`local:${prefix}/evaluations/${evalIdSafe}.json`],
-        createdDate: existingUser?.createdDate || now,
-        lastUpdated: now,
-        ...(existingUser?.passwordHash ? { passwordHash: existingUser.passwordHash } : {})
-      };
+      const localEvalPath = `local:${prefix}/evaluations/${evalIdSafe}.json`;
+      const bodyObj = buildUpdatedUserAggregate(userEmail, evaluation, existingUser, localEvalPath);
       await writeLocalUser(prefix, bodyObj);
 
       return res.json({ ok: true, path: `local:${prefix}/evaluations/${evalIdSafe}.json`, method: 'local' });

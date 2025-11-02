@@ -821,7 +821,7 @@ class GitHubDataService {
                 headers,
                 body: JSON.stringify({ evaluation, userEmail })
             });
-            const data = await resp.json().catch(() => ({}));
+            const data = await resp.json().catch(() => { throw new Error('Backend returned an invalid JSON response'); });
             if (!resp.ok || !data?.ok) {
                 throw new Error(data?.error || 'Backend evaluation save failed');
             }
