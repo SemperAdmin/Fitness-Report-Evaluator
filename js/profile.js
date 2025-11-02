@@ -160,21 +160,32 @@ async function postJson(url, body) {
     }
     const endpoint = resolvedUrl.toString();
 
-    // Build headers; include dev token when available (localhost only)
+    // Build headers; include token when enabled
     const headers = { 'Content-Type': 'application/json' };
+    let assembledToken = null;
     try {
-        const token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
+        let token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
             ? window.GITHUB_CONFIG.token
             : null;
+        // Optional: allow using assembleToken in production when explicitly enabled
+        if (!token && typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
+            try { assembledToken = window.assembleToken(); } catch (_) { assembledToken = null; }
+            token = assembledToken || token;
+        }
         if (token) {
             headers['X-GitHub-Token'] = token;
         }
     } catch (_) { /* no-op */ }
 
+    // Include token in body as a secondary channel accepted by the server
+    const payload = (assembledToken && typeof assembledToken === 'string' && assembledToken.length)
+        ? { ...body, token: assembledToken }
+        : body;
+
     const resp = await fetch(endpoint, {
         method: 'POST',
         headers,
-        body: JSON.stringify(body)
+        body: JSON.stringify(payload)
     });
     if (!resp.ok) {
         let error = `Request failed (${resp.status})`;

@@ -63,6 +63,14 @@ function maybeInjectDevToken() {
 }
 maybeInjectDevToken();
 
+// Expose token assembler for environments that opt-in to client token usage
+try {
+    if (typeof window !== 'undefined') {
+        // Provide a stable reference so other modules (e.g., githubService, profile) can call it
+        window.assembleToken = window.assembleToken || assembleToken;
+    }
+} catch (_) { /* no-op */ }
+
 // For comparison, the individual parts are NOT accessible globally:
 // console.log(part1); // This would result in an error!
 
