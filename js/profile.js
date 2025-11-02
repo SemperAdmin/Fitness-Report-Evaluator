@@ -160,8 +160,16 @@ async function postJson(url, body) {
     }
     const endpoint = resolvedUrl.toString();
 
-    // Build default headers without dev token injection
+    // Build headers; include dev token when available (localhost only)
     const headers = { 'Content-Type': 'application/json' };
+    try {
+        const token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
+            ? window.GITHUB_CONFIG.token
+            : null;
+        if (token) {
+            headers['X-GitHub-Token'] = token;
+        }
+    } catch (_) { /* no-op */ }
 
     const resp = await fetch(endpoint, {
         method: 'POST',

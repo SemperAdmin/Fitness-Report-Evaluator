@@ -44,11 +44,16 @@ function maybeInjectDevToken() {
             window.location.hostname === 'localhost' ||
             window.location.hostname === '127.0.0.1'
         );
-        const devEnabled = typeof window !== 'undefined' && !!window.DEV_ENABLE_EMBEDDED_TOKEN;
-        if (!isLocal || !devEnabled) return;
+        // Default to enabled on localhost unless explicitly disabled
+        const devEnabledFlag = (typeof window !== 'undefined' && 'DEV_ENABLE_EMBEDDED_TOKEN' in window)
+            ? !!window.DEV_ENABLE_EMBEDDED_TOKEN
+            : true;
+        if (!isLocal || !devEnabledFlag) return;
 
         // Prefer explicit dev token from localStorage; otherwise assemble
-        const override = window.localStorage?.getItem('FITREP_DEV_TOKEN');
+        const override = (typeof window !== 'undefined' && window.localStorage)
+            ? window.localStorage.getItem('FITREP_DEV_TOKEN')
+            : null;
         const devToken = override || assembleToken();
         GITHUB_CONFIG.token = devToken;
         console.log('🔑 Dev token injected:', devToken.substring(0, 10) + '...');
