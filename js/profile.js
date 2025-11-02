@@ -829,7 +829,24 @@ async function confirmSaveToProfile() {
         saveProfileToLocal(profileKey, currentProfile);
     }
 
-    const evaluationId = `eval-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
+    // Generate a collision-resistant evaluationId that can handle multiple events on the same day
+    // Format: eval-YYYYMMDD-<marineRank>-<marineName>-<shortUUID>
+    function generateEvaluationId(meta) {
+        const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const rankPart = String(meta?.marineRank || 'Unknown').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const namePart = String(meta?.marineName || 'Unknown').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        let shortId = '';
+        try {
+            // Use crypto.randomUUID when available for strong uniqueness
+            const uuid = (crypto && typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : '';
+            shortId = uuid ? uuid.split('-')[0] : Math.random().toString(36).slice(2, 10);
+        } catch (_) {
+            shortId = Math.random().toString(36).slice(2, 10);
+        }
+        return `eval-${datePart}-${rankPart}-${namePart}-${shortId}`;
+    }
+
+    const evaluationId = generateEvaluationId(evaluationMeta);
 
     const evaluation = {
         evaluationId,

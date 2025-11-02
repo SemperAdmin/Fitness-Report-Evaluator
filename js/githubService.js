@@ -234,6 +234,80 @@ class GitHubDataService {
     }
 
     /**
+     * Build YAML content for a single evaluation mirroring save-evaluation.yml schema
+     * @param {Object} evaluation
+     * @param {string} userEmail
+     * @param {Object} createdBy - { name, email, rank }
+     * @returns {string} YAML string
+     */
+    buildEvaluationYaml(evaluation, userEmail, createdBy = {}) {
+        const prefix = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const now = new Date().toISOString();
+        const doc = {
+            version: '1.0',
+            id: evaluation.evaluationId,
+            occasion: evaluation.occasion || null,
+            completedDate: evaluation.completedDate || null,
+            fitrepAverage: (typeof evaluation.fitrepAverage !== 'undefined') ? evaluation.fitrepAverage : null,
+            marine: {
+                name: evaluation?.marineInfo?.name || null,
+                rank: evaluation?.marineInfo?.rank || null,
+                evaluationPeriod: evaluation?.marineInfo?.evaluationPeriod || null
+            },
+            rs: {
+                name: evaluation?.rsInfo?.rsName || evaluation?.rsInfo?.name || createdBy.name || null,
+                email: evaluation?.rsInfo?.rsEmail || evaluation?.rsInfo?.email || createdBy.email || userEmail || null,
+                rank: evaluation?.rsInfo?.rsRank || evaluation?.rsInfo?.rank || createdBy.rank || null
+            },
+            sectionIComments: evaluation?.sectionIComments || null,
+            directedComments: evaluation?.directedComments || null,
+            traitEvaluations: Array.isArray(evaluation?.traitEvaluations) ? evaluation.traitEvaluations : [],
+            createdAt: now,
+            createdBy: {
+                name: createdBy.name || null,
+                email: createdBy.email || userEmail || null,
+                rank: createdBy.rank || null
+            },
+            profileRef: `users/${prefix}.json`,
+            source: {
+                application: 'Fitness-Report-Evaluator',
+                workflow: 'save-evaluation'
+            }
+        };
+
+        // Minimal YAML stringifier for our known schema
+        const quote = v => {
+            if (v === null || v === undefined) return 'null';
+            if (typeof v === 'boolean') return v ? 'true' : 'false';
+            if (typeof v === 'number') return String(v);
+            return JSON.stringify(String(v));
+        };
+        const indent = n => '  '.repeat(n);
+        const toYaml = (obj, level = 0) => {
+            if (obj === null || obj === undefined) return 'null';
+            if (Array.isArray(obj)) {
+                if (!obj.length) return '[]';
+                return obj.map(item => {
+                    if (item && typeof item === 'object') {
+                        return `${indent(level)}-\n${toYaml(item, level + 1)}`;
+                    }
+                    return `${indent(level)}- ${quote(item)}`;
+                }).join('\n');
+            }
+            if (typeof obj === 'object') {
+                return Object.entries(obj).map(([k, v]) => {
+                    if (v && typeof v === 'object') {
+                        return `${indent(level)}${k}:\n${toYaml(v, level + 1)}`;
+                    }
+                    return `${indent(level)}${k}: ${quote(v)}`;
+                }).join('\n');
+            }
+            return quote(obj);
+        };
+
+        return `---\n${toYaml(doc)}\n`;
+    }
+    /**
      * Decode Base64 string to regular string
      * Uses modern TextDecoder API for robust Unicode support
      *
@@ -547,6 +621,27 @@ class GitHubDataService {
      * @returns {Promise<Object>} Result object with success status
      */
     async saveUserData(userData) {
+        // Normalize input shape to support both legacy flat and nested { profile, evaluations }
+        const normalized = (() => {
+            try {
+                if (userData && userData.profile) {
+                    const p = userData.profile || {};
+                    return {
+                        rsName: p.rsName || userData.rsName || '',
+                        rsEmail: p.rsEmail || userData.rsEmail || '',
+                        rsRank: p.rsRank || userData.rsRank || '',
+                        evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : []
+                    };
+                }
+            } catch (_) { /* ignore */ }
+            return {
+                rsName: userData?.rsName || '',
+                rsEmail: userData?.rsEmail || '',
+                rsRank: userData?.rsRank || '',
+                evaluations: Array.isArray(userData?.evaluations) ? userData.evaluations : []
+            };
+        })();
+
         // If no token available, attempt backend save endpoint as a secure fallback
         if (!this.initialized || !this.token) {
             try {
@@ -571,8 +666,8 @@ class GitHubDataService {
                 }
 
                 const payload = assembledToken
-                    ? { userData, token: assembledToken }
-                    : { userData };
+                    ? { userData: normalized, token: assembledToken }
+                    : { userData: normalized };
 
                 const resp = await fetch(endpoint.url, {
                     method: 'POST',
@@ -596,17 +691,34 @@ class GitHubDataService {
         }
 
         try {
-            // Validate input
-            if (!userData.rsEmail) {
+            // Validate input (use normalized shape)
+            if (!normalized.rsEmail) {
                 throw new Error('User email is required');
             }
 
-            const fileName = this.generateUserFileName(userData.rsEmail);
+            const fileName = this.generateUserFileName(normalized.rsEmail);
             const filePath = `users/${fileName}`;
             const maxRetries = 3;
 
-            // Serialize data to JSON
-            const jsonContent = this.serializeData(userData);
+            // Build FLAT JSON structure, preserving passwordHash and metadata if present
+            let existingUser = null;
+            try {
+                existingUser = await this.getFileContent(filePath);
+            } catch (_) { existingUser = null; }
+            const now = new Date().toISOString();
+            const flatBody = {
+                rsEmail: normalized.rsEmail,
+                rsName: normalized.rsName ?? (existingUser?.rsName || ''),
+                rsRank: normalized.rsRank ?? (existingUser?.rsRank || ''),
+                evaluations: Array.isArray(normalized.evaluations) ? normalized.evaluations : (existingUser?.evaluations || []),
+                evaluationFiles: existingUser?.evaluationFiles || [],
+                createdDate: existingUser?.createdDate || now,
+                lastUpdated: now
+            };
+            if (existingUser?.passwordHash) {
+                flatBody.passwordHash = existingUser.passwordHash;
+            }
+            const jsonContent = JSON.stringify(flatBody, null, 2);
 
             // Retry loop to handle race conditions (409 Conflict)
             for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -617,8 +729,8 @@ class GitHubDataService {
 
                     // Create commit message
                     const commitMessage = existingSha
-                        ? `Update profile for ${userData.rsName} - ${new Date().toISOString()}`
-                        : `Create profile for ${userData.rsName} - ${new Date().toISOString()}`;
+                        ? `Update profile via Client - ${new Date().toISOString()}`
+                        : `Create profile via Client - ${new Date().toISOString()}`;
 
                     // Create or update file
                     const result = await this.createOrUpdateFile(
@@ -752,17 +864,29 @@ class GitHubDataService {
             // Also persist a unique per-evaluation file under the member's directory
             try {
                 const evalResult = await this.saveEvaluationUniqueFile(evaluation, userEmail);
+                const bothOk = !!(aggregateResult?.success && evalResult?.success);
+                const msg = bothOk
+                    ? 'Evaluation saved (aggregate and unique file) successfully'
+                    : aggregateResult?.success && !evalResult?.success
+                        ? 'Aggregate saved; unique file save failed'
+                        : !aggregateResult?.success && evalResult?.success
+                            ? 'Unique file saved; aggregate save failed'
+                            : 'Saving evaluation failed';
                 return {
-                    success: !!(aggregateResult?.success && evalResult?.success),
-                    message: 'Evaluation saved (aggregate and unique file) successfully',
+                    success: bothOk,
+                    message: msg,
                     aggregate: aggregateResult,
                     unique: evalResult
                 };
             } catch (e) {
                 // If unique-file save fails, still return aggregate result but note error
+                const ok = !!aggregateResult?.success;
+                const msg = ok
+                    ? 'Aggregate saved; unique file save failed'
+                    : 'Saving evaluation failed';
                 return {
-                    success: !!aggregateResult?.success,
-                    message: 'Evaluation saved to aggregate file; unique file save failed',
+                    success: ok,
+                    message: msg,
                     aggregate: aggregateResult,
                     unique: { success: false, error: e.message }
                 };
@@ -835,21 +959,15 @@ class GitHubDataService {
 
         const cfg = this.getConfig();
 
-        // Normalize email local-part for directory naming
+        // Normalize email local-part for directory naming and file name
         const localPart = userEmail.split('@')[0].toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-        const evalIdSafe = String(evaluation.evaluationId).replace(/[^a-zA-Z0-9\-_]/g, '_');
+        const evalIdSafe = String(evaluation.evaluationId).replace(/[^a-zA-Z0-9\-_.]/g, '_');
         const dirPath = `users/${localPart}/evaluations`;
-        const filePath = `${dirPath}/${evalIdSafe}.json`;
+        const filePath = `${dirPath}/${evalIdSafe}.yml`;
 
-        // Build content: store the evaluation object with minimal metadata
-        const content = this.serializeData({
-            version: '1.0',
-            savedAt: new Date().toISOString(),
-            rsEmail: userEmail,
-            rsName: evaluation?.rsInfo?.name || '',
-            rsRank: evaluation?.rsInfo?.rank || '',
-            evaluation
-        });
+        // Build YAML content based on workflow schema
+        const createdBy = { name: evaluation?.rsInfo?.name || '', email: userEmail, rank: evaluation?.rsInfo?.rank || '' };
+        const content = this.buildEvaluationYaml(evaluation, userEmail, createdBy);
 
         // Check if file exists to include SHA for updates
         const existingSha = await this.getFileSha(filePath);
@@ -864,7 +982,7 @@ class GitHubDataService {
             filePath,
             isUpdate: !!existingSha,
             commitSha: result?.commit?.sha || null,
-            message: existingSha ? 'Unique evaluation updated' : 'Unique evaluation created'
+            message: existingSha ? 'Unique evaluation updated (YAML)' : 'Unique evaluation created (YAML)'
         };
     }
 

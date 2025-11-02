@@ -36,20 +36,34 @@ app.use((req, res, next) => {
     ? ['*']
     : (CORS_ORIGINS.length ? CORS_ORIGINS : [defaultOrigin, pagesOrigin]);
 
-  if (CORS_ALLOW_ALL) {
-    // Reflect requesting origin when provided, else allow any
-    if (origin) {
+  const isAllowed = CORS_ALLOW_ALL || (origin && allowedOrigins.includes(origin));
+
+  // Always set standard CORS method allowances
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+
+  // Build allowed headers dynamically, echoing requested headers when present
+  const requestedHeaders = req.headers['access-control-request-headers'];
+  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token'];
+  const allowHeaderValue = requestedHeaders
+    ? Array.from(new Set([...baseAllowed, ...requestedHeaders.split(',').map(h => h.trim()).filter(Boolean)])).join(', ')
+    : baseAllowed.join(', ');
+  res.header('Access-Control-Allow-Headers', allowHeaderValue);
+
+  // Prefer explicit allowlist, but ensure preflight never fails due to missing ACAO
+  if (origin) {
+    if (isAllowed) {
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Vary', 'Origin');
-    } else {
-      res.header('Access-Control-Allow-Origin', '*');
+    } else if (req.method === 'OPTIONS') {
+      // Be permissive for preflight so the browser proceeds to the actual request,
+      // where origin enforcement will apply via missing ACAO on non-allowed origins.
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
     }
-  } else if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Vary', 'Origin');
+  } else if (CORS_ALLOW_ALL) {
+    res.header('Access-Control-Allow-Origin', '*');
   }
-  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, X-GitHub-Token');
+
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
