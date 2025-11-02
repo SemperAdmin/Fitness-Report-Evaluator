@@ -680,11 +680,18 @@ class GitHubDataService {
                 });
                 if (resp.ok) {
                     const data = await resp.json();
+                    let msg = 'Profile saved via server';
+                    if (data && data.method) {
+                        if (data.method === 'direct') msg = 'Profile saved via server';
+                        else if (data.method === 'dispatch') msg = 'Profile dispatched to workflow';
+                        else if (data.method === 'local') msg = 'Profile saved locally on server (temporary)';
+                    }
                     return {
                         success: true,
                         filePath: data.path || null,
                         commitSha: data.commit || null,
-                        message: data.method === 'direct' ? 'Profile saved via server' : 'Profile dispatched to workflow'
+                        message: msg,
+                        serverMethod: data.method || null
                     };
                 }
                 const text = await resp.text();

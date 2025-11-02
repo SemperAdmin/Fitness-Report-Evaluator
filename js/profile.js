@@ -544,8 +544,9 @@ async function saveProfileUpdates() {
         localStorage.setItem('has_profile', 'true');
         console.debug('[Session] Snapshot updated');
 
-        // Attempt GitHub sync (save new file, delete old if email changed)
+        // Attempt GitHub or backend sync (delete old if email changed)
         let synced = false;
+        let statusMsg = '';
         if (navigator.onLine) {
             let token = null;
             try { token = await githubService.getTokenFromEnvironment?.(); } catch (_) {}
@@ -568,6 +569,7 @@ async function saveProfileUpdates() {
                         });
                         if (result?.success) {
                             synced = true;
+                            statusMsg = result?.message || '';
                             console.info('[GitHub] saveUserData success');
                             // If email changed, remove old file
                             if (oldEmail !== newEmail) {
@@ -585,6 +587,24 @@ async function saveProfileUpdates() {
                 } catch (err) {
                     console.warn('GitHub sync on profile update failed:', err);
                 }
+            } else {
+                // No token but online: attempt backend fallback save for visibility
+                try {
+                    const result = await githubService.saveUserData({
+                        rsName: currentProfile.rsName,
+                        rsEmail: currentProfile.rsEmail,
+                        rsRank: currentProfile.rsRank,
+                        evaluations: profileEvaluations
+                    });
+                    if (result?.success) {
+                        statusMsg = result?.message || '';
+                        console.info('[Backend] saveUserData fallback success', result);
+                    } else {
+                        console.warn('[Backend] saveUserData fallback failed', result);
+                    }
+                } catch (e) {
+                    console.warn('Backend fallback save error:', e);
+                }
             }
         } else {
             console.info('[GitHub] Offline; skipping sync');
@@ -598,10 +618,14 @@ async function saveProfileUpdates() {
 
         // Status text
         if (statusText) {
-            statusText.textContent = synced
-                ? 'Online - Changes synced to GitHub'
-                : 'Offline or token unavailable - Changes saved locally';
-            console.info('[UI] Status set', { synced });
+            const text = statusMsg
+                || (synced
+                    ? 'Online - Changes synced to GitHub'
+                    : (navigator.onLine
+                        ? 'Online - Backend fallback (saved locally on server)'
+                        : 'Offline - Changes saved locally'));
+            statusText.textContent = text;
+            console.info('[UI] Status set', { synced, statusMsg });
         }
 
         alert('Profile updated successfully.');
