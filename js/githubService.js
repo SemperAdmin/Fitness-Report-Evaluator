@@ -153,9 +153,13 @@ class GitHubDataService {
                     // In production, tokens should be managed server-side, so this is safe to ignore
                     return null;
                 }
+                // Use credentials only for same-origin; omit for cross-origin to avoid CORS
+                const epOrigin = (() => { try { return new URL(ep.url).origin; } catch (_) { return ''; } })();
+                const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+                const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
                 const response = await fetch(ep.url, {
                     method: 'GET',
-                    credentials: 'include'
+                    credentials: sameOrigin ? 'include' : 'omit'
                 });
                 if (response.ok) {
                     const data = await response.json();
