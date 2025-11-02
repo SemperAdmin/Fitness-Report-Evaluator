@@ -417,6 +417,7 @@ function closeEditProfileModal() {
 
 async function saveProfileUpdates() {
     try {
+        console.group('ProfileEdit: saveProfileUpdates');
         const nameInput = document.getElementById('editRsNameInput');
         const emailInput = document.getElementById('editRsEmailInput');
         const rankInput = document.getElementById('editRsRankInput');
@@ -425,14 +426,19 @@ async function saveProfileUpdates() {
         const newName = (nameInput?.value || '').trim();
         const newEmail = (emailInput?.value || '').trim();
         const newRank = (rankInput?.value || '').trim();
+        console.info('[Start] Inputs', { newName, newEmail, newRank });
 
         if (!newName || !newEmail || !newRank) {
+            console.warn('[Abort] Validation failed: missing fields');
             alert('Please enter Name, Email, and Rank.');
+            console.groupEnd('ProfileEdit: saveProfileUpdates');
             return;
         }
 
         if (!currentProfile) {
+            console.error('[Abort] No profile loaded');
             alert('No profile loaded. Please login first.');
+            console.groupEnd('ProfileEdit: saveProfileUpdates');
             return;
         }
 
@@ -440,8 +446,11 @@ async function saveProfileUpdates() {
         const oldEmail = currentProfile.rsEmail;
         const oldRank = currentProfile.rsRank;
         const oldKey = generateProfileKey(oldName, oldEmail);
+        console.debug('[Prev] Profile', { oldName, oldEmail, oldRank });
+        console.debug('[Keys] oldKey', oldKey);
 
         // Update evaluation rsInfo to reflect RS changes
+        console.debug('[Local] evaluations loaded', (profileEvaluations || []).length);
         profileEvaluations = (profileEvaluations || []).map(e => {
             const copy = { ...e };
             copy.rsInfo = {
@@ -452,6 +461,7 @@ async function saveProfileUpdates() {
             };
             return copy;
         });
+        console.debug('[Local] Applied rsInfo updates');
 
         // Update profile object
         currentProfile.rsName = newName;
@@ -459,20 +469,27 @@ async function saveProfileUpdates() {
         currentProfile.rsRank = newRank;
         currentProfile.totalEvaluations = profileEvaluations.length;
         currentProfile.lastUpdated = new Date().toISOString();
+        console.info('[Profile] Updated in-memory profile');
 
         // Migrate local storage keys when name/email changes
         const newKey = generateProfileKey(newName, newEmail);
+        console.debug('[Local] Saving to newKey', newKey);
         saveProfileToLocal(newKey, currentProfile);
         saveEvaluationsToLocal(newKey, profileEvaluations);
+        console.info('[Local] Saved profile and evaluations under newKey');
         if (oldKey !== newKey) {
             try { localStorage.removeItem(`profile:${oldKey}`); } catch (_) {}
             try { localStorage.removeItem(`evaluations:${oldKey}`); } catch (_) {}
+            console.info('[Local] Removed oldKey entries');
+        } else {
+            console.debug('[Local] Key unchanged; no removal needed');
         }
 
         // Update session snapshot
         localStorage.setItem('current_profile', JSON.stringify(currentProfile));
         localStorage.setItem('current_evaluations', JSON.stringify(profileEvaluations));
         localStorage.setItem('has_profile', 'true');
+        console.debug('[Session] Snapshot updated');
 
         // Attempt GitHub sync (save new file, delete old if email changed)
         let synced = false;
@@ -482,10 +499,12 @@ async function saveProfileUpdates() {
             if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
                 token = window.GITHUB_CONFIG.token;
             }
+            console.info('[GitHub] Token present:', !!token);
             if (token) {
                 try {
                     githubService.initialize(token);
                     const connected = await githubService.verifyConnection?.();
+                    console.info('[GitHub] Connected:', connected);
                     if (connected) {
                         // Persist new data
                         const result = await githubService.saveUserData({
@@ -496,38 +515,48 @@ async function saveProfileUpdates() {
                         });
                         if (result?.success) {
                             synced = true;
+                            console.info('[GitHub] saveUserData success');
                             // If email changed, remove old file
                             if (oldEmail !== newEmail) {
+                                console.debug('[GitHub] Email changed; deleting old file for', oldEmail);
                                 try {
                                     await githubService.deleteUserFile(oldEmail, `Remove old profile for ${oldName}`);
                                 } catch (delErr) {
                                     console.warn('Failed to delete old user file:', delErr);
                                 }
                             }
+                        } else {
+                            console.warn('[GitHub] saveUserData failed', result);
                         }
                     }
                 } catch (err) {
                     console.warn('GitHub sync on profile update failed:', err);
                 }
             }
+        } else {
+            console.info('[GitHub] Offline; skipping sync');
         }
 
         // Update UI
         renderProfileHeader();
         renderEvaluationsList?.();
         closeEditProfileModal();
+        console.info('[UI] Header/evaluations updated; modal closed');
 
         // Status text
         if (statusText) {
             statusText.textContent = synced
                 ? 'Online - Changes synced to GitHub'
                 : 'Offline or token unavailable - Changes saved locally';
+            console.info('[UI] Status set', { synced });
         }
 
         alert('Profile updated successfully.');
+        console.groupEnd('ProfileEdit: saveProfileUpdates');
     } catch (error) {
         console.error('saveProfileUpdates error:', error);
         alert('Failed to update profile.');
+        try { console.groupEnd('ProfileEdit: saveProfileUpdates'); } catch(_) {}
     }
 }
 
