@@ -392,6 +392,145 @@ function renderProfileHeader() {
     }
 }
 
+// Edit Profile UI handlers
+function openEditProfile() {
+    const modal = document.getElementById('editProfileModal');
+    if (!modal) return;
+    const nameInput = document.getElementById('editRsNameInput');
+    const emailInput = document.getElementById('editRsEmailInput');
+    const rankInput = document.getElementById('editRsRankInput');
+
+    if (nameInput && currentProfile?.rsName) nameInput.value = currentProfile.rsName;
+    if (emailInput && currentProfile?.rsEmail) emailInput.value = currentProfile.rsEmail;
+    if (rankInput && currentProfile?.rsRank) rankInput.value = currentProfile.rsRank;
+
+    modal.style.display = 'block';
+    modal.classList.add('active');
+}
+
+function closeEditProfileModal() {
+    const modal = document.getElementById('editProfileModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+}
+
+async function saveProfileUpdates() {
+    try {
+        const nameInput = document.getElementById('editRsNameInput');
+        const emailInput = document.getElementById('editRsEmailInput');
+        const rankInput = document.getElementById('editRsRankInput');
+        const statusText = document.getElementById('editStatusText');
+
+        const newName = (nameInput?.value || '').trim();
+        const newEmail = (emailInput?.value || '').trim();
+        const newRank = (rankInput?.value || '').trim();
+
+        if (!newName || !newEmail || !newRank) {
+            alert('Please enter Name, Email, and Rank.');
+            return;
+        }
+
+        if (!currentProfile) {
+            alert('No profile loaded. Please login first.');
+            return;
+        }
+
+        const oldName = currentProfile.rsName;
+        const oldEmail = currentProfile.rsEmail;
+        const oldRank = currentProfile.rsRank;
+        const oldKey = generateProfileKey(oldName, oldEmail);
+
+        // Update evaluation rsInfo to reflect RS changes
+        profileEvaluations = (profileEvaluations || []).map(e => {
+            const copy = { ...e };
+            copy.rsInfo = {
+                ...(e.rsInfo || {}),
+                name: newName,
+                email: newEmail,
+                rank: newRank
+            };
+            return copy;
+        });
+
+        // Update profile object
+        currentProfile.rsName = newName;
+        currentProfile.rsEmail = newEmail;
+        currentProfile.rsRank = newRank;
+        currentProfile.totalEvaluations = profileEvaluations.length;
+        currentProfile.lastUpdated = new Date().toISOString();
+
+        // Migrate local storage keys when name/email changes
+        const newKey = generateProfileKey(newName, newEmail);
+        saveProfileToLocal(newKey, currentProfile);
+        saveEvaluationsToLocal(newKey, profileEvaluations);
+        if (oldKey !== newKey) {
+            try { localStorage.removeItem(`profile:${oldKey}`); } catch (_) {}
+            try { localStorage.removeItem(`evaluations:${oldKey}`); } catch (_) {}
+        }
+
+        // Update session snapshot
+        localStorage.setItem('current_profile', JSON.stringify(currentProfile));
+        localStorage.setItem('current_evaluations', JSON.stringify(profileEvaluations));
+        localStorage.setItem('has_profile', 'true');
+
+        // Attempt GitHub sync (save new file, delete old if email changed)
+        let synced = false;
+        if (navigator.onLine) {
+            let token = null;
+            try { token = await githubService.getTokenFromEnvironment?.(); } catch (_) {}
+            if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
+                token = window.GITHUB_CONFIG.token;
+            }
+            if (token) {
+                try {
+                    githubService.initialize(token);
+                    const connected = await githubService.verifyConnection?.();
+                    if (connected) {
+                        // Persist new data
+                        const result = await githubService.saveUserData({
+                            rsName: currentProfile.rsName,
+                            rsEmail: currentProfile.rsEmail,
+                            rsRank: currentProfile.rsRank,
+                            evaluations: profileEvaluations
+                        });
+                        if (result?.success) {
+                            synced = true;
+                            // If email changed, remove old file
+                            if (oldEmail !== newEmail) {
+                                try {
+                                    await githubService.deleteUserFile(oldEmail, `Remove old profile for ${oldName}`);
+                                } catch (delErr) {
+                                    console.warn('Failed to delete old user file:', delErr);
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn('GitHub sync on profile update failed:', err);
+                }
+            }
+        }
+
+        // Update UI
+        renderProfileHeader();
+        renderEvaluationsList?.();
+        closeEditProfileModal();
+
+        // Status text
+        if (statusText) {
+            statusText.textContent = synced
+                ? 'Online - Changes synced to GitHub'
+                : 'Offline or token unavailable - Changes saved locally';
+        }
+
+        alert('Profile updated successfully.');
+    } catch (error) {
+        console.error('saveProfileUpdates error:', error);
+        alert('Failed to update profile.');
+    }
+}
+
 // Set rank summary sort preference
 function setRankSummarySort(key) {
     window.rankSummarySort = key || 'reports';

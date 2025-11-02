@@ -282,7 +282,7 @@ class GitHubDataService {
         const body = {
             message: commitMessage,
             content: base64Content,
-            branch: GITHUB_CONFIG.branch
+            branch: this.getConfig().branch
         };
 
         // Include SHA for updates
@@ -317,6 +317,74 @@ class GitHubDataService {
             console.error('Failed to create/update file:', error);
             throw error;
         }
+    }
+
+    /**
+     * Delete a file in the GitHub repository
+     * Uses GitHub Contents API: DELETE /repos/{owner}/{repo}/contents/{path}
+     *
+     * @param {string} filePath - Path to file in repository
+     * @param {string} commitMessage - Commit message for deletion
+     * @returns {Promise<Object>} GitHub API response
+     */
+    async deleteFile(filePath, commitMessage) {
+        if (!this.initialized) {
+            throw new Error('GitHubDataService not initialized. Call initialize() first.');
+        }
+
+        const cfg = this.getConfig();
+        const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
+
+        // Need current file SHA to delete
+        const sha = await this.getFileSha(filePath);
+        if (!sha) {
+            // Nothing to delete
+            return { ok: true, deleted: false, message: 'File not found' };
+        }
+
+        const body = {
+            message: commitMessage || `Delete ${filePath}`,
+            sha,
+            branch: cfg.branch
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                const error = new Error(`GitHub API error: ${errorData.message || response.statusText}`);
+                error.status = response.status;
+                error.response = response;
+                throw error;
+            }
+
+            const result = await response.json();
+            console.log('File deleted successfully:', filePath);
+            return result;
+        } catch (error) {
+            console.error('Failed to delete file:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Convenience: delete user data file by email
+     * @param {string} userEmail
+     * @param {string} commitMessage
+     */
+    async deleteUserFile(userEmail, commitMessage) {
+        const fileName = this.generateUserFileName(userEmail);
+        const filePath = `users/${fileName}`;
+        return this.deleteFile(filePath, commitMessage);
     }
 
     /**
