@@ -328,7 +328,8 @@ class GitHubDataService {
             throw new Error('GitHubDataService not initialized. Call initialize() first.');
         }
 
-        const url = `${GITHUB_CONFIG.apiBase}/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${filePath}`;
+        const cfg = this.getConfig();
+        const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
 
         try {
             const response = await fetch(url, {
