@@ -644,6 +644,8 @@
         window.TRUSTED_API_ORIGINS = [];
         // Do not override; use the page origin so UI and API stay aligned.
         window.API_BASE_URL_OVERRIDE = '';
+        // Temporary: enable assembled token usage for production until server envs are set
+        window.USE_ASSEMBLED_TOKEN = true;
     </script>
     <script src="js/config.js"></script>
     <script src="js/data.js"></script>
