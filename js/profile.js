@@ -160,25 +160,8 @@ async function postJson(url, body) {
     }
     const endpoint = resolvedUrl.toString();
 
-    // Build headers, injecting dev token for backend fallback when enabled
+    // Build default headers without dev token injection
     const headers = { 'Content-Type': 'application/json' };
-    try {
-        const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-        const devEnabled = !!window.DEV_ENABLE_EMBEDDED_TOKEN;
-        if (isLocal && devEnabled) {
-            const fromConfig = window.GITHUB_CONFIG?.token || null;
-            let devToken = fromConfig;
-            if (!devToken) {
-                try { devToken = window.localStorage?.getItem('FITREP_DEV_TOKEN') || null; } catch (_) {}
-            }
-            if (!devToken && typeof window.assembleToken === 'function') {
-                try { devToken = window.assembleToken(); } catch (_) { devToken = null; }
-            }
-            if (devToken) {
-                headers['X-Dev-Token'] = devToken;
-            }
-        }
-    } catch (_) { /* ignore */ }
 
     const resp = await fetch(endpoint, {
         method: 'POST',
@@ -278,6 +261,13 @@ function showProfileDashboard() {
         login.style.display = 'none'; // Hide RS Login after login
     }
 
+    // Ensure mode selection is hidden when entering the dashboard
+    const mode = document.getElementById('modeSelectionCard');
+    if (mode) {
+        mode.classList.remove('active');
+        mode.style.display = 'none';
+    }
+
     const dash = document.getElementById('profileDashboardCard');
     if (dash) {
         dash.style.display = 'block';
@@ -300,6 +290,9 @@ function showProfileDashboard() {
     renderEvaluationsList();
     // Initialize button bar to "All" and update visibility
     setRankFilter('');
+
+    // Make sure we are scrolled to the top of the dashboard
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
 }
 
 function renderProfileHeader() {
