@@ -167,6 +167,153 @@ app.get('/api/github-token', (req, res) => {
   }
 });
 
+// Helper: build data JSON compatible with data repo schema
+function buildUserDataJson(userData) {
+  const now = new Date().toISOString();
+  const evaluations = Array.isArray(userData.evaluations) ? userData.evaluations : [];
+  return {
+    version: '1.0',
+    lastUpdated: now,
+    profile: {
+      rsName: userData.rsName || '',
+      rsEmail: userData.rsEmail || '',
+      rsRank: userData.rsRank || '',
+      totalEvaluations: evaluations.length
+    },
+    evaluations,
+    metadata: {
+      exportedAt: now,
+      exportedBy: userData.rsName || '',
+      applicationVersion: '1.0'
+    }
+  };
+}
+
+function sanitizePrefix(email) {
+  const prefix = String(email || '').trim().toLowerCase().split('@')[0];
+  return prefix.replace(/[^a-z0-9]/gi, '_');
+}
+
+// Save user data: either direct write via FITREP_DATA or dispatch workflow via DISPATCH_TOKEN
+app.post('/api/user/save', async (req, res) => {
+  try {
+    const { userData } = req.body || {};
+    if (!userData || !userData.rsEmail) {
+      return res.status(400).json({ error: 'Missing userData.rsEmail' });
+    }
+
+    const fitrepToken = process.env.FITREP_DATA;
+    const dispatchToken = DISPATCH_TOKEN;
+
+    // Prefer direct write when FITREP_DATA is available
+    if (fitrepToken) {
+      const prefix = sanitizePrefix(userData.rsEmail);
+      const filePath = `users/${prefix}.json`;
+      const apiBase = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
+
+      // Try to get existing SHA
+      let sha = '';
+      const getResp = await fetch(apiBase, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (getResp.status === 200) {
+        const existing = await getResp.json();
+        sha = existing.sha || '';
+      } else if (getResp.status !== 404 && !getResp.ok) {
+        const text = await getResp.text();
+        console.error('save user: get SHA failed:', text);
+        return res.status(502).json({ error: `Read failed: ${text}` });
+      }
+
+      const bodyObj = buildUserDataJson(userData);
+      const contentStr = JSON.stringify(bodyObj, null, 2);
+      const contentB64 = Buffer.from(contentStr, 'utf8').toString('base64');
+      const msg = sha ? `Update profile via Server - ${new Date().toISOString()}` : `Create profile via Server - ${new Date().toISOString()}`;
+      const putBody = sha ? { message: msg, content: contentB64, branch: 'main', sha } : { message: msg, content: contentB64, branch: 'main' };
+
+      const putResp = await fetch(apiBase, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(putBody)
+      });
+      if (!putResp.ok) {
+        const text = await putResp.text();
+        console.error('save user: put failed:', text);
+        return res.status(502).json({ error: `Write failed: ${text}` });
+      }
+      const result = await putResp.json();
+      return res.json({ ok: true, path: result?.content?.path || filePath, commit: result?.commit?.sha || null, method: 'direct' });
+    }
+
+    // Fallback: dispatch workflow when direct write is not possible
+    if (dispatchToken) {
+      const payload = {
+        event_type: 'save-user-data',
+        client_payload: { userData }
+      };
+      const resp = await fetch(`https://api.github.com/repos/${MAIN_REPO}/dispatches`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${dispatchToken}`,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error('save user: dispatch failed:', text);
+        return res.status(502).json({ error: `Dispatch failed: ${text}` });
+      }
+      return res.json({ ok: true, dispatched: true, method: 'dispatch' });
+    }
+
+    console.error('save user: Missing FITREP_DATA and DISPATCH_TOKEN');
+    return res.status(500).json({ error: 'Server missing FITREP_DATA or DISPATCH_TOKEN' });
+  } catch (err) {
+    console.error('save user error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Load user data via server using FITREP_DATA
+app.get('/api/user/load', async (req, res) => {
+  try {
+    const email = String(req.query.email || '').trim();
+    if (!email) return res.status(400).json({ error: 'Missing email query param' });
+    const token = process.env.FITREP_DATA;
+    if (!token) return res.status(500).json({ error: 'Server missing FITREP_DATA' });
+
+    const prefix = sanitizePrefix(email);
+    const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+    const resp = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+    if (resp.status === 404) return res.status(404).json({ error: 'Not found' });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return res.status(502).json({ error: `Read failed: ${text}` });
+    }
+    const data = await resp.json();
+    const jsonStr = Buffer.from(data.content, 'base64').toString('utf8');
+    const obj = JSON.parse(jsonStr);
+    return res.json({ ok: true, data: obj });
+  } catch (err) {
+    console.error('load user error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Start server if executed directly
 if (require.main === module) {
   const port = process.env.PORT || 5173;
