@@ -449,6 +449,56 @@ function closeEditProfileModal() {
     }
 }
 
+// Ensure functions are accessible from inline onclick handlers
+try {
+    window.openEditProfile = openEditProfile;
+    window.closeEditProfileModal = closeEditProfileModal;
+    window.saveProfileUpdates = saveProfileUpdates;
+    console.info('profile.js: global handlers bound to window');
+} catch (e) {
+    console.warn('profile.js: failed to bind handlers to window', e);
+}
+
+// Fallback: bind click listeners after DOM ready, in case inline handlers fail
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        console.debug('profile.js: DOMContentLoaded');
+        const editBtn = document.querySelector('.profile-actions-bar button[onclick="openEditProfile()"]');
+        if (editBtn) {
+            editBtn.addEventListener('click', (evt) => {
+                console.debug('ProfileEdit: fallback click handler triggered');
+                try { openEditProfile(); } catch (err) { console.error('fallback openEditProfile error:', err); }
+                evt.preventDefault();
+            }, { once: false });
+            console.info('profile.js: fallback click binding attached to Edit Profile button');
+        } else {
+            console.warn('profile.js: Edit Profile button not found for fallback binding');
+        }
+
+        const saveBtn = document.querySelector('#editProfileModal button[onclick="saveProfileUpdates()"]');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', (evt) => {
+                console.debug('ProfileEdit: fallback save handler triggered');
+                try { saveProfileUpdates(); } catch (err) { console.error('fallback saveProfileUpdates error:', err); }
+                evt.preventDefault();
+            }, { once: false });
+            console.info('profile.js: fallback click binding attached to Save Changes');
+        }
+
+        const cancelBtn = document.querySelector('#editProfileModal button[onclick="closeEditProfileModal()"]');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', (evt) => {
+                console.debug('ProfileEdit: fallback cancel handler triggered');
+                try { closeEditProfileModal(); } catch (err) { console.error('fallback closeEditProfileModal error:', err); }
+                evt.preventDefault();
+            }, { once: false });
+            console.info('profile.js: fallback click binding attached to Cancel');
+        }
+    } catch (bindErr) {
+        console.error('profile.js: error during fallback bindings', bindErr);
+    }
+});
+
 async function saveProfileUpdates() {
     try {
         console.group('ProfileEdit: saveProfileUpdates');
