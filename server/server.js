@@ -207,8 +207,6 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
           rsName: name,
           rsRank: rank,
           passwordHash,
-          evaluationFiles: [],
-          evaluations: [],
           createdDate: now,
           lastUpdated: now
         };
@@ -253,8 +251,6 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
           rsName: name,
           rsRank: rank,
           passwordHash,
-          evaluationFiles: [],
-          evaluations: [],
           createdDate: now,
           lastUpdated: now
         };
@@ -348,11 +344,9 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
         rsName: user.rsName,
         rsEmail: user.rsEmail,
         rsRank: user.rsRank,
-        lastUpdated: user.lastUpdated || new Date().toISOString(),
-        totalEvaluations: (user.evaluations || []).length,
-        evaluationFiles: user.evaluationFiles || []
+        lastUpdated: user.lastUpdated || new Date().toISOString()
       },
-      evaluations: user.evaluations || []
+      // evaluations removed; per-evaluation files are now used
     });
   } catch (err) {
     console.error('account login error:', err);
@@ -394,17 +388,14 @@ app.get('/api/github-token', (req, res) => {
 // Helper: build data JSON compatible with data repo schema
 function buildUserDataJson(userData) {
   const now = new Date().toISOString();
-  const evaluations = Array.isArray(userData.evaluations) ? userData.evaluations : [];
   return {
     version: '1.0',
     lastUpdated: now,
     profile: {
       rsName: userData.rsName || '',
       rsEmail: userData.rsEmail || '',
-      rsRank: userData.rsRank || '',
-      totalEvaluations: evaluations.length
+      rsRank: userData.rsRank || ''
     },
-    evaluations,
     metadata: {
       exportedAt: now,
       exportedBy: userData.rsName || '',
@@ -444,27 +435,11 @@ function isValidRank(rank) {
 
 // Build updated aggregate user object by merging a new evaluation
 // Preserves passwordHash and createdDate from existing user when present
-function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, newEvaluationFilePath, now) {
-  const base = {
+function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEvaluationFilePath, now) {
+  const obj = {
     rsEmail: userEmail,
     rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
     rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
-    evaluations: Array.isArray(existingUser?.evaluations) ? existingUser.evaluations.slice() : []
-  };
-  const idx = base.evaluations.findIndex(e => e && e.evaluationId === evaluation.evaluationId);
-  if (idx >= 0) {
-    base.evaluations[idx] = evaluation;
-  } else {
-    base.evaluations.push(evaluation);
-  }
-  const obj = {
-    rsEmail: base.rsEmail,
-    rsName: base.rsName,
-    rsRank: base.rsRank,
-    evaluations: base.evaluations,
-    evaluationFiles: Array.isArray(existingUser?.evaluationFiles)
-      ? Array.from(new Set([...existingUser.evaluationFiles, newEvaluationFilePath]))
-      : [newEvaluationFilePath],
     createdDate: existingUser?.createdDate || now,
     lastUpdated: now
   };
@@ -524,8 +499,6 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         rsEmail: userData.rsEmail,
         rsName: userData.rsName ?? existingUser?.rsName ?? '',
         rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
-        evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : (existingUser?.evaluations || []),
-        evaluationFiles: existingUser?.evaluationFiles || [],
         createdDate: existingUser?.createdDate || now,
         lastUpdated: now
       };
@@ -591,8 +564,6 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         rsEmail: userData.rsEmail,
         rsName: userData.rsName ?? existingUser?.rsName ?? '',
         rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
-        evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : (existingUser?.evaluations || []),
-        evaluationFiles: existingUser?.evaluationFiles || [],
         createdDate: existingUser?.createdDate || now,
         lastUpdated: now
       };

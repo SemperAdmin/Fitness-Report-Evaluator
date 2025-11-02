@@ -24,7 +24,6 @@ jobs:
           email=$(jq -r '.userData.rsEmail // ""' payload.json)
           name=$(jq -r '.userData.rsName // ""' payload.json)
           rank=$(jq -r '.userData.rsRank // ""' payload.json)
-          evals=$(jq -c '.userData.evaluations // []' payload.json)
 
           if [ -z "$email" ] || [ "$email" = "null" ]; then
             echo "rsEmail is required in client_payload.userData" >&2
@@ -35,23 +34,58 @@ jobs:
           prefix=$(echo "$email" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
           filePath="users/${prefix}.json"
 
-          now=$(date -Iseconds)
-          content=$(jq -n \
-            --arg now "$now" \
-            --arg name "$name" \
-            --arg email "$email" \
-            --arg rank "$rank" \
-            --argjson evaluations "$evals" \
-            '{
-              version:"1.0",
-              lastUpdated:$now,
-              profile:{ rsName:$name, rsEmail:$email, rsRank:$rank, totalEvaluations: ($evaluations|length) },
-              evaluations:$evaluations,
-              metadata:{ exportedAt:$now, exportedBy:$name, applicationVersion:"1.0" }
-            }')
-
-          echo "$content" > content.json
           echo "filePath=$filePath" >> $GITHUB_OUTPUT
+
+      - name: Get existing file (if any) and preserve fields
+        id: get_existing
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          url="https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/${{ steps.prep.outputs.filePath }}"
+          status=$(curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.v3+json" "$url" -o resp.json -w "%{http_code}")
+          if [ "$status" = "200" ]; then
+            sha=$(jq -r '.sha' resp.json)
+            content_b64=$(jq -r '.content' resp.json)
+            echo "$content_b64" | base64 -d > existing.json || echo '{}' > existing.json
+            created=$(jq -r '.createdDate // ""' existing.json)
+            pwhash=$(jq -r '.passwordHash // ""' existing.json)
+            echo "sha=$sha" >> $GITHUB_OUTPUT
+            echo "createdDate=$created" >> $GITHUB_OUTPUT
+            echo "passwordHash=$pwhash" >> $GITHUB_OUTPUT
+          else
+            echo "sha=" >> $GITHUB_OUTPUT
+            echo "createdDate=" >> $GITHUB_OUTPUT
+            echo "passwordHash=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build minimal profile content (metadata-only)
+        id: build_content
+        run: |
+          set -e
+          now=$(date -Iseconds)
+          # Prefer existing createdDate/passwordHash when present
+          created="${{ steps.get_existing.outputs.createdDate }}"
+          pwhash="${{ steps.get_existing.outputs.passwordHash }}"
+          if [ -z "$created" ]; then created="$now"; fi
+          email=$(jq -r '.userData.rsEmail // ""' payload.json)
+          name=$(jq -r '.userData.rsName // ""' payload.json)
+          rank=$(jq -r '.userData.rsRank // ""' payload.json)
+
+          jq -n \
+            --arg email "$email" \
+            --arg name "$name" \
+            --arg rank "$rank" \
+            --arg created "$created" \
+            --arg lastUpdated "$now" \
+            --arg passwordHash "$pwhash" \
+            '{
+              rsEmail:$email,
+              rsName:$name,
+              rsRank:$rank,
+              createdDate:$created,
+              lastUpdated:$lastUpdated
+            } | (.passwordHash = ($passwordHash | select(length>0)))' > content.json
 
       - name: Encode content to Base64 (GitHub Contents API requirement)
         id: encode

@@ -187,9 +187,9 @@ class GitHubDataService {
     }
 
     /**
-     * Serialize evaluation data to JSON string
+     * Serialize profile metadata to JSON string
      *
-     * @param {Object} userData - User profile and evaluation data
+     * @param {Object} userData - User profile metadata
      * @returns {string} JSON string
      */
     serializeData(userData) {
@@ -199,10 +199,8 @@ class GitHubDataService {
             profile: {
                 rsName: userData.rsName,
                 rsEmail: userData.rsEmail,
-                rsRank: userData.rsRank,
-                totalEvaluations: userData.evaluations?.length || 0
+                rsRank: userData.rsRank
             },
-            evaluations: userData.evaluations || [],
             metadata: {
                 exportedAt: new Date().toISOString(),
                 exportedBy: userData.rsName,
@@ -310,6 +308,164 @@ class GitHubDataService {
         };
 
         return `---\n${toYaml(doc)}\n`;
+    }
+
+    /**
+     * Get raw file content (decoded string) from repository
+     * @param {string} filePath
+     * @returns {Promise<string|null>} Raw decoded content or null if not found
+     */
+    async getRawFileContent(filePath) {
+        if (!this.initialized) {
+            throw new Error('GitHubDataService not initialized. Call initialize() first.');
+        }
+        const cfg = this.getConfig();
+        const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        if (response.status === 404) return null;
+        if (!response.ok) {
+            let msg = response.statusText;
+            try { const e = await response.json(); msg = e.message || msg; } catch (_) {}
+            const error = new Error(`GitHub API error: ${msg}`);
+            error.status = response.status;
+            throw error;
+        }
+        const data = await response.json();
+        const decodedContent = this.decodeFromBase64(data.content);
+        return decodedContent;
+    }
+
+    /**
+     * List directory contents via GitHub Contents API
+     * @param {string} dirPath - e.g., "users/john_doe/evaluations"
+     * @returns {Promise<Array>} Array of content items (files)
+     */
+    async listDirectory(dirPath) {
+        if (!this.initialized) {
+            throw new Error('GitHubDataService not initialized. Call initialize() first.');
+        }
+        const cfg = this.getConfig();
+        const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${dirPath}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        if (response.status === 404) return [];
+        if (!response.ok) {
+            let msg = response.statusText;
+            try { const e = await response.json(); msg = e.message || msg; } catch (_) {}
+            const error = new Error(`GitHub API error: ${msg}`);
+            error.status = response.status;
+            throw error;
+        }
+        const items = await response.json();
+        return Array.isArray(items) ? items : [];
+    }
+
+    /**
+     * Minimal YAML parser for evaluation files we generate
+     * Extracts key fields needed by the UI without a full YAML dependency
+     * @param {string} yamlStr
+     * @returns {Object} Evaluation-like object
+     */
+    parseEvaluationYamlMinimal(yamlStr) {
+        const get = (re) => {
+            const m = yamlStr.match(re);
+            return m ? m[1] : null;
+        };
+        const id = get(/\bid:\s*"([^"]+)"/);
+        const occasion = get(/\boccasion:\s*"([^"]+)"/);
+        const completedDate = get(/\bcompletedDate:\s*"([^"]+)"/);
+        const fitrepAverageStr = get(/\bfitrepAverage:\s*"?([0-9.]+)"?/);
+        const fitrepAverage = fitrepAverageStr ? parseFloat(fitrepAverageStr) : null;
+        const sectionIComments = get(/\bsectionIComments:\s*"([\s\S]*?)"\s*(?:\n|$)/);
+        // Marine block
+        const marineName = get(/\bmarine:\s*[\r\n]+\s{2}name:\s*"([^"]+)"/);
+        const marineRank = get(/\bmarine:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
+        const periodFrom = get(/\bevaluationPeriod:\s*[\r\n]+\s{4}from:\s*"([^"]+)"/);
+        const periodTo = get(/\bevaluationPeriod:[\s\S]*?\n\s{4}to:\s*"([^"]+)"/);
+        // RS block
+        const rsName = get(/\brs:\s*[\r\n]+\s{2}name:\s*"([^"]+)"/);
+        const rsEmail = get(/\brs:[\s\S]*?\n\s{2}email:\s*"([^"]+)"/);
+        const rsRank = get(/\brs:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
+
+        const evaluation = {
+            evaluationId: id || `eval-${Date.now()}`,
+            occasion: occasion || null,
+            completedDate: completedDate || null,
+            fitrepAverage: Number.isFinite(fitrepAverage) ? String(fitrepAverage) : null,
+            marineInfo: {
+                name: marineName || '',
+                rank: marineRank || '',
+                evaluationPeriod: { from: periodFrom || '', to: periodTo || '' }
+            },
+            rsInfo: { name: rsName || '', email: rsEmail || '', rank: rsRank || '' },
+            sectionIComments: sectionIComments || '',
+            traitEvaluations: [],
+            syncStatus: 'synced'
+        };
+        return evaluation;
+    }
+
+    /**
+     * Load per-user evaluation files from the data repo
+     * Supports both JSON (server) and YAML (client) formats
+     * @param {string} userEmail
+     * @returns {Promise<Array>} Array of evaluation objects suitable for UI
+     */
+    async loadUserEvaluations(userEmail) {
+        if (!this.initialized) {
+            throw new Error('GitHubDataService not initialized. Call initialize() first.');
+        }
+        const localPart = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+        const dirPath = `users/${localPart}/evaluations`;
+        const items = await this.listDirectory(dirPath);
+        const files = items.filter(i => i.type === 'file');
+        const evaluations = [];
+        for (const f of files) {
+            const ext = (f.name.split('.').pop() || '').toLowerCase();
+            const path = f.path;
+            try {
+                if (ext === 'json') {
+                    const data = await this.getFileContent(path);
+                    if (data && data.evaluation) {
+                        const ev = { ...data.evaluation, syncStatus: 'synced' };
+                        evaluations.push(ev);
+                    } else if (data && data.id) {
+                        // Rare: flat JSON akin to YAML
+                        const ev = {
+                            evaluationId: data.id,
+                            occasion: data.occasion || null,
+                            completedDate: data.completedDate || null,
+                            fitrepAverage: data.fitrepAverage || null,
+                            marineInfo: data.marine || {},
+                            rsInfo: data.rs || {},
+                            sectionIComments: data.sectionIComments || '',
+                            traitEvaluations: Array.isArray(data.traitEvaluations) ? data.traitEvaluations : [],
+                            syncStatus: 'synced'
+                        };
+                        evaluations.push(ev);
+                    }
+                } else if (ext === 'yml' || ext === 'yaml') {
+                    const raw = await this.getRawFileContent(path);
+                    const ev = this.parseEvaluationYamlMinimal(raw || '');
+                    evaluations.push(ev);
+                }
+            } catch (err) {
+                console.warn('Failed to parse evaluation file:', path, err);
+            }
+        }
+        return evaluations;
     }
     /**
      * Decode Base64 string to regular string
@@ -633,16 +789,14 @@ class GitHubDataService {
                     return {
                         rsName: p.rsName || userData.rsName || '',
                         rsEmail: p.rsEmail || userData.rsEmail || '',
-                        rsRank: p.rsRank || userData.rsRank || '',
-                        evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : []
+                        rsRank: p.rsRank || userData.rsRank || ''
                     };
                 }
             } catch (_) { /* ignore */ }
             return {
                 rsName: userData?.rsName || '',
                 rsEmail: userData?.rsEmail || '',
-                rsRank: userData?.rsRank || '',
-                evaluations: Array.isArray(userData?.evaluations) ? userData.evaluations : []
+                rsRank: userData?.rsRank || ''
             };
         })();
 
@@ -721,8 +875,6 @@ class GitHubDataService {
                 rsEmail: normalized.rsEmail,
                 rsName: normalized.rsName ?? (existingUser?.rsName || ''),
                 rsRank: normalized.rsRank ?? (existingUser?.rsRank || ''),
-                evaluations: Array.isArray(normalized.evaluations) ? normalized.evaluations : (existingUser?.evaluations || []),
-                evaluationFiles: existingUser?.evaluationFiles || [],
                 createdDate: existingUser?.createdDate || now,
                 lastUpdated: now
             };
@@ -845,31 +997,14 @@ class GitHubDataService {
      */
     async saveEvaluation(evaluation, userEmail) {
         try {
-            // Load existing data
-            let userData = await this.loadUserData(userEmail);
+            // Build minimal aggregate profile (no evaluations array)
+            const userData = {
+                rsName: evaluation?.rsInfo?.name || '',
+                rsEmail: userEmail,
+                rsRank: evaluation?.rsInfo?.rank || ''
+            };
 
-            if (!userData) {
-                // Create new user data structure
-                userData = {
-                    rsName: evaluation.rsInfo.name,
-                    rsEmail: userEmail,
-                    rsRank: evaluation.rsInfo.rank,
-                    evaluations: []
-                };
-            }
-
-            // Add or update evaluation
-            const existingIndex = userData.evaluations.findIndex(
-                e => e.evaluationId === evaluation.evaluationId
-            );
-
-            if (existingIndex >= 0) {
-                userData.evaluations[existingIndex] = evaluation;
-            } else {
-                userData.evaluations.push(evaluation);
-            }
-
-            // Save updated aggregate user file
+            // Save updated aggregate user file (metadata only)
             const aggregateResult = await this.saveUserData(userData);
 
             // Also persist a unique per-evaluation file under the member's directory
@@ -877,11 +1012,11 @@ class GitHubDataService {
                 const evalResult = await this.saveEvaluationUniqueFile(evaluation, userEmail);
                 const bothOk = !!(aggregateResult?.success && evalResult?.success);
                 const msg = bothOk
-                    ? 'Evaluation saved (aggregate and unique file) successfully'
+                    ? 'Evaluation saved (profile metadata and unique file) successfully'
                     : aggregateResult?.success && !evalResult?.success
-                        ? 'Aggregate saved; unique file save failed'
+                        ? 'Profile metadata saved; unique file save failed'
                         : !aggregateResult?.success && evalResult?.success
-                            ? 'Unique file saved; aggregate save failed'
+                            ? 'Unique file saved; profile metadata save failed'
                             : 'Saving evaluation failed';
                 return {
                     success: bothOk,
@@ -893,7 +1028,7 @@ class GitHubDataService {
                 // If unique-file save fails, still return aggregate result but note error
                 const ok = !!aggregateResult?.success;
                 const msg = ok
-                    ? 'Aggregate saved; unique file save failed'
+                    ? 'Profile metadata saved; unique file save failed'
                     : 'Saving evaluation failed';
                 return {
                     success: ok,
