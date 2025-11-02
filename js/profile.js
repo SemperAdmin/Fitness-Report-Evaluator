@@ -60,9 +60,16 @@ async function createAccount() {
     const name = document.getElementById('caNameInput')?.value.trim();
     const email = document.getElementById('caEmailInput')?.value.trim();
     const password = document.getElementById('caPasswordInput')?.value;
+    const confirm = document.getElementById('caPasswordConfirmInput')?.value;
 
     if (!rank || !name || !email || !password) {
         alert('Please enter Rank, Name, Email, and Password.');
+        return;
+    }
+
+    // Local-only validation: ensure confirm password matches the original
+    if (typeof confirm === 'string' && confirm.length > 0 && confirm !== password) {
+        alert('Passwords do not match. Please re-enter to confirm.');
         return;
     }
 
