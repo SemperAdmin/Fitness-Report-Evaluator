@@ -84,6 +84,16 @@ class GitHubDataService {
                 const devToken = window.localStorage.getItem('FITREP_DEV_TOKEN');
                 if (devToken) return devToken;
             } catch (_) { /* ignore */ }
+
+            // Approach 0c: Dev-only assembled token when explicitly enabled
+            try {
+                const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+                const devEnabled = !!window.DEV_ENABLE_EMBEDDED_TOKEN;
+                if (isLocal && devEnabled && typeof window.assembleToken === 'function') {
+                    const assembled = window.assembleToken();
+                    if (assembled) return assembled;
+                }
+            } catch (_) { /* ignore */ }
         }
 
         // Approach 1: Backend API proxy (RECOMMENDED for client-side apps)
