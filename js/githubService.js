@@ -147,7 +147,13 @@ class GitHubDataService {
         // Approach 1: Backend API proxy (RECOMMENDED for client-side apps)
         if (typeof window !== 'undefined') {
             try {
-                const response = await fetch('/api/github-token', {
+                const ep = this.resolveBackendEndpoint('/api/github-token');
+                if (!ep || ('blocked' in ep && ep.blocked)) {
+                    // No configured base or origin not allowed; skip backend token retrieval
+                    // In production, tokens should be managed server-side, so this is safe to ignore
+                    return null;
+                }
+                const response = await fetch(ep.url, {
                     method: 'GET',
                     credentials: 'include'
                 });
@@ -155,6 +161,8 @@ class GitHubDataService {
                     const data = await response.json();
                     return data.token;
                 }
+                // Non-OK responses are expected in production when ALLOW_DEV_TOKEN is disabled
+                return null;
             } catch (error) {
                 // Only warn when no other dev token is present
                 console.warn('Could not fetch token from backend:', error);
