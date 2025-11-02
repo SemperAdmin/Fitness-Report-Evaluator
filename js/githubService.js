@@ -285,9 +285,15 @@ class GitHubDataService {
             branch: this.getConfig().branch
         };
 
-        // Include SHA for updates
-        if (sha) {
-            body.sha = sha;
+        // Always resolve current SHA to avoid stale updates
+        // If the file exists, GitHub requires the latest SHA for updates
+        try {
+            const currentSha = await this.getFileSha(filePath);
+            if (currentSha) {
+                body.sha = currentSha;
+            }
+        } catch (e) {
+            // If GET fails for reasons other than 404, surface later; proceed without sha
         }
 
         try {
@@ -302,8 +308,47 @@ class GitHubDataService {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                const error = new Error(`GitHub API error: ${errorData.message || response.statusText}`);
+                // Handle stale SHA: refetch latest SHA and retry once
+                let errorText = '';
+                try {
+                    const errorData = await response.json();
+                    errorText = errorData.message || response.statusText;
+                } catch (_) {
+                    errorText = response.statusText;
+                }
+
+                const isShaConflict = response.status === 409 || /expected/i.test(errorText);
+                if (isShaConflict) {
+                    try {
+                        const latestSha = await this.getFileSha(filePath);
+                        const retryBody = { ...body, ...(latestSha ? { sha: latestSha } : {}) };
+                        const retryResp = await fetch(url, {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`,
+                                'Accept': 'application/vnd.github.v3+json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(retryBody)
+                        });
+                        if (!retryResp.ok) {
+                            let retryMsg = '';
+                            try { const d = await retryResp.json(); retryMsg = d.message || retryResp.statusText; } catch (_) { retryMsg = retryResp.statusText; }
+                            const err = new Error(`GitHub API error (after retry): ${retryMsg}`);
+                            err.status = retryResp.status;
+                            err.response = retryResp;
+                            throw err;
+                        }
+                        const retryResult = await retryResp.json();
+                        console.log('File created/updated successfully (after retry):', retryResult.content.path);
+                        return retryResult;
+                    } catch (retryError) {
+                        console.error('Retry after SHA conflict failed:', retryError);
+                        throw retryError;
+                    }
+                }
+
+                const error = new Error(`GitHub API error: ${errorText}`);
                 error.status = response.status;
                 error.response = response;
                 throw error;
