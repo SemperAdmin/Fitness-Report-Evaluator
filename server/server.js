@@ -425,8 +425,7 @@ function isValidRank(rank) {
 
 // Build updated aggregate user object by merging a new evaluation
 // Preserves passwordHash and createdDate from existing user when present
-function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, newEvaluationFilePath) {
-  const now = new Date().toISOString();
+function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, newEvaluationFilePath, now) {
   const base = {
     rsEmail: userEmail,
     rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
