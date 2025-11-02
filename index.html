@@ -634,10 +634,11 @@
     <!-- API base configuration must load before any scripts that issue API requests -->
     <!-- Define trusted API origins and an optional override BEFORE loading config.js -->
     <script>
-        // Replace with your production API origin(s) when deploying
-        window.TRUSTED_API_ORIGINS = ['http://localhost:5173'];
-        // Optional: set an override to a trusted origin
-        window.API_BASE_URL_OVERRIDE = 'http://localhost:5173';
+        // In development, let the app use its current origin.
+        // If needed, you can add trusted API origins here (e.g., for cross-origin calls).
+        window.TRUSTED_API_ORIGINS = [];
+        // Do not override; use the page origin so UI and API stay aligned.
+        window.API_BASE_URL_OVERRIDE = '';
     </script>
     <script src="js/config.js"></script>
     <script src="js/data.js"></script>
