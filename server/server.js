@@ -45,12 +45,78 @@ app.post('/api/account/create', async (req, res) => {
     if (!rank || !name || !email || !password) {
       return res.status(400).json({ error: 'Missing fields: rank, name, email, password' });
     }
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Prefer direct write with FITREP_DATA if available
+    const fitrepToken = process.env.FITREP_DATA;
+    if (fitrepToken) {
+      try {
+        const prefix = sanitizePrefix(email);
+        const filePath = `users/${prefix}.json`;
+        const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
+
+        // Get existing SHA if present
+        let sha = '';
+        const getResp = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${fitrepToken}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        if (getResp.status === 200) {
+          const existing = await getResp.json();
+          sha = existing.sha || '';
+        } else if (getResp.status !== 404 && !getResp.ok) {
+          const text = await getResp.text();
+          console.error('create-account: get SHA failed:', text);
+          return res.status(502).json({ error: `Read failed: ${text}` });
+        }
+
+        const now = new Date().toISOString();
+        const userJson = {
+          rsEmail: email,
+          rsName: name,
+          rsRank: rank,
+          passwordHash,
+          evaluationFiles: [],
+          evaluations: [],
+          createdDate: now,
+          lastUpdated: now
+        };
+
+        const contentStr = JSON.stringify(userJson, null, 2);
+        const contentB64 = Buffer.from(contentStr, 'utf8').toString('base64');
+        const msg = sha ? `Update user via Server - ${now}` : `Create user via Server - ${now}`;
+        const body = sha ? { message: msg, content: contentB64, branch: 'main', sha } : { message: msg, content: contentB64, branch: 'main' };
+
+        const putResp = await fetch(apiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${fitrepToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        if (!putResp.ok) {
+          const text = await putResp.text();
+          console.error('create-account: put failed:', text);
+          return res.status(502).json({ error: `Write failed: ${text}` });
+        }
+        const result = await putResp.json();
+        return res.json({ ok: true, path: result?.content?.path || filePath, commit: result?.commit?.sha || null, method: 'direct' });
+      } catch (err) {
+        console.error('create-account direct write error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+
+    // Fallback: repository_dispatch when direct write not possible
     if (!DISPATCH_TOKEN) {
       console.error('create-account: Missing DISPATCH_TOKEN');
       return res.status(500).json({ error: 'Server missing DISPATCH_TOKEN' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
     const payload = {
       event_type: 'create-user',
       client_payload: {
@@ -74,7 +140,7 @@ app.post('/api/account/create', async (req, res) => {
       return res.status(502).json({ error: `Dispatch failed: ${text}` });
     }
 
-    return res.json({ ok: true });
+    return res.json({ ok: true, dispatched: true, method: 'dispatch' });
   } catch (err) {
     console.error('create account error:', err);
     return res.status(500).json({ error: 'Internal server error' });
