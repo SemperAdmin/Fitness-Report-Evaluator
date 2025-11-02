@@ -7,8 +7,14 @@ const bcrypt = require('bcryptjs');
 
 const app = express();
 app.use(express.json());
-// Serve static files for local preview
-app.use(express.static('.'));
+
+// Debug request logger (temporary)
+app.use((req, res, next) => {
+  try {
+    console.log(`[req] ${req.method} ${req.url}`);
+  } catch (_) { /* no-op */ }
+  next();
+});
 
 // Basic CORS support to allow cross-origin usage when hosted on static origins
 // Hardened CORS: allow only configured origins (or default server origin)
@@ -25,10 +31,13 @@ app.use((req, res, next) => {
     res.header('Vary', 'Origin');
   }
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+// Serve static files for local preview (after CORS handling)
+app.use(express.static('.'));
 
 // Environment variables:
 // - DISPATCH_TOKEN: PAT with repo:dispatch permission to trigger repository_dispatch
