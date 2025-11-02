@@ -495,10 +495,40 @@ class GitHubDataService {
         // If no token available, attempt backend save endpoint as a secure fallback
         if (!this.initialized || !this.token) {
             try {
-                const resp = await fetch('/api/user/save', {
+                const base = (typeof window !== 'undefined' && window.API_BASE_URL)
+                    ? window.API_BASE_URL
+                    : (typeof location !== 'undefined' ? location.origin : '');
+                const endpointUrl = new URL('/api/user/save', base);
+
+                // Enforce trusted origin allowlist when available
+                const baseOrigin = new URL(base).origin;
+                const allowed = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
+                    ? window.API_ALLOWED_ORIGINS
+                    : [baseOrigin];
+                if (!allowed.includes(endpointUrl.origin)) {
+                    return { success: false, error: 'Untrusted origin', message: 'Backend save blocked' };
+                }
+
+                // Build headers; optionally include assembled token when explicitly enabled
+                const headers = { 'Content-Type': 'application/json' };
+                let assembledToken = null;
+                try {
+                    if (typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
+                        assembledToken = window.assembleToken();
+                    }
+                } catch (_) { /* ignore */ }
+                if (assembledToken) {
+                    headers['X-GitHub-Token'] = assembledToken;
+                }
+
+                const payload = assembledToken
+                    ? { userData, token: assembledToken }
+                    : { userData };
+
+                const resp = await fetch(endpointUrl.toString(), {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userData })
+                    headers,
+                    body: JSON.stringify(payload)
                 });
                 if (resp.ok) {
                     const data = await resp.json();
@@ -593,7 +623,22 @@ class GitHubDataService {
         // If no token available, attempt backend load endpoint as a secure fallback
         if (!this.initialized || !this.token) {
             try {
-                const resp = await fetch(`/api/user/load?email=${encodeURIComponent(userEmail)}`);
+                const base = (typeof window !== 'undefined' && window.API_BASE_URL)
+                    ? window.API_BASE_URL
+                    : (typeof location !== 'undefined' ? location.origin : '');
+                const endpointUrl = new URL('/api/user/load', base);
+                endpointUrl.searchParams.set('email', userEmail);
+
+                // Enforce trusted origin allowlist when available
+                const baseOrigin = new URL(base).origin;
+                const allowed = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
+                    ? window.API_ALLOWED_ORIGINS
+                    : [baseOrigin];
+                if (!allowed.includes(endpointUrl.origin)) {
+                    return null;
+                }
+
+                const resp = await fetch(endpointUrl.toString());
                 if (resp.ok) {
                     const data = await resp.json();
                     return data.data || null;
