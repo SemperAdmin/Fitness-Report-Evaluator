@@ -1,3 +1,5 @@
+// Load environment variables from .env for local/dev usage
+try { require('dotenv').config(); } catch (_) { /* dotenv optional in prod */ }
 const express = require('express');
 // Support node-fetch v3 in CommonJS via dynamic import wrapper
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -27,6 +29,11 @@ const DISPATCH_TOKEN = process.env.DISPATCH_TOKEN;
 const DATA_REPO = process.env.DATA_REPO || 'SemperAdmin/Fitness-Report-Evaluator-Data';
 const MAIN_REPO = process.env.MAIN_REPO || 'SemperAdmin/Fitness-Report-Evaluator';
 
+console.log('[env] MAIN_REPO:', MAIN_REPO);
+console.log('[env] DATA_REPO:', DATA_REPO);
+console.log('[env] DISPATCH_TOKEN set:', Boolean(DISPATCH_TOKEN));
+console.log('[env] FITREP_DATA set:', Boolean(process.env.FITREP_DATA));
+
 function emailPrefix(email) {
   return String(email || '').trim().toLowerCase().split('@')[0];
 }
@@ -38,6 +45,7 @@ app.post('/api/account/create', async (req, res) => {
       return res.status(400).json({ error: 'Missing fields: rank, name, email, password' });
     }
     if (!DISPATCH_TOKEN) {
+      console.error('create-account: Missing DISPATCH_TOKEN');
       return res.status(500).json({ error: 'Server missing DISPATCH_TOKEN' });
     }
 
@@ -61,6 +69,7 @@ app.post('/api/account/create', async (req, res) => {
 
     if (!resp.ok) {
       const text = await resp.text();
+      console.error('create-account: dispatch failed:', text);
       return res.status(502).json({ error: `Dispatch failed: ${text}` });
     }
 
@@ -79,6 +88,7 @@ app.post('/api/account/login', async (req, res) => {
     }
     const token = process.env.FITREP_DATA;
     if (!token) {
+      console.error('login: Missing FITREP_DATA');
       return res.status(500).json({ error: 'Server missing FITREP_DATA for login' });
     }
 
@@ -123,6 +133,17 @@ app.post('/api/account/login', async (req, res) => {
     console.error('account login error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Simple health endpoint for debugging env and basic readiness
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    MAIN_REPO,
+    DATA_REPO,
+    hasDispatchToken: Boolean(DISPATCH_TOKEN),
+    hasFitrepData: Boolean(process.env.FITREP_DATA)
+  });
 });
 
 // Start server if executed directly
