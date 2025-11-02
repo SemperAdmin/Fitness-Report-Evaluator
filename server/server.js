@@ -21,12 +21,14 @@ app.use((req, res, next) => {
 
 // Basic CORS support to allow cross-origin usage when hosted on static origins
 // Hardened CORS: allow only configured origins (or default server origin)
-const CORS_ORIGINS = (process.env.CORS_ORIGINS || '')
+// If CORS_ORIGINS is unset or empty, default to allowing all origins ('*')
+const CORS_ORIGINS_RAW = (process.env.CORS_ORIGINS || '');
+const CORS_ORIGINS = CORS_ORIGINS_RAW
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
-// Allow all origins when '*' specified in env
-const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*');
+// Allow all origins when '*' specified OR when no origins configured
+const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*') || CORS_ORIGINS.length === 0;
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const defaultOrigin = `http://localhost:${process.env.PORT || 5173}`;
@@ -36,7 +38,7 @@ app.use((req, res, next) => {
     ? ['*']
     : (CORS_ORIGINS.length ? CORS_ORIGINS : [defaultOrigin, pagesOrigin]);
 
-  const isAllowed = CORS_ALLOW_ALL || (origin && allowedOrigins.includes(origin));
+  const isAllowed = !CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin));
 
   // Always set standard CORS method allowances
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -51,7 +53,10 @@ app.use((req, res, next) => {
 
   // Prefer explicit allowlist, but ensure preflight never fails due to missing ACAO
   if (origin) {
-    if (isAllowed) {
+    if (CORS_ALLOW_ALL) {
+      // Explicitly allow all origins when no CORS_ORIGINS configured or '*' provided
+      res.header('Access-Control-Allow-Origin', '*');
+    } else if (isAllowed) {
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Vary', 'Origin');
     } else if (req.method === 'OPTIONS') {
