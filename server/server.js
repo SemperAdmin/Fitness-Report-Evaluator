@@ -7,8 +7,14 @@ const bcrypt = require('bcryptjs');
 
 const app = express();
 app.use(express.json());
-// Serve static files for local preview
-app.use(express.static('.'));
+
+// Debug request logger (temporary)
+app.use((req, res, next) => {
+  try {
+    console.log(`[req] ${req.method} ${req.url}`);
+  } catch (_) { /* no-op */ }
+  next();
+});
 
 // Basic CORS support to allow cross-origin usage when hosted on static origins
 // Hardened CORS: allow only configured origins (or default server origin)
@@ -25,10 +31,13 @@ app.use((req, res, next) => {
     res.header('Vary', 'Origin');
   }
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+// Serve static files for local preview (after CORS handling)
+app.use(express.static('.'));
 
 // Environment variables:
 // - DISPATCH_TOKEN: PAT with repo:dispatch permission to trigger repository_dispatch
@@ -54,6 +63,20 @@ function emailPrefix(email) {
 // Lightweight rate limiter per IP
 function rateLimit({ windowMs, limit }) {
   const hits = new Map();
+
+  // Periodically clean up expired entries to prevent memory leak
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of hits.entries()) {
+      if (now > entry.reset) {
+        hits.delete(ip);
+      }
+    }
+  }, windowMs * 2); // Run cleanup every 2 windows
+
+  // Ensure interval doesn't keep Node.js process alive if it's the only thing running
+  cleanupInterval.unref();
+
   return (req, res, next) => {
     if (req.method === 'OPTIONS') return next();
     const ip = req.ip || req.connection?.remoteAddress || 'unknown';
@@ -310,7 +333,8 @@ function sanitizePrefix(email) {
 function isValidEmail(email) {
   const e = String(email || '').trim();
   if (e.length < 5 || e.length > 254) return false;
-  return /.+@.+\..+/.test(e);
+  // More strict regex that disallows whitespace and requires proper email format
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
 function isStrongPassword(pw) {
   const p = String(pw || '');
@@ -373,18 +397,21 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         return res.status(502).json({ error: `Read failed: ${text}` });
       }
 
-      // Build new data and preserve critical fields
-      const bodyObj = buildUserDataJson(userData);
-      if (existingUser && existingUser.passwordHash) {
+      // Build new data preserving flat structure and critical fields
+      const now = new Date().toISOString();
+      const bodyObj = {
+        rsEmail: userData.rsEmail,
+        rsName: userData.rsName ?? existingUser?.rsName ?? '',
+        rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
+        evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : (existingUser?.evaluations || []),
+        evaluationFiles: existingUser?.evaluationFiles || [],
+        createdDate: existingUser?.createdDate || now,
+        lastUpdated: now
+      };
+
+      // SECURITY: Only preserve passwordHash from existing user, never from client input
+      if (existingUser?.passwordHash) {
         bodyObj.passwordHash = existingUser.passwordHash;
-      } else if (userData && userData.passwordHash) {
-        bodyObj.passwordHash = userData.passwordHash;
-      }
-      if (existingUser && existingUser.createdDate) {
-        bodyObj.createdDate = existingUser.createdDate;
-      }
-      if (existingUser && Array.isArray(existingUser.evaluationFiles)) {
-        bodyObj.evaluationFiles = existingUser.evaluationFiles;
       }
 
       const contentStr = JSON.stringify(bodyObj, null, 2);
