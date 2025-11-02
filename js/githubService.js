@@ -355,12 +355,28 @@ class GitHubDataService {
      * @returns {Promise<Object>} Result object with success status
      */
     async saveUserData(userData) {
-        if (!this.initialized) {
-            return {
-                success: false,
-                error: 'Service not initialized',
-                message: 'GitHub service is not initialized. Please configure authentication.'
-            };
+        // If no token available, attempt backend save endpoint as a secure fallback
+        if (!this.initialized || !this.token) {
+            try {
+                const resp = await fetch('/api/user/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userData })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    return {
+                        success: true,
+                        filePath: data.path || null,
+                        commitSha: data.commit || null,
+                        message: data.method === 'direct' ? 'Profile saved via server' : 'Profile dispatched to workflow'
+                    };
+                }
+                const text = await resp.text();
+                return { success: false, error: text, message: 'Backend save failed' };
+            } catch (err) {
+                return { success: false, error: err.message, message: 'Backend save error' };
+            }
         }
 
         try {
@@ -437,9 +453,18 @@ class GitHubDataService {
      * @returns {Promise<Object|null>} User data or null if not found
      */
     async loadUserData(userEmail) {
-        if (!this.initialized) {
-            console.warn('Service not initialized');
-            return null;
+        // If no token available, attempt backend load endpoint as a secure fallback
+        if (!this.initialized || !this.token) {
+            try {
+                const resp = await fetch(`/api/user/load?email=${encodeURIComponent(userEmail)}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    return data.data || null;
+                }
+                return null;
+            } catch (_) {
+                return null;
+            }
         }
 
         try {
