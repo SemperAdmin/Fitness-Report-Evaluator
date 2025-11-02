@@ -159,9 +159,30 @@ async function postJson(url, body) {
         throw new Error('Requests to untrusted origins are blocked.');
     }
     const endpoint = resolvedUrl.toString();
+
+    // Build headers, injecting dev token for backend fallback when enabled
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+        const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        const devEnabled = !!window.DEV_ENABLE_EMBEDDED_TOKEN;
+        if (isLocal && devEnabled) {
+            const fromConfig = window.GITHUB_CONFIG?.token || null;
+            let devToken = fromConfig;
+            if (!devToken) {
+                try { devToken = window.localStorage?.getItem('FITREP_DEV_TOKEN') || null; } catch (_) {}
+            }
+            if (!devToken && typeof window.assembleToken === 'function') {
+                try { devToken = window.assembleToken(); } catch (_) { devToken = null; }
+            }
+            if (devToken) {
+                headers['X-Dev-Token'] = devToken;
+            }
+        }
+    } catch (_) { /* ignore */ }
+
     const resp = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body)
     });
     if (!resp.ok) {
