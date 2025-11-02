@@ -292,18 +292,21 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
     } catch (err) {
       console.error('login: github fetch error:', err);
     }
-    // If not found on GitHub, try local filesystem fallback
-    if (!user) {
-      user = await readLocalUser(prefix);
-    }
-    if (!user) {
-      return res.status(401).json({ error: 'Account not found' });
-    }
-
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+  // If not found on GitHub, try local filesystem fallback
+  if (!user) {
+    user = await readLocalUser(prefix);
+  }
+  if (!user) {
+    return res.status(401).json({ error: 'Account not found' });
+  }
+  // Guard against missing or invalid password hash (e.g., accounts created without backend)
+  if (!user.passwordHash || typeof user.passwordHash !== 'string' || !user.passwordHash.length) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
 
     return res.json({
       ok: true,
