@@ -12,8 +12,17 @@ class BackendAPI {
     async triggerWorkflow(eventType, payload) {
         const url = this.apiBase + '/repos/' + this.owner + '/' + this.repo + '/dispatches';
 
-        // Get token from GITHUB_CONFIG
-        const token = window.GITHUB_CONFIG && window.GITHUB_CONFIG.token ? window.GITHUB_CONFIG.token : null;
+        // Get token from GITHUB_CONFIG, with dev-only fallback to assembleToken()
+        let token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
+            ? window.GITHUB_CONFIG.token
+            : null;
+        if (!token && typeof window !== 'undefined') {
+            const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+            const devEnabled = !!window.DEV_ENABLE_EMBEDDED_TOKEN;
+            if (isLocal && devEnabled && typeof window.assembleToken === 'function') {
+                try { token = window.assembleToken(); } catch (_) {}
+            }
+        }
 
         if (!token) {
             throw new Error('GitHub token not available for workflow trigger');
