@@ -209,8 +209,10 @@ class GitHubDataService {
      * @returns {string} Filename
      */
     generateUserFileName(userEmail) {
-        const userId = userEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
-        return `${userId}.json`;
+        // Normalize to lowercase to avoid case-sensitive path mismatches
+        const localPart = userEmail.split('@')[0];
+        const normalized = localPart.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+        return `${normalized}.json`;
     }
 
     /**
@@ -490,10 +492,18 @@ class GitHubDataService {
         }
 
         try {
-            const fileName = this.generateUserFileName(userEmail);
-            const filePath = `users/${fileName}`;
+            // Try normalized lowercase filename first
+            const normalizedFileName = this.generateUserFileName(userEmail);
+            const normalizedPath = `users/${normalizedFileName}`;
+            let content = await this.getFileContent(normalizedPath);
 
-            const content = await this.getFileContent(filePath);
+            // Backward compatibility: try legacy case-preserving filename if not found
+            if (!content) {
+                const legacyLocal = userEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+                const legacyPath = `users/${legacyLocal}.json`;
+                content = await this.getFileContent(legacyPath);
+            }
+
             return content;
 
         } catch (error) {
