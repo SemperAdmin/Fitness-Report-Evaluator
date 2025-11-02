@@ -135,8 +135,12 @@ try {
       ? window.API_BASE_URL_OVERRIDE.trim()
       : '';
 
-    // Choose base: override if provided, else page origin
-    const base = override || pageOrigin;
+    // Choose base: override if provided; otherwise use a safe default
+    // When running from GitHub Pages, default to the backend (localhost) to avoid 405s
+    const defaultBase = pageOrigin.includes('semperadmin.github.io')
+      ? 'http://localhost:5173'
+      : pageOrigin;
+    const base = override || defaultBase;
     window.API_BASE_URL = base;
 
     // Build allowed origins: always include base origin; merge any trusted origins
