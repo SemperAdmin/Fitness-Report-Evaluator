@@ -1459,17 +1459,15 @@ async function syncEvaluationToGitHub(evaluation) {
         if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
             token = window.GITHUB_CONFIG.token; // Dev-only fallback
         }
-        if (!token) {
-            console.warn('GitHub sync unavailable: token not found');
-            return false;
-        }
-
-        // Initialize and verify connection
-        githubService.initialize(token);
-        const connected = await githubService.verifyConnection?.();
-        if (!connected) {
-            console.warn('GitHub connection failed; check token scopes and repo access');
-            return false;
+        if (token) {
+            // Initialize and (optionally) verify connection when token is available
+            githubService.initialize(token);
+            const connected = await githubService.verifyConnection?.();
+            if (!connected) {
+                console.warn('GitHub connection failed; proceeding with backend fallback if available');
+            }
+        } else {
+            console.warn('No token available; attempting backend fallback for evaluation save');
         }
 
         // Persist evaluation via service
