@@ -114,3 +114,38 @@ if (typeof window !== 'undefined') {
 console.log('✅ Fitrep Evaluator configuration loaded (v2.0.0)');
 
 console.log('🔒 Tokens managed via backend/Actions; dev token optional on localhost');
+
+// -------------------------------------------------------------
+// Runtime API base resolution and allowed origins
+// - Allows the app to call a backend hosted on a different origin in production
+// - Defaults to the current page origin in development/local scenarios
+// - Use window.API_BASE_URL_OVERRIDE and window.TRUSTED_API_ORIGINS in index.html
+try {
+  if (typeof window !== 'undefined') {
+    const pageOrigin = window.location.origin;
+    const override = (typeof window.API_BASE_URL_OVERRIDE === 'string')
+      ? window.API_BASE_URL_OVERRIDE.trim()
+      : '';
+
+    // Choose base: override if provided, else page origin
+    const base = override || pageOrigin;
+    window.API_BASE_URL = base;
+
+    // Build allowed origins: always include base origin; merge any trusted origins
+    const baseOrigin = new URL(base).origin;
+    const trusted = Array.isArray(window.TRUSTED_API_ORIGINS) ? window.TRUSTED_API_ORIGINS : [];
+    const allowed = [baseOrigin, ...trusted]
+      .filter(Boolean)
+      .map(o => {
+        try { return new URL(o).origin; } catch (_) { return null; }
+      })
+      .filter(Boolean);
+    // Deduplicate
+    window.API_ALLOWED_ORIGINS = Array.from(new Set(allowed));
+
+    console.log('[api] base:', window.API_BASE_URL);
+    console.log('[api] allowed origins:', window.API_ALLOWED_ORIGINS);
+  }
+} catch (e) {
+  console.warn('API base resolution failed:', e);
+}
