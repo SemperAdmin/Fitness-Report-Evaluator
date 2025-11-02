@@ -28,6 +28,53 @@ class GitHubDataService {
     }
 
     /**
+     * Resolve API base URL in browser or fallback environments.
+     * Returns null when not determinable (non-browser or missing config).
+     */
+    getApiBase() {
+        try {
+            if (typeof window !== 'undefined' && window.API_BASE_URL) {
+                return window.API_BASE_URL;
+            }
+            if (typeof location !== 'undefined' && location.origin) {
+                return location.origin;
+            }
+            return null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    /**
+     * Build a backend endpoint URL and check against allowed origins.
+     * @param {string} path - Path like '/api/user/save'
+     * @returns {null | { url: string, origin: string } | { blocked: true, url: string, origin: string }}
+     */
+    resolveBackendEndpoint(path) {
+        const base = this.getApiBase();
+        if (!base) return null;
+        let endpointUrl;
+        try {
+            endpointUrl = new URL(path, base);
+        } catch (_) {
+            return null;
+        }
+        const origin = endpointUrl.origin;
+        try {
+            const allowed = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
+                ? window.API_ALLOWED_ORIGINS
+                : [origin];
+            if (!allowed.includes(origin)) {
+                return { blocked: true, url: endpointUrl.toString(), origin };
+            }
+        } catch (_) {
+            // If allowlist resolution fails, proceed conservatively and block
+            return { blocked: true, url: endpointUrl.toString(), origin };
+        }
+        return { url: endpointUrl.toString(), origin };
+    }
+
+    /**
      * Resolve configuration from global app config
      * Uses dataRepo for contents operations; falls back to workflows repo
      */
@@ -495,17 +542,11 @@ class GitHubDataService {
         // If no token available, attempt backend save endpoint as a secure fallback
         if (!this.initialized || !this.token) {
             try {
-                const base = (typeof window !== 'undefined' && window.API_BASE_URL)
-                    ? window.API_BASE_URL
-                    : (typeof location !== 'undefined' ? location.origin : '');
-                const endpointUrl = new URL('/api/user/save', base);
-
-                // Enforce trusted origin allowlist when available
-                const baseOrigin = new URL(base).origin;
-                const allowed = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
-                    ? window.API_ALLOWED_ORIGINS
-                    : [baseOrigin];
-                if (!allowed.includes(endpointUrl.origin)) {
+                const endpoint = this.resolveBackendEndpoint('/api/user/save');
+                if (!endpoint) {
+                    return { success: false, error: 'Configuration error', message: 'API base URL is not configured for backend fallback.' };
+                }
+                if ('blocked' in endpoint && endpoint.blocked) {
                     return { success: false, error: 'Untrusted origin', message: 'Backend save blocked' };
                 }
 
@@ -525,7 +566,7 @@ class GitHubDataService {
                     ? { userData, token: assembledToken }
                     : { userData };
 
-                const resp = await fetch(endpointUrl.toString(), {
+                const resp = await fetch(endpoint.url, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify(payload)
@@ -540,7 +581,7 @@ class GitHubDataService {
                     };
                 }
                 const text = await resp.text();
-                return { success: false, error: text, message: 'Backend save failed' };
+                return { success: false, error: text, message: `Backend save failed (${resp.status})` };
             } catch (err) {
                 return { success: false, error: err.message, message: 'Backend save error' };
             }
@@ -623,22 +664,15 @@ class GitHubDataService {
         // If no token available, attempt backend load endpoint as a secure fallback
         if (!this.initialized || !this.token) {
             try {
-                const base = (typeof window !== 'undefined' && window.API_BASE_URL)
-                    ? window.API_BASE_URL
-                    : (typeof location !== 'undefined' ? location.origin : '');
-                const endpointUrl = new URL('/api/user/load', base);
-                endpointUrl.searchParams.set('email', userEmail);
-
-                // Enforce trusted origin allowlist when available
-                const baseOrigin = new URL(base).origin;
-                const allowed = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
-                    ? window.API_ALLOWED_ORIGINS
-                    : [baseOrigin];
-                if (!allowed.includes(endpointUrl.origin)) {
+                const endpoint = this.resolveBackendEndpoint('/api/user/load');
+                if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
+                    // API base URL is not configured or origin blocked; cannot load user data.
                     return null;
                 }
+                const urlObj = new URL(endpoint.url);
+                urlObj.searchParams.set('email', userEmail);
 
-                const resp = await fetch(endpointUrl.toString());
+                const resp = await fetch(urlObj.toString());
                 if (resp.ok) {
                     const data = await resp.json();
                     return data.data || null;
