@@ -110,9 +110,19 @@ async function accountLogin() {
         return;
     }
 
+    // Show typewriter animation during login, hide input fields
+    const loginCard = document.getElementById('profileLoginCard');
+    const typewriter = loginCard ? loginCard.querySelector('.typewriter-wrapper') : null;
+    const loginFieldsEl = document.getElementById('loginFields');
+    if (typewriter) typewriter.style.display = 'flex';
+    if (loginFieldsEl) loginFieldsEl.style.display = 'none';
+
     try {
         const res = await postJson('/api/account/login', { email, password });
         if (!res || !res.ok) {
+            // Restore UI when login fails
+            if (typewriter) typewriter.style.display = 'none';
+            if (loginFieldsEl) loginFieldsEl.style.display = 'block';
             const msg = res && res.error
                 ? res.error
                 : 'Login failed. Password validation failed or service unavailable.';
@@ -139,9 +149,14 @@ async function accountLogin() {
         localStorage.setItem('has_profile', 'true');
         sessionStorage.setItem('login_source', 'form');
 
+        // Hide animation before transitioning to dashboard
+        if (typewriter) typewriter.style.display = 'none';
         showProfileDashboard();
     } catch (err) {
         console.error('accountLogin error:', err);
+        // Restore UI on network error
+        if (typewriter) typewriter.style.display = 'none';
+        if (loginFieldsEl) loginFieldsEl.style.display = 'block';
         alert('Login failed due to a network error.');
     }
 }
