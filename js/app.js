@@ -62,16 +62,15 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', async () => {
                 // Build userData from current profile state
                 const profile = window.currentProfile || JSON.parse(localStorage.getItem('current_profile') || 'null');
-                const evaluations = window.profileEvaluations || JSON.parse(localStorage.getItem('current_evaluations') || '[]');
                 if (!profile || !profile.rsEmail) {
                     statusEl.textContent = 'Workflow: error - no profile loaded';
                     return;
                 }
+                // Send metadata-only profile; evaluations are saved as unique files
                 const userData = {
                     rsEmail: profile.rsEmail,
                     rsName: profile.rsName,
-                    rsRank: profile.rsRank,
-                    evaluations: Array.isArray(evaluations) ? evaluations : []
+                    rsRank: profile.rsRank
                 };
                 statusEl.textContent = 'Workflow: dispatching...';
                 try {

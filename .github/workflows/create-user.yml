@@ -25,15 +25,13 @@ jobs:
           PWHASH="${{ github.event.client_payload.user.passwordHash }}"
           EMAIL_PREFIX=$(echo "$EMAIL" | tr 'A-Z' 'a-z' | cut -d'@' -f1)
 
-          # Minimal user record; evaluations array empty to start
+          # Minimal user record; no aggregate arrays
           cat > user.json <<EOF
           {
             "rsEmail": "$EMAIL",
             "rsName": "$NAME",
             "rsRank": "$RANK",
             "passwordHash": "$PWHASH",
-            "evaluationFiles": [],
-            "evaluations": [],
             "createdDate": "$(date -Iseconds)",
             "lastUpdated": "$(date -Iseconds)"
           }

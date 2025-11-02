@@ -36,7 +36,7 @@ async function profileLogin() {
             createdDate: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             totalEvaluations: Array.isArray(localEvaluations) ? localEvaluations.length : 0,
-            evaluationFiles: []
+            // evaluationFiles removed; evaluations stored as separate files
         };
     }
 
@@ -90,7 +90,7 @@ async function createAccount() {
             createdDate: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             totalEvaluations: 0,
-            evaluationFiles: []
+            // evaluationFiles removed; evaluations stored as separate files
         };
         saveProfileToLocal(profileKey, profile);
         currentProfile = profile;
@@ -137,15 +137,28 @@ async function accountLogin() {
             return;
         }
 
-        const profile = res.profile || {
+        const baseProfile = res.profile || {
             rsName: res.rsName,
             rsEmail: email,
             rsRank: res.rsRank,
-            totalEvaluations: (res.evaluations || []).length,
-            lastUpdated: new Date().toISOString(),
-            evaluationFiles: []
+            lastUpdated: new Date().toISOString()
         };
-        const evaluations = res.evaluations || [];
+        // Fetch per-user evaluation files to populate events list
+        let evaluations = [];
+        try {
+            const token = await githubService.getTokenFromEnvironment?.();
+            if (token) {
+                githubService.initialize(token);
+                const connected = await githubService.verifyConnection?.();
+                if (connected) {
+                    evaluations = await githubService.loadUserEvaluations(email);
+                }
+            }
+        } catch (e) {
+            console.warn('Remote evaluations fetch failed during login:', e);
+            evaluations = res.evaluations || [];
+        }
+        const profile = { ...baseProfile, totalEvaluations: Array.isArray(evaluations) ? evaluations.length : 0 };
 
         const profileKey = generateProfileKey(profile.rsName, profile.rsEmail);
         saveProfileToLocal(profileKey, profile);
@@ -564,8 +577,7 @@ async function saveProfileUpdates() {
                         const result = await githubService.saveUserData({
                             rsName: currentProfile.rsName,
                             rsEmail: currentProfile.rsEmail,
-                            rsRank: currentProfile.rsRank,
-                            evaluations: profileEvaluations
+                            rsRank: currentProfile.rsRank
                         });
                         if (result?.success) {
                             synced = true;
@@ -593,8 +605,7 @@ async function saveProfileUpdates() {
                     const result = await githubService.saveUserData({
                         rsName: currentProfile.rsName,
                         rsEmail: currentProfile.rsEmail,
-                        rsRank: currentProfile.rsRank,
-                        evaluations: profileEvaluations
+                        rsRank: currentProfile.rsRank
                     });
                     if (result?.success) {
                         statusMsg = result?.message || '';
@@ -1497,7 +1508,6 @@ function mergeProfiles(local, remote) {
     return {
         ...local,
         ...remote,
-        evaluationFiles: Array.from(new Set([...(local.evaluationFiles || []), ...(remote.evaluationFiles || [])])),
         totalEvaluations: Math.max(local.totalEvaluations || 0, remote.totalEvaluations || 0),
         lastUpdated: new Date().toISOString()
     };
@@ -1601,19 +1611,31 @@ async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile,
         const remote = await githubService.loadUserData(email);
         if (!remote) return { profile: localProfile, evaluations: localEvaluations };
 
+        // Metadata-only profile from data repo
         const remoteProfile = {
-            rsName: remote.profile?.rsName || name,
-            rsEmail: email,
-            rsRank: remote.profile?.rsRank || rank,
-            totalEvaluations: Array.isArray(remote.evaluations) ? remote.evaluations.length : (localProfile?.totalEvaluations || 0),
-            lastUpdated: new Date().toISOString(),
-            evaluationFiles: (localProfile?.evaluationFiles || [])
+            rsName: remote.rsName || name,
+            rsEmail: remote.rsEmail || email,
+            rsRank: remote.rsRank || rank,
+            lastUpdated: new Date().toISOString()
         };
 
-        const mergedProfile = mergeProfiles(localProfile, remoteProfile);
+        // Load per-evaluation files
+        let remoteEvaluations = [];
+        try {
+            remoteEvaluations = await githubService.loadUserEvaluations(email);
+        } catch (e) {
+            console.warn('Failed to load remote evaluations:', e);
+            remoteEvaluations = [];
+        }
+
+        // Merge metadata and eval count
+        const mergedProfile = mergeProfiles(localProfile, {
+            ...remoteProfile,
+            totalEvaluations: remoteEvaluations.length || (localProfile?.totalEvaluations || 0)
+        });
         const mergedEvaluations = mergeEvaluations(
             Array.isArray(localEvaluations) ? localEvaluations : [],
-            Array.isArray(remote.evaluations) ? remote.evaluations : []
+            Array.isArray(remoteEvaluations) ? remoteEvaluations : []
         );
 
         // Persist merged result locally for offline-first UX
@@ -2193,7 +2215,6 @@ function mergeProfiles(local, remote) {
     return {
         ...local,
         ...remote,
-        evaluationFiles: Array.from(new Set([...(local.evaluationFiles || []), ...(remote.evaluationFiles || [])])),
         totalEvaluations: Math.max(local.totalEvaluations || 0, remote.totalEvaluations || 0),
         lastUpdated: new Date().toISOString()
     };
