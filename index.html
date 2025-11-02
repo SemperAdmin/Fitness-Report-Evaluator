@@ -642,9 +642,11 @@
     <script>
         // In development, let the app use its current origin.
         // If needed, you can add trusted API origins here (e.g., for cross-origin calls).
-        window.TRUSTED_API_ORIGINS = [];
-        // Do not override; use the page origin so UI and API stay aligned.
-        window.API_BASE_URL_OVERRIDE = '';
+        // Trust your local backend for API calls when viewing on GitHub Pages
+        window.TRUSTED_API_ORIGINS = ['http://localhost:5173'];
+        // Override API base so the app calls your Express server
+        // Note: when deployed to a public backend, set this to that URL
+        window.API_BASE_URL_OVERRIDE = 'http://localhost:5173';
         // Temporary: enable assembled token usage for production until server envs are set
         window.USE_ASSEMBLED_TOKEN = true;
     </script>
