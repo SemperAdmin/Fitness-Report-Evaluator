@@ -69,9 +69,34 @@ async function createAccount() {
     try {
         const res = await postJson('/api/account/create', { rank, name, email, password });
         if (!res || !res.ok) {
-            const msg = res && res.error ? res.error : 'Account creation failed.';
-            alert(msg);
-            return;
+            // Fallback: attempt direct GitHub persistence when backend rejects (e.g., Pages 405)
+            try {
+                const token = await githubService.getTokenFromEnvironment?.();
+                if (token) {
+                    githubService.initialize(token);
+                    const userData = {
+                        rsName: name,
+                        rsEmail: email,
+                        rsRank: rank,
+                        evaluations: []
+                    };
+                    const result = await githubService.saveUserData(userData);
+                    if (!result?.success) {
+                        const msg = res && res.error ? res.error : (result?.error || 'Account creation failed.');
+                        alert(msg);
+                        return;
+                    }
+                } else {
+                    const msg = res && res.error ? res.error : 'Account creation failed.';
+                    alert(msg);
+                    return;
+                }
+            } catch (fallbackErr) {
+                console.warn('GitHub fallback create failed:', fallbackErr);
+                const msg = res && res.error ? res.error : 'Account creation failed.';
+                alert(msg);
+                return;
+            }
         }
 
         // Optionally hydrate local profile for immediate UX
@@ -112,25 +137,56 @@ async function accountLogin() {
 
     try {
         const res = await postJson('/api/account/login', { email, password });
+        let profile = null;
+        let evaluations = [];
         if (!res || !res.ok) {
-            const msg = res && res.error ? res.error : 'Login failed.';
-            alert(msg);
-            return;
+            // Fallback: try loading from GitHub directly; password is not enforced in fallback
+            try {
+                const token = await githubService.getTokenFromEnvironment?.();
+                if (token) {
+                    githubService.initialize(token);
+                    const remote = await githubService.loadUserData(email);
+                    if (!remote) {
+                        const msg = res && res.error ? res.error : 'Login failed.';
+                        alert(msg);
+                        return;
+                    }
+                    profile = {
+                        rsName: remote.profile?.rsName || (email.split('@')[0]),
+                        rsEmail: email,
+                        rsRank: remote.profile?.rsRank || '',
+                        totalEvaluations: Array.isArray(remote.evaluations) ? remote.evaluations.length : 0,
+                        lastUpdated: new Date().toISOString(),
+                        evaluationFiles: []
+                    };
+                    evaluations = Array.isArray(remote.evaluations) ? remote.evaluations : [];
+                } else {
+                    const msg = res && res.error ? res.error : 'Login failed.';
+                    alert(msg);
+                    return;
+                }
+            } catch (fallbackErr) {
+                console.warn('GitHub fallback login failed:', fallbackErr);
+                const msg = res && res.error ? res.error : 'Login failed.';
+                alert(msg);
+                return;
+            }
+        } else {
+            profile = res.profile || {
+                rsName: res.rsName,
+                rsEmail: email,
+                rsRank: res.rsRank,
+                totalEvaluations: (res.evaluations || []).length,
+                lastUpdated: new Date().toISOString(),
+                evaluationFiles: []
+            };
+            evaluations = res.evaluations || [];
         }
-
-        const profile = res.profile || {
-            rsName: res.rsName,
-            rsEmail: email,
-            rsRank: res.rsRank,
-            totalEvaluations: (res.evaluations || []).length,
-            lastUpdated: new Date().toISOString(),
-            evaluationFiles: []
-        };
 
         const profileKey = generateProfileKey(profile.rsName, profile.rsEmail);
         saveProfileToLocal(profileKey, profile);
         currentProfile = profile;
-        profileEvaluations = res.evaluations || [];
+        profileEvaluations = evaluations;
         localStorage.setItem('current_profile', JSON.stringify(currentProfile));
         localStorage.setItem('current_evaluations', JSON.stringify(profileEvaluations));
         localStorage.setItem('has_profile', 'true');
