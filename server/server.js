@@ -4,6 +4,9 @@ const express = require('express');
 // Support node-fetch v3 in CommonJS via dynamic import wrapper
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
+const fsp = fs.promises;
 
 const app = express();
 app.use(express.json());
@@ -31,13 +34,14 @@ app.use((req, res, next) => {
     res.header('Vary', 'Origin');
   }
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, X-GitHub-Token');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
-// Serve static files for local preview (after CORS handling)
-app.use(express.static('.'));
+// Note: do NOT serve static files before API routes, or POSTs to /api/*
+// may get intercepted and return 405 from the static middleware. We'll
+// mount static at the end after defining API routes.
 
 // Environment variables:
 // - DISPATCH_TOKEN: PAT with repo:dispatch permission to trigger repository_dispatch
@@ -58,6 +62,30 @@ console.log('[env] CORS_ORIGINS:', (process.env.CORS_ORIGINS || '').split(',').m
 
 function emailPrefix(email) {
   return String(email || '').trim().toLowerCase().split('@')[0];
+}
+
+// --- Local filesystem fallback storage (no-env/dev friendly) ---
+const LOCAL_DATA_DIR = path.join(__dirname, 'local-data', 'users');
+async function ensureLocalDir() {
+  try { await fsp.mkdir(LOCAL_DATA_DIR, { recursive: true }); } catch (_) {}
+}
+function localUserPath(prefix) {
+  return path.join(LOCAL_DATA_DIR, `${prefix}.json`);
+}
+async function readLocalUser(prefix) {
+  try {
+    const p = localUserPath(prefix);
+    const buf = await fsp.readFile(p);
+    return JSON.parse(buf.toString('utf8'));
+  } catch (_) {
+    return null;
+  }
+}
+async function writeLocalUser(prefix, userObj) {
+  await ensureLocalDir();
+  const p = localUserPath(prefix);
+  const str = JSON.stringify(userObj, null, 2);
+  await fsp.writeFile(p, str, 'utf8');
 }
 
 // Lightweight rate limiter per IP
@@ -114,7 +142,8 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Prefer direct write with FITREP_DATA when available
-    const fitrepToken = process.env.FITREP_DATA;
+    // Prefer server token; otherwise accept client-provided token via header/body for dev/no-env usage
+    const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
     if (fitrepToken) {
       try {
         const prefix = sanitizePrefix(email);
@@ -180,8 +209,27 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
     // Fallback: repository_dispatch when direct write not possible
     const dispatchToken = DISPATCH_TOKEN;
     if (!dispatchToken) {
-      console.error('create-account: Missing DISPATCH_TOKEN');
-      return res.status(500).json({ error: 'Server missing DISPATCH_TOKEN' });
+      // No dispatch flow available, and no server token: we already tried client token above.
+      // If none provided, fallback to local filesystem for dev/no-env usage.
+      try {
+        const prefix = sanitizePrefix(email);
+        const now = new Date().toISOString();
+        const userJson = {
+          rsEmail: email,
+          rsName: name,
+          rsRank: rank,
+          passwordHash,
+          evaluationFiles: [],
+          evaluations: [],
+          createdDate: now,
+          lastUpdated: now
+        };
+        await writeLocalUser(prefix, userJson);
+        return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local' });
+      } catch (err) {
+        console.error('create-account: local write error:', err);
+        return res.status(500).json({ error: 'Local write failed' });
+      }
     }
 
     const payload = {
@@ -223,31 +271,34 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
     if (!isValidEmail(email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
-    const token = process.env.FITREP_DATA;
-    if (!token) {
-      console.error('login: Missing FITREP_DATA');
-      return res.status(500).json({ error: 'Server missing FITREP_DATA for login' });
-    }
-
     const prefix = sanitizePrefix(email);
-    const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
-    const resp = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
+    // Try GitHub first. Use server token if present; otherwise accept client-provided token; else anonymous for public.
+    let user = null;
+    try {
+      const token = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
+      const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      const headers = { 'Accept': 'application/vnd.github+json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch(apiUrl, { headers });
+      if (resp.status === 200) {
+        const data = await resp.json();
+        const fileContentBase64 = data.content;
+        const jsonStr = Buffer.from(fileContentBase64, 'base64').toString('utf8');
+        user = JSON.parse(jsonStr);
+      } else if (resp.status !== 404 && !resp.ok) {
+        const text = await resp.text();
+        console.error('login: github read failed:', text);
       }
-    });
-    if (resp.status === 404) {
+    } catch (err) {
+      console.error('login: github fetch error:', err);
+    }
+    // If not found on GitHub, try local filesystem fallback
+    if (!user) {
+      user = await readLocalUser(prefix);
+    }
+    if (!user) {
       return res.status(401).json({ error: 'Account not found' });
     }
-    if (!resp.ok) {
-      const text = await resp.text();
-      return res.status(502).json({ error: `Read failed: ${text}` });
-    }
-    const data = await resp.json();
-    const fileContentBase64 = data.content;
-    const jsonStr = Buffer.from(fileContentBase64, 'base64').toString('utf8');
-    const user = JSON.parse(jsonStr);
 
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
@@ -365,7 +416,7 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       return res.status(400).json({ error: 'Invalid rsEmail format' });
     }
 
-    const fitrepToken = process.env.FITREP_DATA;
+    const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
     const dispatchToken = DISPATCH_TOKEN;
 
     // Prefer direct write when FITREP_DATA is available
@@ -461,8 +512,30 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       return res.json({ ok: true, dispatched: true, method: 'dispatch' });
     }
 
-    console.error('save user: Missing FITREP_DATA and DISPATCH_TOKEN');
-    return res.status(500).json({ error: 'Server missing FITREP_DATA or DISPATCH_TOKEN' });
+    // Local filesystem fallback when no tokens are available
+    try {
+      const prefix = sanitizePrefix(userData.rsEmail);
+      // Merge with existing local user to preserve passwordHash
+      const existingUser = await readLocalUser(prefix);
+      const now = new Date().toISOString();
+      const bodyObj = {
+        rsEmail: userData.rsEmail,
+        rsName: userData.rsName ?? existingUser?.rsName ?? '',
+        rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
+        evaluations: Array.isArray(userData.evaluations) ? userData.evaluations : (existingUser?.evaluations || []),
+        evaluationFiles: existingUser?.evaluationFiles || [],
+        createdDate: existingUser?.createdDate || now,
+        lastUpdated: now
+      };
+      if (existingUser?.passwordHash) {
+        bodyObj.passwordHash = existingUser.passwordHash;
+      }
+      await writeLocalUser(prefix, bodyObj);
+      return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local' });
+    } catch (err) {
+      console.error('save user: local write failed:', err);
+      return res.status(500).json({ error: 'Local write failed' });
+    }
   } catch (err) {
     console.error('save user error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -503,6 +576,8 @@ app.get('/api/user/load', async (req, res) => {
 // Start server if executed directly
 if (require.main === module) {
   const port = process.env.PORT || 5173;
+  // Serve static files for local preview after all API routes
+  app.use(express.static('.'));
   app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
 }
 
