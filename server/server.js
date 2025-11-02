@@ -11,8 +11,19 @@ app.use(express.json());
 app.use(express.static('.'));
 
 // Basic CORS support to allow cross-origin usage when hosted on static origins
+// Hardened CORS: allow only configured origins (or default server origin)
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  const defaultOrigin = `http://localhost:${process.env.PORT || 5173}`;
+  const allowedOrigins = CORS_ORIGINS.length ? CORS_ORIGINS : [defaultOrigin];
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+  }
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -34,16 +45,48 @@ console.log('[env] DATA_REPO:', DATA_REPO);
 console.log('[env] DISPATCH_TOKEN set:', Boolean(DISPATCH_TOKEN));
 console.log('[env] FITREP_DATA set:', Boolean(process.env.FITREP_DATA));
 console.log('[env] ALLOW_DEV_TOKEN:', process.env.ALLOW_DEV_TOKEN === 'true');
+console.log('[env] CORS_ORIGINS:', (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
 
 function emailPrefix(email) {
   return String(email || '').trim().toLowerCase().split('@')[0];
 }
 
-app.post('/api/account/create', async (req, res) => {
+// Lightweight rate limiter per IP
+function rateLimit({ windowMs, limit }) {
+  const hits = new Map();
+  return (req, res, next) => {
+    if (req.method === 'OPTIONS') return next();
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = hits.get(ip);
+    if (!entry || now > entry.reset) {
+      hits.set(ip, { count: 1, reset: now + windowMs });
+      return next();
+    }
+    entry.count += 1;
+    if (entry.count > limit) {
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
+    next();
+  };
+}
+const authRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
+const saveRateLimit = rateLimit({ windowMs: 60_000, limit: 60 });
+
+app.post('/api/account/create', authRateLimit, async (req, res) => {
   try {
     const { rank, name, email, password } = req.body || {};
     if (!rank || !name || !email || !password) {
       return res.status(400).json({ error: 'Missing fields: rank, name, email, password' });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    if (!isValidRank(rank) || !isValidName(name)) {
+      return res.status(400).json({ error: 'Invalid rank or name' });
+    }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters with upper, lower, and number' });
     }
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -87,7 +130,7 @@ app.post('/api/account/create', async (req, res) => {
         const contentStr = JSON.stringify(userJson, null, 2);
         const contentB64 = Buffer.from(contentStr, 'utf8').toString('base64');
         const msg = sha ? `Update user via Server - ${now}` : `Create user via Server - ${now}`;
-        const body = sha ? { message: msg, content: contentB64, branch: 'main', sha } : { message: msg, content: contentB64, branch: 'main' };
+        const body = { message: msg, content: contentB64, branch: 'main', ...(sha && { sha }) };
 
         const putResp = await fetch(apiUrl, {
           method: 'PUT',
@@ -147,11 +190,14 @@ app.post('/api/account/create', async (req, res) => {
   }
 });
 
-app.post('/api/account/login', async (req, res) => {
+app.post('/api/account/login', authRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) {
       return res.status(400).json({ error: 'Missing fields: email, password' });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
     }
     const token = process.env.FITREP_DATA;
     if (!token) {
@@ -159,7 +205,7 @@ app.post('/api/account/login', async (req, res) => {
       return res.status(500).json({ error: 'Server missing FITREP_DATA for login' });
     }
 
-    const prefix = emailPrefix(email);
+    const prefix = sanitizePrefix(email);
     const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
     const resp = await fetch(apiUrl, {
       headers: {
@@ -260,12 +306,38 @@ function sanitizePrefix(email) {
   return prefix.replace(/[^a-z0-9]/gi, '_');
 }
 
+// Simple input validation helpers
+function isValidEmail(email) {
+  const e = String(email || '').trim();
+  if (e.length < 5 || e.length > 254) return false;
+  return /.+@.+\..+/.test(e);
+}
+function isStrongPassword(pw) {
+  const p = String(pw || '');
+  if (p.length < 8) return false;
+  const hasLower = /[a-z]/.test(p);
+  const hasUpper = /[A-Z]/.test(p);
+  const hasDigit = /\d/.test(p);
+  return hasLower && hasUpper && hasDigit;
+}
+function isValidName(name) {
+  const n = String(name || '').trim();
+  return n.length >= 2 && n.length <= 100;
+}
+function isValidRank(rank) {
+  const r = String(rank || '').trim();
+  return r.length >= 2 && r.length <= 20;
+}
+
 // Save user data: either direct write via FITREP_DATA or dispatch workflow via DISPATCH_TOKEN
-app.post('/api/user/save', async (req, res) => {
+app.post('/api/user/save', saveRateLimit, async (req, res) => {
   try {
     const { userData } = req.body || {};
     if (!userData || !userData.rsEmail) {
       return res.status(400).json({ error: 'Missing userData.rsEmail' });
+    }
+    if (!isValidEmail(userData.rsEmail)) {
+      return res.status(400).json({ error: 'Invalid rsEmail format' });
     }
 
     const fitrepToken = process.env.FITREP_DATA;
@@ -277,8 +349,9 @@ app.post('/api/user/save', async (req, res) => {
       const filePath = `users/${prefix}.json`;
       const apiBase = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
 
-      // Try to get existing SHA
+      // Try to get existing SHA and existing file for preserving fields like passwordHash
       let sha = '';
+      let existingUser = null;
       const getResp = await fetch(apiBase, {
         headers: {
           'Authorization': `Bearer ${fitrepToken}`,
@@ -288,17 +361,36 @@ app.post('/api/user/save', async (req, res) => {
       if (getResp.status === 200) {
         const existing = await getResp.json();
         sha = existing.sha || '';
+        try {
+          const existingStr = Buffer.from(existing.content || '', 'base64').toString('utf8');
+          existingUser = existingStr ? JSON.parse(existingStr) : null;
+        } catch (_) {
+          existingUser = null;
+        }
       } else if (getResp.status !== 404 && !getResp.ok) {
         const text = await getResp.text();
         console.error('save user: get SHA failed:', text);
         return res.status(502).json({ error: `Read failed: ${text}` });
       }
 
+      // Build new data and preserve critical fields
       const bodyObj = buildUserDataJson(userData);
+      if (existingUser && existingUser.passwordHash) {
+        bodyObj.passwordHash = existingUser.passwordHash;
+      } else if (userData && userData.passwordHash) {
+        bodyObj.passwordHash = userData.passwordHash;
+      }
+      if (existingUser && existingUser.createdDate) {
+        bodyObj.createdDate = existingUser.createdDate;
+      }
+      if (existingUser && Array.isArray(existingUser.evaluationFiles)) {
+        bodyObj.evaluationFiles = existingUser.evaluationFiles;
+      }
+
       const contentStr = JSON.stringify(bodyObj, null, 2);
       const contentB64 = Buffer.from(contentStr, 'utf8').toString('base64');
       const msg = sha ? `Update profile via Server - ${new Date().toISOString()}` : `Create profile via Server - ${new Date().toISOString()}`;
-      const putBody = sha ? { message: msg, content: contentB64, branch: 'main', sha } : { message: msg, content: contentB64, branch: 'main' };
+      const putBody = { message: msg, content: contentB64, branch: 'main', ...(sha && { sha }) };
 
       const putResp = await fetch(apiBase, {
         method: 'PUT',
