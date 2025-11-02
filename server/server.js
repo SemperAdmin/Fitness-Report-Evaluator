@@ -25,11 +25,26 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
+// Allow all origins when '*' specified in env
+const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*');
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const defaultOrigin = `http://localhost:${process.env.PORT || 5173}`;
-  const allowedOrigins = CORS_ORIGINS.length ? CORS_ORIGINS : [defaultOrigin];
-  if (origin && allowedOrigins.includes(origin)) {
+  // Include GitHub Pages origin by default to support static hosting
+  const pagesOrigin = 'https://semperadmin.github.io';
+  const allowedOrigins = CORS_ALLOW_ALL
+    ? ['*']
+    : (CORS_ORIGINS.length ? CORS_ORIGINS : [defaultOrigin, pagesOrigin]);
+
+  if (CORS_ALLOW_ALL) {
+    // Reflect requesting origin when provided, else allow any
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
+  } else if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Vary', 'Origin');
   }
