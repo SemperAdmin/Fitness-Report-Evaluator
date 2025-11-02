@@ -543,6 +543,9 @@
             <button class="btn btn-secondary" onclick="exportProfile()">📥 Export All</button>
             <button class="btn btn-secondary" onclick="logoutProfile()">Logout</button>
             <button class="btn btn-secondary" id="gridViewBtn" onclick="showRankSummaryView()">📊 RS Summary View</button>
+            <!-- Dev-only: dispatch save-user-data to workflow -->
+            <button class="btn btn-secondary" id="devDispatchSaveUserBtn" style="display:none;">⚙️ Dev: Dispatch Save</button>
+            <span id="workflowStatusText" class="stat-label" style="display:none; margin-left:8px; font-size:12px;">Workflow: none</span>
         </div>
         
         <!-- Rank buttons stay visible; used to select the rank -->

@@ -49,6 +49,45 @@ document.addEventListener('DOMContentLoaded', () => {
             closeHelpModal();
         }
     });
+
+    // Dev-only: show dispatch button if token present and running locally
+    try {
+        const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
+        const devToken = window.GITHUB_CONFIG?.token || window.localStorage.getItem('FITREP_DEV_TOKEN');
+        const btn = document.getElementById('devDispatchSaveUserBtn');
+        const statusEl = document.getElementById('workflowStatusText');
+        if (btn && statusEl && isLocal && devToken) {
+            btn.style.display = '';
+            statusEl.style.display = '';
+            btn.addEventListener('click', async () => {
+                // Build userData from current profile state
+                const profile = window.currentProfile || JSON.parse(localStorage.getItem('current_profile') || 'null');
+                const evaluations = window.profileEvaluations || JSON.parse(localStorage.getItem('current_evaluations') || '[]');
+                if (!profile || !profile.rsEmail) {
+                    statusEl.textContent = 'Workflow: error - no profile loaded';
+                    return;
+                }
+                const userData = {
+                    rsEmail: profile.rsEmail,
+                    rsName: profile.rsName,
+                    rsRank: profile.rsRank,
+                    evaluations: Array.isArray(evaluations) ? evaluations : []
+                };
+                statusEl.textContent = 'Workflow: dispatching...';
+                try {
+                    const res = await window.BackendAPI.saveUserDataViaWorkflow(userData);
+                    if (res && res.success) {
+                        statusEl.textContent = 'Workflow dispatch OK';
+                    } else {
+                        statusEl.textContent = 'Workflow: unexpected response';
+                    }
+                } catch (err) {
+                    console.error('Dev dispatch failed:', err);
+                    statusEl.textContent = 'Workflow: error - ' + (err && err.message ? err.message : 'failed');
+                }
+            });
+        }
+    } catch (_) { /* noop */ }
 });
 
 // Add Single Evaluation entrypoint used by index.html button
