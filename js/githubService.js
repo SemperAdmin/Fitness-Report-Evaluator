@@ -614,8 +614,27 @@ class GitHubDataService {
                 userData.evaluations.push(evaluation);
             }
 
-            // Save updated data
-            return await this.saveUserData(userData);
+            // Save updated aggregate user file
+            const aggregateResult = await this.saveUserData(userData);
+
+            // Also persist a unique per-evaluation file under the member's directory
+            try {
+                const evalResult = await this.saveEvaluationUniqueFile(evaluation, userEmail);
+                return {
+                    success: !!(aggregateResult?.success && evalResult?.success),
+                    message: 'Evaluation saved (aggregate and unique file) successfully',
+                    aggregate: aggregateResult,
+                    unique: evalResult
+                };
+            } catch (e) {
+                // If unique-file save fails, still return aggregate result but note error
+                return {
+                    success: !!aggregateResult?.success,
+                    message: 'Evaluation saved to aggregate file; unique file save failed',
+                    aggregate: aggregateResult,
+                    unique: { success: false, error: e.message }
+                };
+            }
 
         } catch (error) {
             console.error('Error saving evaluation:', error);
@@ -625,6 +644,61 @@ class GitHubDataService {
                 message: `Failed to save evaluation: ${error.message}`
             };
         }
+    }
+
+    /**
+     * Save a unique file for a single evaluation under the member's directory
+     * Path: users/{email_normalized}/evaluations/{evaluationId}.json
+     * @param {Object} evaluation
+     * @param {string} userEmail
+     * @returns {Promise<Object>} Result object
+     */
+    async saveEvaluationUniqueFile(evaluation, userEmail) {
+        if (!this.initialized) {
+            throw new Error('GitHubDataService not initialized. Call initialize() first.');
+        }
+
+        if (!evaluation?.evaluationId) {
+            throw new Error('evaluationId is required to save unique evaluation file');
+        }
+
+        if (!userEmail) {
+            throw new Error('User email is required');
+        }
+
+        const cfg = this.getConfig();
+
+        // Normalize email local-part for directory naming
+        const localPart = userEmail.split('@')[0].toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+        const evalIdSafe = String(evaluation.evaluationId).replace(/[^a-zA-Z0-9\-_]/g, '_');
+        const dirPath = `users/${localPart}/evaluations`;
+        const filePath = `${dirPath}/${evalIdSafe}.json`;
+
+        // Build content: store the evaluation object with minimal metadata
+        const content = this.serializeData({
+            version: '1.0',
+            savedAt: new Date().toISOString(),
+            rsEmail: userEmail,
+            rsName: evaluation?.rsInfo?.name || '',
+            rsRank: evaluation?.rsInfo?.rank || '',
+            evaluation
+        });
+
+        // Check if file exists to include SHA for updates
+        const existingSha = await this.getFileSha(filePath);
+        const commitMessage = existingSha
+            ? `Update evaluation ${evaluation.evaluationId} for ${userEmail}`
+            : `Create evaluation ${evaluation.evaluationId} for ${userEmail}`;
+
+        // Create or update file
+        const result = await this.createOrUpdateFile(filePath, content, commitMessage, existingSha);
+        return {
+            success: true,
+            filePath,
+            isUpdate: !!existingSha,
+            commitSha: result?.commit?.sha || null,
+            message: existingSha ? 'Unique evaluation updated' : 'Unique evaluation created'
+        };
     }
 
     /**
