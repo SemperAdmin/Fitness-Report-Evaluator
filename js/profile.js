@@ -76,7 +76,7 @@ async function createAccount() {
     const confirm = document.getElementById('caPasswordConfirmInput')?.value;
 
     if (!rank || !name || !email || !password) {
-        alert('Please enter Rank, Name, Email, and Password.');
+        alert('Please enter Rank, Name, Username, and Password.');
         return;
     }
 
@@ -126,7 +126,7 @@ async function accountLogin() {
     const email = document.getElementById('loginEmailInput')?.value.trim();
     const password = document.getElementById('loginPasswordInput')?.value;
     if (!email || !password) {
-        alert('Please enter Email and Password.');
+        alert('Please enter Username and Password.');
         return;
     }
 

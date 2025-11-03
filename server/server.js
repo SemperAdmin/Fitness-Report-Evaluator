@@ -207,12 +207,13 @@ const saveRateLimit = rateLimit({ windowMs: 60_000, limit: 60 });
 
 app.post('/api/account/create', authRateLimit, async (req, res) => {
   try {
-    const { rank, name, email, password } = req.body || {};
-    if (!rank || !name || !email || !password) {
-      return res.status(400).json({ error: 'Missing fields: rank, name, email, password' });
+    const { rank, name, email, password, username: rawUsername } = req.body || {};
+    const username = String(rawUsername || email || '').trim();
+    if (!rank || !name || !username || !password) {
+      return res.status(400).json({ error: 'Missing fields: rank, name, username, password' });
     }
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
+    if (!isValidUsername(username)) {
+      return res.status(400).json({ error: 'Invalid username format' });
     }
     if (!isValidRank(rank) || !isValidName(name)) {
       return res.status(400).json({ error: 'Invalid rank or name' });
@@ -228,7 +229,7 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
     const previousEmail = (req.body?.userData?.previousEmail || '').trim();
     if (fitrepToken) {
       try {
-        const prefix = sanitizePrefix(email);
+        const prefix = sanitizePrefix(username);
         const filePath = `users/${prefix}.json`;
         const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
 
@@ -251,7 +252,7 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
 
         const now = new Date().toISOString();
         const userJson = {
-          rsEmail: email,
+          rsEmail: username,
           rsName: name,
           rsRank: rank,
           passwordHash,
@@ -342,14 +343,15 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
 
 app.post('/api/account/login', authRateLimit, async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Missing fields: email, password' });
+    const { email, password, username: rawUsername } = req.body || {};
+    const username = String(rawUsername || email || '').trim();
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Missing fields: username, password' });
     }
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
+    if (!isValidUsername(username)) {
+      return res.status(400).json({ error: 'Invalid username format' });
     }
-    const prefix = sanitizePrefix(email);
+    const prefix = sanitizePrefix(username);
     // Try GitHub first. Use server token if present; otherwise accept client-provided token; else anonymous for public.
     let user = null;
     try {
@@ -452,17 +454,23 @@ function buildUserDataJson(userData) {
   };
 }
 
-function sanitizePrefix(email) {
-  const prefix = String(email || '').trim().toLowerCase().split('@')[0];
-  return prefix.replace(/[^a-z0-9]/gi, '_');
+function sanitizePrefix(username) {
+  const prefix = String(username || '').trim().toLowerCase();
+  return prefix.replace(/[^a-z0-9._-]/gi, '_');
 }
 
 // Simple input validation helpers
 function isValidEmail(email) {
+  // Deprecated: retained for backward compatibility with older clients
   const e = String(email || '').trim();
-  if (e.length < 5 || e.length > 254) return false;
-  // More strict regex that disallows whitespace and requires proper email format
+  if (e.length < 3 || e.length > 254) return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+}
+function isValidUsername(username) {
+  const u = String(username || '').trim();
+  if (u.length < 3 || u.length > 50) return false;
+  // Allow letters, numbers, underscore, dot, hyphen; no spaces or @
+  return /^[a-zA-Z0-9._-]+$/.test(u);
 }
 function isStrongPassword(pw) {
   const p = String(pw || '');
@@ -504,8 +512,8 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
     if (!userData || !userData.rsEmail) {
       return res.status(400).json({ error: 'Missing userData.rsEmail' });
     }
-    if (!isValidEmail(userData.rsEmail)) {
-      return res.status(400).json({ error: 'Invalid rsEmail format' });
+    if (!isValidUsername(userData.rsEmail)) {
+      return res.status(400).json({ error: 'Invalid username format' });
     }
 
     // Optional: previousEmail used only for migrating preserved fields
@@ -550,7 +558,7 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       }
 
       // If creating a new file (or missing hash) and previousEmail is provided, try to migrate passwordHash
-      if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidEmail(previousEmail)) {
+      if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidUsername(previousEmail)) {
         try {
           const prevPrefix = sanitizePrefix(previousEmail);
           const prevFilePath = `users/${prevPrefix}.json`;
@@ -660,7 +668,7 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       const existingUser = await readLocalUser(writePrefix);
       // Try migration from previousEmail in local mode
       let previousUser = null;
-      if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidEmail(previousEmail)) {
+      if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidUsername(previousEmail)) {
         // Prefer GitHub read using client-provided token when available
         previousUser = null;
         try {
@@ -723,8 +731,8 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
     if (!evaluation || !evaluation.evaluationId) {
       return res.status(400).json({ error: 'Missing evaluation.evaluationId' });
     }
-    if (!userEmail || !isValidEmail(userEmail)) {
-      return res.status(400).json({ error: 'Invalid or missing userEmail' });
+    if (!userEmail || !isValidUsername(userEmail)) {
+      return res.status(400).json({ error: 'Invalid or missing username' });
     }
 
     const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
@@ -871,11 +879,11 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
 // List evaluations for a user. Uses server token when available; falls back to local storage.
 app.get('/api/evaluations/list', async (req, res) => {
   try {
-    const email = String(req.query.email || '').trim();
-    if (!email) return res.status(400).json({ error: 'Missing email query param' });
+    const username = String((req.query.username || req.query.email || '')).trim();
+    if (!username) return res.status(400).json({ error: 'Missing username query param' });
 
     const fitrepToken = process.env.FITREP_DATA || '';
-    const prefix = sanitizePrefix(email);
+    const prefix = sanitizePrefix(username);
     const dirPath = `users/${prefix}/evaluations`;
 
     // Attempt listing via GitHub Contents API when token available
@@ -982,12 +990,12 @@ app.get('/api/evaluations/list', async (req, res) => {
 // Load user data via server using FITREP_DATA
 app.get('/api/user/load', async (req, res) => {
   try {
-    const email = String(req.query.email || '').trim();
-    if (!email) return res.status(400).json({ error: 'Missing email query param' });
+    const username = String((req.query.username || req.query.email || '')).trim();
+    if (!username) return res.status(400).json({ error: 'Missing username query param' });
     const token = process.env.FITREP_DATA;
     if (!token) return res.status(500).json({ error: 'Server missing FITREP_DATA' });
 
-    const prefix = sanitizePrefix(email);
+    const prefix = sanitizePrefix(username);
     const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
     const resp = await fetch(apiUrl, {
       headers: {

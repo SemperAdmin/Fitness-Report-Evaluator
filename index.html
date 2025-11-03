@@ -458,7 +458,7 @@
     <!-- Login Card: show after mode selection -->
     <div class="profile-card" id="profileLoginCard">
         <div class="profile-title">Reporting Senior Login</div>
-        <p class="profile-description">Login with Email and Password to access your RS Dashboard.</p>
+        <p class="profile-description">Login with Username and Password to access your RS Dashboard.</p>
         
         <!-- Decorative typewriter animation: only visible after Login click -->
         <div class="typewriter-wrapper" id="loginTypewriter" aria-hidden="true" style="display: none;">
@@ -471,8 +471,8 @@
 
         <div id="loginFields">
             <div class="form-group">
-                <label class="form-label">Email</label>
-                <input type="email" class="form-input" id="loginEmailInput" placeholder="you@example.mil">
+                <label class="form-label">Username</label>
+                <input type="text" class="form-input" id="loginEmailInput" placeholder="your-username">
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
@@ -498,8 +498,8 @@
                 <input type="text" class="form-input" id="caNameInput" placeholder="Last, First MI">
             </div>
             <div class="form-group">
-                <label class="form-label">Email</label>
-                <input type="email" class="form-input" id="caEmailInput" placeholder="you@example.mil">
+                <label class="form-label">Username</label>
+                <input type="text" class="form-input" id="caEmailInput" placeholder="your-username">
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
@@ -805,9 +805,9 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="editRsEmailInput">Email</label>
-                <input type="email" class="form-input" id="editRsEmailInput" placeholder="you@example.mil">
-                <small style="display:block; color:#666; margin-top:4px;">Changing email will move your saved data file.</small>
+                <label class="form-label" for="editRsEmailInput">Username</label>
+                <input type="text" class="form-input" id="editRsEmailInput" placeholder="your-username" disabled>
+                <small style="display:block; color:#666; margin-top:4px;">Username is permanent and cannot be changed.</small>
             </div>
 
             <div class="form-group">
