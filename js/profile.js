@@ -592,7 +592,9 @@ async function saveProfileUpdates() {
                         const result = await githubService.saveUserData({
                             rsName: currentProfile.rsName,
                             rsEmail: currentProfile.rsEmail,
-                            rsRank: currentProfile.rsRank
+                            rsRank: currentProfile.rsRank,
+                            // Provide previousEmail so server can migrate passwordHash
+                            ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
                         });
                         if (result?.success) {
                             synced = true;
@@ -620,7 +622,8 @@ async function saveProfileUpdates() {
                     const result = await githubService.saveUserData({
                         rsName: currentProfile.rsName,
                         rsEmail: currentProfile.rsEmail,
-                        rsRank: currentProfile.rsRank
+                        rsRank: currentProfile.rsRank,
+                        ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
                     });
                     if (result?.success) {
                         statusMsg = result?.message || '';

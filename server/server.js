@@ -218,6 +218,7 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
     // Prefer direct write with FITREP_DATA when available
     // Prefer server token; otherwise accept client-provided token via header/body for dev/no-env usage
     const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
+    const previousEmail = (req.body?.userData?.previousEmail || '').trim();
     if (fitrepToken) {
       try {
         const prefix = sanitizePrefix(email);
@@ -512,6 +513,7 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       // Try to get existing SHA and existing file for preserving fields like passwordHash
       let sha = '';
       let existingUser = null;
+      let previousUser = null;
       const getResp = await fetch(apiBase, {
         headers: {
           'Authorization': `Bearer ${fitrepToken}`,
@@ -533,19 +535,48 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         return res.status(502).json({ error: `Read failed: ${text}` });
       }
 
+      // If creating a new file (or missing hash) and previousEmail is provided, try to migrate passwordHash
+      if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidEmail(previousEmail)) {
+        try {
+          const prevPrefix = sanitizePrefix(previousEmail);
+          const prevFilePath = `users/${prevPrefix}.json`;
+          const prevApiBase = `https://api.github.com/repos/${DATA_REPO}/contents/${prevFilePath}`;
+          const prevResp = await fetch(prevApiBase, {
+            headers: {
+              'Authorization': `Bearer ${fitrepToken}`,
+              'Accept': 'application/vnd.github.v3+json'
+            }
+          });
+          if (prevResp.status === 200) {
+            const prev = await prevResp.json();
+            try {
+              const prevStr = Buffer.from(prev.content || '', 'base64').toString('utf8');
+              previousUser = prevStr ? JSON.parse(prevStr) : null;
+            } catch (_) {
+              previousUser = null;
+            }
+          }
+        } catch (e) {
+          // best-effort; ignore migration errors
+          console.warn('passwordHash migration from previousEmail failed:', e?.message || e);
+        }
+      }
+
       // Build new data preserving flat structure and critical fields
       const now = new Date().toISOString();
       const bodyObj = {
         rsEmail: userData.rsEmail,
         rsName: userData.rsName ?? existingUser?.rsName ?? '',
         rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
-        createdDate: existingUser?.createdDate || now,
+        createdDate: existingUser?.createdDate || previousUser?.createdDate || now,
         lastUpdated: now
       };
 
       // SECURITY: Only preserve passwordHash from existing user, never from client input
       if (existingUser?.passwordHash) {
         bodyObj.passwordHash = existingUser.passwordHash;
+      } else if (previousUser?.passwordHash) {
+        bodyObj.passwordHash = previousUser.passwordHash;
       }
 
       const contentStr = JSON.stringify(bodyObj, null, 2);
@@ -599,16 +630,23 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       const prefix = sanitizePrefix(userData.rsEmail);
       // Merge with existing local user to preserve passwordHash
       const existingUser = await readLocalUser(prefix);
+      // Try migration from previousEmail in local mode
+      let previousUser = null;
+      if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidEmail(previousEmail)) {
+        try { previousUser = await readLocalUser(sanitizePrefix(previousEmail)); } catch (_) { previousUser = null; }
+      }
       const now = new Date().toISOString();
       const bodyObj = {
         rsEmail: userData.rsEmail,
         rsName: userData.rsName ?? existingUser?.rsName ?? '',
         rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
-        createdDate: existingUser?.createdDate || now,
+        createdDate: existingUser?.createdDate || previousUser?.createdDate || now,
         lastUpdated: now
       };
       if (existingUser?.passwordHash) {
         bodyObj.passwordHash = existingUser.passwordHash;
+      } else if (previousUser?.passwordHash) {
+        bodyObj.passwordHash = previousUser.passwordHash;
       }
       await writeLocalUser(prefix, bodyObj);
       return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local' });

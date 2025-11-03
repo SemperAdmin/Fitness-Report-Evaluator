@@ -993,14 +993,17 @@ class GitHubDataService {
                     return {
                         rsName: p.rsName || userData.rsName || '',
                         rsEmail: p.rsEmail || userData.rsEmail || '',
-                        rsRank: p.rsRank || userData.rsRank || ''
+                        rsRank: p.rsRank || userData.rsRank || '',
+                        // Carry previousEmail if provided for passwordHash migration on backend
+                        ...(userData.previousEmail ? { previousEmail: userData.previousEmail } : {})
                     };
                 }
             } catch (_) { /* ignore */ }
             return {
                 rsName: userData?.rsName || '',
                 rsEmail: userData?.rsEmail || '',
-                rsRank: userData?.rsRank || ''
+                rsRank: userData?.rsRank || '',
+                ...(userData?.previousEmail ? { previousEmail: userData.previousEmail } : {})
             };
         })();
 
