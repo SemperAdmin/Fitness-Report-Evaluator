@@ -604,25 +604,30 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
 
     // Fallback: dispatch workflow when direct write is not possible
     if (dispatchToken) {
-      const payload = {
-        event_type: 'save-user-data',
-        client_payload: { userData }
-      };
-      const resp = await fetch(`https://api.github.com/repos/${MAIN_REPO}/dispatches`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${dispatchToken}`,
-          'Accept': 'application/vnd.github+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      if (!resp.ok) {
+      try {
+        const payload = {
+          event_type: 'save-user-data',
+          client_payload: { userData }
+        };
+        const resp = await fetch(`https://api.github.com/repos/${MAIN_REPO}/dispatches`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${dispatchToken}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+          return res.json({ ok: true, dispatched: true, method: 'dispatch' });
+        }
         const text = await resp.text();
         console.error('save user: dispatch failed:', text);
-        return res.status(502).json({ error: `Dispatch failed: ${text}` });
+        // Do not hard-fail; fall back to local persistence to avoid 500s in production
+      } catch (e) {
+        console.error('save user: dispatch error, falling back to local:', e?.message || e);
       }
-      return res.json({ ok: true, dispatched: true, method: 'dispatch' });
+      // Continue to local filesystem fallback below
     }
 
     // Local filesystem fallback when no tokens are available
