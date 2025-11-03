@@ -424,9 +424,28 @@ class GitHubDataService {
      * @returns {Promise<Array>} Array of evaluation objects suitable for UI
      */
     async loadUserEvaluations(userEmail) {
-        if (!this.initialized) {
-            throw new Error('GitHubDataService not initialized. Call initialize() first.');
+        // Backend fallback when not initialized with a token
+        if (!this.initialized || !this.token) {
+            try {
+                const endpoint = this.resolveBackendEndpoint(`/api/evaluations/list?email=${encodeURIComponent(userEmail)}`);
+                if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
+                    return [];
+                }
+                const resp = await fetch(endpoint.url, { method: 'GET' });
+                if (!resp.ok) {
+                    // Treat non-OK as no evaluations available
+                    return [];
+                }
+                const data = await resp.json().catch(() => ({}));
+                const list = Array.isArray(data?.evaluations) ? data.evaluations : [];
+                return list.map(ev => ({ ...ev, syncStatus: 'synced' }));
+            } catch (err) {
+                console.warn('Backend evaluation list failed:', err);
+                return [];
+            }
         }
+
+        // Token-based GitHub API path
         const localPart = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         const dirPath = `users/${localPart}/evaluations`;
         const items = await this.listDirectory(dirPath);
@@ -442,7 +461,6 @@ class GitHubDataService {
                         const ev = { ...data.evaluation, syncStatus: 'synced' };
                         evaluations.push(ev);
                     } else if (data && data.id) {
-                        // Rare: flat JSON akin to YAML
                         const ev = {
                             evaluationId: data.id,
                             occasion: data.occasion || null,

@@ -735,6 +735,92 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
   }
 });
 
+// List evaluations for a user. Uses server token when available; falls back to local storage.
+app.get('/api/evaluations/list', async (req, res) => {
+  try {
+    const email = String(req.query.email || '').trim();
+    if (!email) return res.status(400).json({ error: 'Missing email query param' });
+
+    const fitrepToken = process.env.FITREP_DATA || '';
+    const prefix = sanitizePrefix(email);
+    const dirPath = `users/${prefix}/evaluations`;
+
+    // Attempt listing via GitHub Contents API when token available
+    if (fitrepToken) {
+      const listUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${dirPath}`;
+      const resp = await fetch(listUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (resp.status === 404) {
+        return res.json({ ok: true, evaluations: [] });
+      }
+      if (!resp.ok) {
+        const text = await resp.text();
+        return res.status(502).json({ error: `List failed: ${text}` });
+      }
+      const items = await resp.json();
+      const files = Array.isArray(items) ? items.filter(i => i.type === 'file') : [];
+      const evaluations = [];
+      for (const f of files) {
+        try {
+          const fileApi = `https://api.github.com/repos/${DATA_REPO}/contents/${f.path}`;
+          const fileResp = await fetch(fileApi, {
+            headers: {
+              'Authorization': `Bearer ${fitrepToken}`,
+              'Accept': 'application/vnd.github.v3+json'
+            }
+          });
+          if (!fileResp.ok) continue;
+          const fileData = await fileResp.json();
+          const contentStr = Buffer.from(fileData.content || '', 'base64').toString('utf8');
+          try {
+            const obj = JSON.parse(contentStr);
+            if (obj && obj.evaluation) {
+              evaluations.push(obj.evaluation);
+            }
+          } catch (_) { /* ignore parse errors */ }
+        } catch (_) { /* ignore individual file errors */ }
+      }
+      return res.json({ ok: true, evaluations });
+    }
+
+    // Fallback: read from local filesystem
+    try {
+      const evalDir = path.join(LOCAL_DATA_DIR, prefix, 'evaluations');
+      let entries = [];
+      try {
+        entries = await fsp.readdir(evalDir, { withFileTypes: true });
+      } catch (_) {
+        return res.json({ ok: true, evaluations: [] });
+      }
+      const evaluations = [];
+      for (const ent of entries) {
+        if (!ent.isFile()) continue;
+        const name = ent.name || '';
+        if (!name.toLowerCase().endsWith('.json')) continue;
+        const fp = path.join(evalDir, name);
+        try {
+          const str = await fsp.readFile(fp, 'utf8');
+          const obj = JSON.parse(str);
+          if (obj && obj.evaluation) {
+            evaluations.push(obj.evaluation);
+          }
+        } catch (_) { /* ignore file read/parse errors */ }
+      }
+      return res.json({ ok: true, evaluations });
+    } catch (err) {
+      console.error('list evaluations: local read failed:', err);
+      return res.status(500).json({ error: 'Local read failed' });
+    }
+  } catch (err) {
+    console.error('list evaluations error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Load user data via server using FITREP_DATA
 app.get('/api/user/load', async (req, res) => {
   try {
