@@ -537,9 +537,12 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
           existingUser = null;
         }
       } else if (getResp.status !== 404 && !getResp.ok) {
-        const text = await getResp.text();
-        console.error('save user: get SHA failed:', text);
-        return res.status(502).json({ error: `Read failed: ${text}` });
+        // Do not hard-fail on read errors; continue without sha so we can attempt PUT
+        let text = '';
+        try { text = await getResp.text(); } catch (_) { /* ignore */ }
+        console.error('save user: get SHA failed, continuing without sha:', text);
+        sha = '';
+        existingUser = null;
       }
 
       // If creating a new file (or missing hash) and previousEmail is provided, try to migrate passwordHash
@@ -601,9 +604,17 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         body: JSON.stringify(putBody)
       });
       if (!putResp.ok) {
-        const text = await putResp.text();
-        console.error('save user: put failed:', text);
-        return res.status(502).json({ error: `Write failed: ${text}` });
+        let text = '';
+        try { text = await putResp.text(); } catch (_) { /* ignore */ }
+        console.error('save user: put failed, falling back to local:', text);
+        // Fall back to local persistence to avoid 5xx
+        try {
+          await writeLocalUser(prefix, bodyObj);
+          return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local', fallback: 'put-failed' });
+        } catch (err) {
+          console.error('save user: local write failed after put error:', err);
+          return res.status(500).json({ error: 'Local write failed' });
+        }
       }
       const result = await putResp.json();
       return res.json({ ok: true, path: result?.content?.path || filePath, commit: result?.commit?.sha || null, method: 'direct' });
