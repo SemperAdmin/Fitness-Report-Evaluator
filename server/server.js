@@ -257,7 +257,9 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
           rsRank: rank,
           passwordHash,
           createdDate: now,
-          lastUpdated: now
+          lastUpdated: now,
+          // Mark SemperAdmin as admin
+          ...(username.toLowerCase() === 'semperadmin' && { isAdmin: true })
         };
 
         const contentStr = JSON.stringify(userJson, null, 2);
@@ -306,7 +308,9 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
           rsRank: rank,
           passwordHash,
           createdDate: now,
-          lastUpdated: now
+          lastUpdated: now,
+          // Mark SemperAdmin as admin
+          ...(email.toLowerCase() === 'semperadmin' && { isAdmin: true })
         };
         await writeLocalUser(prefix, userJson);
         return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local' });
@@ -417,7 +421,8 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
         rsName: user.rsName,
         rsEmail: user.rsEmail,
         rsRank: user.rsRank,
-        lastUpdated: user.lastUpdated || new Date().toISOString()
+        lastUpdated: user.lastUpdated || new Date().toISOString(),
+        isAdmin: user.isAdmin || false
       },
       // evaluations removed; per-evaluation files are now used
     });
@@ -571,6 +576,10 @@ function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEval
   if (existingUser?.passwordHash) {
     obj.passwordHash = existingUser.passwordHash;
   }
+  // Preserve admin status
+  if (existingUser?.isAdmin) {
+    obj.isAdmin = existingUser.isAdmin;
+  }
   return obj;
 }
 
@@ -668,6 +677,12 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         bodyObj.passwordHash = existingUser.passwordHash;
       } else if (previousUser?.passwordHash) {
         bodyObj.passwordHash = previousUser.passwordHash;
+      }
+      // Preserve admin status
+      if (existingUser?.isAdmin) {
+        bodyObj.isAdmin = existingUser.isAdmin;
+      } else if (previousUser?.isAdmin) {
+        bodyObj.isAdmin = previousUser.isAdmin;
       }
 
       const contentStr = JSON.stringify(bodyObj, null, 2);
@@ -779,6 +794,12 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         bodyObj.passwordHash = existingUser.passwordHash;
       } else if (previousUser?.passwordHash) {
         bodyObj.passwordHash = previousUser.passwordHash;
+      }
+      // Preserve admin status
+      if (existingUser?.isAdmin) {
+        bodyObj.isAdmin = existingUser.isAdmin;
+      } else if (previousUser?.isAdmin) {
+        bodyObj.isAdmin = previousUser.isAdmin;
       }
       await writeLocalUser(writePrefix, bodyObj);
       return res.json({ ok: true, path: `local:${writePrefix}.json`, method: 'local' });
@@ -1083,6 +1104,441 @@ app.get('/api/user/load', async (req, res) => {
     return res.json({ ok: true, data: obj });
   } catch (err) {
     console.error('load user error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// ADMIN ENDPOINTS
+// ============================================================================
+
+// Admin authentication middleware
+async function requireAdmin(req, res, next) {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(401).json({ error: 'Admin authentication required' });
+    }
+
+    const prefix = sanitizePrefix(username);
+    let user = null;
+
+    // Try GitHub first
+    try {
+      const token = process.env.FITREP_DATA || '';
+      const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      const headers = { 'Accept': 'application/vnd.github+json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch(apiUrl, { headers });
+      if (resp.status === 200) {
+        const data = await resp.json();
+        const jsonStr = Buffer.from(data.content, 'base64').toString('utf8');
+        user = JSON.parse(jsonStr);
+      }
+    } catch (err) {
+      console.error('admin auth: github fetch error:', err);
+    }
+
+    // Fallback to local
+    if (!user) {
+      user = await readLocalUser(prefix);
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+
+    // Verify password
+    const ok = await bcrypt.compare(password, user.passwordHash || '');
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+
+    // Verify admin status
+    if (!user.isAdmin) {
+      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    }
+
+    // Attach user to request for downstream use
+    req.adminUser = user;
+    next();
+  } catch (err) {
+    console.error('admin middleware error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// List all users (admin only)
+app.post('/api/admin/users/list', authRateLimit, requireAdmin, async (req, res) => {
+  try {
+    const fitrepToken = process.env.FITREP_DATA || '';
+    const users = [];
+
+    if (fitrepToken) {
+      // List from GitHub
+      const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
+      const resp = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (resp.ok) {
+        const items = await resp.json();
+        const files = Array.isArray(items) ? items.filter(i => i.type === 'file' && i.name.endsWith('.json')) : [];
+
+        for (const file of files) {
+          try {
+            const fileResp = await fetch(file.url, {
+              headers: {
+                'Authorization': `Bearer ${fitrepToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+              }
+            });
+            if (fileResp.ok) {
+              const fileData = await fileResp.json();
+              const content = Buffer.from(fileData.content, 'base64').toString('utf8');
+              const user = JSON.parse(content);
+              // Don't include password hash in response
+              const { passwordHash, ...userSafe } = user;
+              users.push(userSafe);
+            }
+          } catch (e) {
+            console.warn('Failed to read user file:', file.name, e);
+          }
+        }
+      }
+    } else {
+      // List from local storage
+      try {
+        const entries = await fsp.readdir(LOCAL_DATA_DIR, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isFile() && entry.name.endsWith('.json')) {
+            try {
+              const user = await readLocalUser(entry.name.replace('.json', ''));
+              if (user) {
+                const { passwordHash, ...userSafe } = user;
+                users.push(userSafe);
+              }
+            } catch (e) {
+              console.warn('Failed to read local user:', entry.name, e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to list local users:', e);
+      }
+    }
+
+    return res.json({ ok: true, users });
+  } catch (err) {
+    console.error('admin list users error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get aggregated analytics (admin only)
+app.post('/api/admin/analytics', authRateLimit, requireAdmin, async (req, res) => {
+  try {
+    const fitrepToken = process.env.FITREP_DATA || '';
+    const analytics = {
+      totalUsers: 0,
+      totalEvaluations: 0,
+      evaluationsByRank: {},
+      evaluationsByOccasion: {},
+      averageFitrepScore: 0,
+      userActivity: []
+    };
+
+    if (fitrepToken) {
+      // Fetch from GitHub
+      const usersUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
+      const resp = await fetch(usersUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (resp.ok) {
+        const items = await resp.json();
+        const userDirs = Array.isArray(items) ? items.filter(i => i.type === 'dir' || (i.type === 'file' && i.name.endsWith('.json'))) : [];
+
+        analytics.totalUsers = userDirs.filter(i => i.type === 'file' && i.name.endsWith('.json')).length;
+
+        let totalScore = 0;
+        let scoreCount = 0;
+
+        // Process each user directory
+        for (const item of userDirs) {
+          if (item.type === 'dir') {
+            try {
+              const evalUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${item.name}/evaluations`;
+              const evalResp = await fetch(evalUrl, {
+                headers: {
+                  'Authorization': `Bearer ${fitrepToken}`,
+                  'Accept': 'application/vnd.github.v3+json'
+                }
+              });
+
+              if (evalResp.ok) {
+                const evalItems = await evalResp.json();
+                const evalFiles = Array.isArray(evalItems) ? evalItems.filter(e => e.type === 'file') : [];
+                analytics.totalEvaluations += evalFiles.length;
+
+                // Read each evaluation for detailed analytics
+                for (const evalFile of evalFiles) {
+                  try {
+                    const evalFileResp = await fetch(evalFile.url, {
+                      headers: {
+                        'Authorization': `Bearer ${fitrepToken}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                      }
+                    });
+
+                    if (evalFileResp.ok) {
+                      const evalData = await evalFileResp.json();
+                      const content = Buffer.from(evalData.content, 'base64').toString('utf8');
+                      const evalObj = JSON.parse(content);
+                      const evaluation = evalObj.evaluation || evalObj;
+
+                      // Collect analytics
+                      if (evaluation.marineInfo?.rank) {
+                        analytics.evaluationsByRank[evaluation.marineInfo.rank] =
+                          (analytics.evaluationsByRank[evaluation.marineInfo.rank] || 0) + 1;
+                      }
+
+                      if (evaluation.occasion) {
+                        analytics.evaluationsByOccasion[evaluation.occasion] =
+                          (analytics.evaluationsByOccasion[evaluation.occasion] || 0) + 1;
+                      }
+
+                      if (evaluation.fitrepAverage) {
+                        const score = parseFloat(evaluation.fitrepAverage);
+                        if (!isNaN(score)) {
+                          totalScore += score;
+                          scoreCount++;
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('Failed to read evaluation:', evalFile.name, e);
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to list evaluations for user:', item.name, e);
+            }
+          }
+        }
+
+        analytics.averageFitrepScore = scoreCount > 0 ? (totalScore / scoreCount).toFixed(2) : 0;
+      }
+    } else {
+      // Local storage analytics
+      try {
+        const userEntries = await fsp.readdir(LOCAL_DATA_DIR, { withFileTypes: true });
+        analytics.totalUsers = userEntries.filter(e => e.isFile() && e.name.endsWith('.json')).length;
+
+        let totalScore = 0;
+        let scoreCount = 0;
+
+        for (const entry of userEntries) {
+          if (entry.isDirectory()) {
+            const evalDir = path.join(LOCAL_DATA_DIR, entry.name, 'evaluations');
+            try {
+              const evalEntries = await fsp.readdir(evalDir, { withFileTypes: true });
+              const evalFiles = evalEntries.filter(e => e.isFile() && e.name.endsWith('.json'));
+              analytics.totalEvaluations += evalFiles.length;
+
+              for (const evalFile of evalFiles) {
+                try {
+                  const content = await fsp.readFile(path.join(evalDir, evalFile.name), 'utf8');
+                  const evalObj = JSON.parse(content);
+                  const evaluation = evalObj.evaluation || evalObj;
+
+                  if (evaluation.marineInfo?.rank) {
+                    analytics.evaluationsByRank[evaluation.marineInfo.rank] =
+                      (analytics.evaluationsByRank[evaluation.marineInfo.rank] || 0) + 1;
+                  }
+
+                  if (evaluation.occasion) {
+                    analytics.evaluationsByOccasion[evaluation.occasion] =
+                      (analytics.evaluationsByOccasion[evaluation.occasion] || 0) + 1;
+                  }
+
+                  if (evaluation.fitrepAverage) {
+                    const score = parseFloat(evaluation.fitrepAverage);
+                    if (!isNaN(score)) {
+                      totalScore += score;
+                      scoreCount++;
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Failed to read local evaluation:', evalFile.name, e);
+                }
+              }
+            } catch (e) {
+              // No evaluations directory for this user
+            }
+          }
+        }
+
+        analytics.averageFitrepScore = scoreCount > 0 ? (totalScore / scoreCount).toFixed(2) : 0;
+      } catch (e) {
+        console.warn('Failed to read local analytics:', e);
+      }
+    }
+
+    return res.json({ ok: true, analytics });
+  } catch (err) {
+    console.error('admin analytics error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete user (admin only)
+app.post('/api/admin/users/delete', authRateLimit, requireAdmin, async (req, res) => {
+  try {
+    const { targetUsername } = req.body;
+    if (!targetUsername) {
+      return res.status(400).json({ error: 'Missing targetUsername' });
+    }
+
+    const prefix = sanitizePrefix(targetUsername);
+    const fitrepToken = process.env.FITREP_DATA || '';
+
+    if (fitrepToken) {
+      // Delete from GitHub
+      const userUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      const resp = await fetch(userUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (resp.status === 200) {
+        const data = await resp.json();
+        const deleteResp = await fetch(userUrl, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${fitrepToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: `Delete user ${targetUsername} via admin`,
+            sha: data.sha
+          })
+        });
+
+        if (!deleteResp.ok) {
+          const text = await deleteResp.text();
+          console.error('Failed to delete user:', text);
+          return res.status(502).json({ error: 'Failed to delete user from GitHub' });
+        }
+
+        return res.json({ ok: true, message: 'User deleted successfully' });
+      } else if (resp.status === 404) {
+        return res.status(404).json({ error: 'User not found' });
+      } else {
+        return res.status(502).json({ error: 'Failed to fetch user for deletion' });
+      }
+    } else {
+      // Delete from local storage
+      try {
+        const userPath = localUserPath(prefix);
+        await fsp.unlink(userPath);
+        return res.json({ ok: true, message: 'User deleted successfully' });
+      } catch (err) {
+        if (err.code === 'ENOENT') {
+          return res.status(404).json({ error: 'User not found' });
+        }
+        throw err;
+      }
+    }
+  } catch (err) {
+    console.error('admin delete user error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reset user password (admin only)
+app.post('/api/admin/users/reset-password', authRateLimit, requireAdmin, async (req, res) => {
+  try {
+    const { targetUsername, newPassword } = req.body;
+    if (!targetUsername || !newPassword) {
+      return res.status(400).json({ error: 'Missing targetUsername or newPassword' });
+    }
+
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters with upper, lower, and number' });
+    }
+
+    const prefix = sanitizePrefix(targetUsername);
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const fitrepToken = process.env.FITREP_DATA || '';
+
+    if (fitrepToken) {
+      // Update on GitHub
+      const userUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      const resp = await fetch(userUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (resp.status === 200) {
+        const data = await resp.json();
+        const content = Buffer.from(data.content, 'base64').toString('utf8');
+        const user = JSON.parse(content);
+        user.passwordHash = passwordHash;
+        user.lastUpdated = new Date().toISOString();
+
+        const updateResp = await fetch(userUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${fitrepToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: `Reset password for ${targetUsername} via admin`,
+            content: Buffer.from(JSON.stringify(user, null, 2), 'utf8').toString('base64'),
+            sha: data.sha
+          })
+        });
+
+        if (!updateResp.ok) {
+          const text = await updateResp.text();
+          console.error('Failed to update password:', text);
+          return res.status(502).json({ error: 'Failed to update password' });
+        }
+
+        return res.json({ ok: true, message: 'Password reset successfully' });
+      } else if (resp.status === 404) {
+        return res.status(404).json({ error: 'User not found' });
+      } else {
+        return res.status(502).json({ error: 'Failed to fetch user' });
+      }
+    } else {
+      // Update local storage
+      const user = await readLocalUser(prefix);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      user.passwordHash = passwordHash;
+      user.lastUpdated = new Date().toISOString();
+      await writeLocalUser(prefix, user);
+
+      return res.json({ ok: true, message: 'Password reset successfully' });
+    }
+  } catch (err) {
+    console.error('admin reset password error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

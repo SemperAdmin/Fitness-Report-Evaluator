@@ -176,7 +176,8 @@ async function accountLogin() {
             rsName: res.rsName,
             rsEmail: email,
             rsRank: res.rsRank,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
+            isAdmin: res.isAdmin || false
         };
         // Fetch per-user evaluation files to populate events list
         // Always attempt to load evaluations; githubService will use backend fallback when no token
@@ -385,6 +386,14 @@ function showProfileDashboard() {
     renderEvaluationsList();
     // Initialize button bar to "All" and update visibility
     setRankFilter('');
+
+    // Show admin button if user is admin
+    const adminBtn = document.getElementById('adminDashboardBtn');
+    if (adminBtn && currentProfile && currentProfile.isAdmin) {
+        adminBtn.style.display = 'inline-block';
+    } else if (adminBtn) {
+        adminBtn.style.display = 'none';
+    }
 
     // Make sure we are scrolled to the top of the dashboard
     try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}

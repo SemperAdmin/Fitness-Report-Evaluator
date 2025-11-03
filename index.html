@@ -575,6 +575,7 @@
         <!-- Profile actions bar: add id to Grid View for visibility control -->
         <div class="profile-actions-bar">
             <button class="btn btn-meets" onclick="startNewEvaluation()">+ New Evaluation</button>
+            <button class="btn" id="adminDashboardBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: none;" onclick="showAdminDashboard()">🔧 Admin Dashboard</button>
             <!-- Manage Data dropdown replacing Export All -->
             <style>
             .sub-button{background-color:transparent;border:none;line-height:1;display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;cursor:pointer;font-weight:600;color:#fff;white-space:nowrap;border-radius:6px;border:1px solid rgba(255,255,255,0.2);transition:all .2s ease-in-out;text-shadow:0 1px 1px rgba(0,0,0,0.2)}
@@ -736,6 +737,137 @@
         </div>
     </div>
 
+    <!-- Admin Dashboard Card -->
+    <div class="profile-card" id="adminDashboardCard" style="display: none;">
+        <div class="admin-header">
+            <h1>Admin Dashboard</h1>
+            <button class="btn btn-secondary" onclick="backToProfileDashboard()">← Back to Profile</button>
+        </div>
+
+        <!-- Admin Navigation Tabs -->
+        <div class="admin-tabs">
+            <button class="admin-tab active" onclick="showAdminTab('overview')">Overview</button>
+            <button class="admin-tab" onclick="showAdminTab('users')">User Management</button>
+            <button class="admin-tab" onclick="showAdminTab('analytics')">Analytics</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div class="admin-tab-content active" id="adminOverviewTab">
+            <div class="admin-stats-grid">
+                <div class="admin-stat-card">
+                    <div class="admin-stat-icon">👥</div>
+                    <div class="admin-stat-value" id="adminTotalUsers">-</div>
+                    <div class="admin-stat-label">Total Users</div>
+                </div>
+                <div class="admin-stat-card">
+                    <div class="admin-stat-icon">📊</div>
+                    <div class="admin-stat-value" id="adminTotalEvaluations">-</div>
+                    <div class="admin-stat-label">Total Evaluations</div>
+                </div>
+                <div class="admin-stat-card">
+                    <div class="admin-stat-icon">⭐</div>
+                    <div class="admin-stat-value" id="adminAvgScore">-</div>
+                    <div class="admin-stat-label">Average FITREP Score</div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <h3>System Overview</h3>
+                <p>Welcome to the Admin Dashboard for the USMC FITREP Evaluator. Use the tabs above to manage users and view detailed analytics.</p>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div class="admin-tab-content" id="adminUsersTab">
+            <div class="admin-section">
+                <h3>User Management</h3>
+                <div class="admin-actions">
+                    <button class="btn btn-meets" onclick="loadAllUsers()">🔄 Refresh Users</button>
+                </div>
+
+                <div class="users-table-container">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Rank</th>
+                                <th>Created</th>
+                                <th>Last Updated</th>
+                                <th>Admin</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 20px;">
+                                    Click "Refresh Users" to load users
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div class="admin-tab-content" id="adminAnalyticsTab">
+            <div class="admin-section">
+                <h3>Analytics Overview</h3>
+                <button class="btn btn-meets" onclick="loadAnalytics()">🔄 Refresh Analytics</button>
+            </div>
+
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <h4>Evaluations by Rank</h4>
+                    <div id="rankChart" class="chart-container">
+                        <p style="text-align: center; color: #666;">Click "Refresh Analytics" to load data</p>
+                    </div>
+                </div>
+
+                <div class="analytics-card">
+                    <h4>Evaluations by Occasion</h4>
+                    <div id="occasionChart" class="chart-container">
+                        <p style="text-align: center; color: #666;">Click "Refresh Analytics" to load data</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete User Modal -->
+    <div id="deleteUserModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Confirm Delete User</h3>
+            <p>Are you sure you want to delete user <strong id="deleteUsername"></strong>?</p>
+            <p style="color: #d32f2f; font-size: 14px;">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeDeleteUserModal()">Cancel</button>
+                <button class="btn" style="background: #d32f2f;" onclick="confirmDeleteUser()">Delete User</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div id="resetPasswordModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Reset Password</h3>
+            <p>Reset password for user <strong id="resetUsername"></strong></p>
+            <div class="form-group">
+                <label class="form-label">New Password</label>
+                <input type="password" class="form-input" id="newPasswordInput" placeholder="Enter new password">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Confirm Password</label>
+                <input type="password" class="form-input" id="confirmPasswordInput" placeholder="Confirm new password">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeResetPasswordModal()">Cancel</button>
+                <button class="btn btn-meets" onclick="confirmResetPassword()">Reset Password</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts - CRITICAL: Load data.js FIRST -->
     <script>
         console.log('HTML loaded successfully');
@@ -767,6 +899,7 @@
     <script src="js/directedComments.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/evaluation.js"></script>
+    <script src="js/admin.js"></script>
     <script src="js/app.js"></script>
     
     <!-- Save to Profile Modal: add Save & Return to Profile button -->
