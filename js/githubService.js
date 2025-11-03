@@ -145,8 +145,15 @@ class GitHubDataService {
         }
 
         // Approach 1: Backend API proxy (RECOMMENDED for client-side apps)
+        // In production, skip calling this endpoint unless explicitly enabled.
         if (typeof window !== 'undefined') {
             try {
+                const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+                const prodFlag = window.USE_ASSEMBLED_TOKEN === true;
+                // If not local and no explicit prod flag, do not attempt backend token fetch
+                if (!isLocal && !prodFlag) {
+                    return null;
+                }
                 const ep = this.resolveBackendEndpoint('/api/github-token');
                 if (!ep || ('blocked' in ep && ep.blocked)) {
                     // No configured base or origin not allowed; skip backend token retrieval
@@ -599,17 +606,24 @@ class GitHubDataService {
         // Backend fallback when not initialized with a token
         if (!this.initialized || !this.token) {
             try {
-                const endpoint = this.resolveBackendEndpoint(`/api/evaluations/list?email=${encodeURIComponent(userEmail)}`);
+                // Allow a one-time fresh fetch after a save to avoid 304/ETag cache reuse
+                let forceFresh = false;
+                try { if (typeof window !== 'undefined' && window.__forceFreshEvaluationsOnce) forceFresh = true; } catch (_) {}
+
+                const endpoint = this.resolveBackendEndpoint(`/api/evaluations/list?email=${encodeURIComponent(userEmail)}${forceFresh ? `&t=${Date.now()}` : ''}`);
                 if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
                     return [];
                 }
-                const resp = await fetch(endpoint.url, { method: 'GET' });
+                const fetchOpts = forceFresh ? { method: 'GET', cache: 'no-store' } : { method: 'GET' };
+                const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {
                     // Treat non-OK as no evaluations available
                     return [];
                 }
                 const data = await resp.json().catch(() => ({}));
                 const list = Array.isArray(data?.evaluations) ? data.evaluations : [];
+                // Reset the one-time fresh flag
+                try { if (forceFresh && typeof window !== 'undefined') window.__forceFreshEvaluationsOnce = false; } catch (_) {}
                 return list.map(ev => ({ ...ev, syncStatus: 'synced' }));
             } catch (err) {
                 console.warn('Backend evaluation list failed:', err);
@@ -1202,6 +1216,8 @@ class GitHubDataService {
                 const evalResult = await this.saveEvaluationUniqueFile(evaluation, userEmail);
                 // Attempt to upsert index.json (best-effort; does not block save)
                 try { await this.upsertEvaluationIndex(userEmail, evaluation); } catch (_) {}
+                // Mark that the next evaluations list request should bypass cache once
+                try { if (evalResult?.success && typeof window !== 'undefined') window.__forceFreshEvaluationsOnce = true; } catch (_) {}
                 const bothOk = !!(aggregateResult?.success && evalResult?.success);
                 const msg = bothOk
                     ? 'Evaluation saved (profile metadata and unique file) successfully'
