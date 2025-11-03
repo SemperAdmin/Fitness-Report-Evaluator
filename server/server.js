@@ -508,7 +508,7 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       return res.status(400).json({ error: 'Invalid rsEmail format' });
     }
 
-    // Ensure previousEmail is defined for both direct and local fallback paths
+    // Optional: previousEmail used only for migrating preserved fields
     const previousEmail = userData.previousEmail || null;
 
     const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
@@ -516,9 +516,8 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
 
     // Prefer direct write when FITREP_DATA is available
     if (fitrepToken) {
-      const writePrefix = (previousEmail && isValidEmail(previousEmail))
-        ? sanitizePrefix(previousEmail)
-        : sanitizePrefix(userData.rsEmail);
+      // Always write to the new email path; use previousEmail only to migrate fields
+      const writePrefix = sanitizePrefix(userData.rsEmail);
       const filePath = `users/${writePrefix}.json`;
       const apiBase = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
 
@@ -653,11 +652,10 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       // Continue to local filesystem fallback below
     }
 
-    // Local filesystem fallback when no tokens are available
+      // Local filesystem fallback when no tokens are available
     try {
-      const writePrefix = (previousEmail && isValidEmail(previousEmail))
-        ? sanitizePrefix(previousEmail)
-        : sanitizePrefix(userData.rsEmail);
+      // Always write to new email path locally as well
+      const writePrefix = sanitizePrefix(userData.rsEmail);
       // Merge with existing local user to preserve passwordHash
       const existingUser = await readLocalUser(writePrefix);
       // Try migration from previousEmail in local mode

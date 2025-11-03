@@ -32,12 +32,8 @@ jobs:
           fi
 
           # users/<emailPrefix>.json (sanitize non-alnum to underscore)
-          # If previousEmail provided, prefer writing to the previous file path
-          if [ -n "$prevEmail" ] && [ "$prevEmail" != "null" ]; then
-            prefix=$(echo "$prevEmail" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
-          else
-            prefix=$(echo "$email" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
-          fi
+          # Always write to the NEW email path; use previousEmail only for migration
+          prefix=$(echo "$email" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
           filePath="users/${prefix}.json"
 
           echo "filePath=$filePath" >> $GITHUB_OUTPUT
@@ -166,3 +162,28 @@ jobs:
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/${{ steps.prep.outputs.filePath }}" \
             -d "$body"
+
+      - name: Delete previous file when email changed (cleanup)
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          prevEmail=$(jq -r '.userData.previousEmail // ""' payload.json)
+          email=$(jq -r '.userData.rsEmail // ""' payload.json)
+          if [ -n "$prevEmail" ] && [ "$prevEmail" != "null" ] && [ "$prevEmail" != "$email" ]; then
+            prevPrefix=$(echo "$prevEmail" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
+            # Get SHA of previous file
+            url="https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/users/${prevPrefix}.json"
+            status=$(curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.v3+json" "$url" -o prev.json -w "%{http_code}")
+            if [ "$status" = "200" ]; then
+              sha=$(jq -r '.sha' prev.json)
+              msg="Remove old profile after email change - $(date -Iseconds)"
+              body=$(jq -n --arg message "$msg" --arg sha "$sha" --arg branch "main" '{message:$message, sha:$sha, branch:$branch}')
+              curl -sS -f -X DELETE \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                -H "Content-Type: application/json" \
+                "https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/users/${prevPrefix}.json" \
+                -d "$body" || true
+            fi
+          fi
