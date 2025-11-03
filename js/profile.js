@@ -2,6 +2,8 @@
 let currentProfile = null;
 let profileEvaluations = [];
 let syncQueue = [];
+// In-memory cache for expanded evaluation details
+const evaluationDetailsCache = new Map();
 
 // Profile Authentication
 async function profileLogin() {
@@ -18,7 +20,16 @@ async function profileLogin() {
 
     // Load local first
     let profile = loadProfileFromLocal(profileKey);
-    let localEvaluations = loadEvaluationsFromLocal(profileKey);
+    // Prefer IndexedDB index for local persistence; fall back to localStorage snapshot
+    let localEvaluations = [];
+    try {
+        if (window.idbStore) {
+            localEvaluations = await window.idbStore.getIndex(email);
+        }
+    } catch (_) { /* ignore */ }
+    if (!Array.isArray(localEvaluations) || localEvaluations.length === 0) {
+        localEvaluations = loadEvaluationsFromLocal(profileKey);
+    }
 
     // Try remote; merge and persist for offline-first UX
     const { profile: mergedProfile, evaluations: mergedEvaluations } =
@@ -47,6 +58,8 @@ async function profileLogin() {
     localStorage.setItem('current_profile', JSON.stringify(currentProfile));
     localStorage.setItem('current_evaluations', JSON.stringify(profileEvaluations));
     localStorage.setItem('has_profile', 'true');
+    // Persist index to IndexedDB for offline-first
+    try { if (window.idbStore) { await window.idbStore.putIndex(email, profileEvaluations); } } catch (_) {}
     
     // Session-only: mark that the user explicitly logged in this session
     sessionStorage.setItem('login_source', 'form');
@@ -768,18 +781,19 @@ function renderEvaluationsList() {
 function createEvaluationListItem(evaluation) {
     const div = document.createElement('div');
     div.className = 'evaluation-item';
-    div.dataset.evalId = evaluation.evaluationId;
+    const evalId = evaluation.evaluationId || evaluation.id;
+    div.dataset.evalId = evalId;
 
     div.innerHTML = `
         <div class="eval-header" onclick="toggleEvaluation(this)">
             <div class="eval-summary">
                 <div class="eval-marine-info">
-                    <span class="marine-rank">${evaluation.marineInfo.rank}</span>
-                    <span class="marine-name">${evaluation.marineInfo.name}</span>
+                    <span class="marine-rank">${(evaluation.marineInfo || evaluation.marine || {}).rank || ''}</span>
+                    <span class="marine-name">${(evaluation.marineInfo || evaluation.marine || {}).name || ''}</span>
                 </div>
                 <div class="eval-meta">
                     <span class="eval-occasion">${evaluation.occasion}</span>
-                    <span class="eval-dates">${evaluation.marineInfo.evaluationPeriod.from} to ${evaluation.marineInfo.evaluationPeriod.to}</span>
+                    <span class="eval-dates">${((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).from || ''} to ${((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).to || ''}</span>
                     <span class="eval-average">Avg: ${evaluation.fitrepAverage}</span>
                 </div>
             </div>
@@ -787,14 +801,14 @@ function createEvaluationListItem(evaluation) {
                 <span class="sync-status ${evaluation.syncStatus || 'pending'}">
                     ${evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending'}
                 </span>
-                <button class="icon-btn" onclick="event.stopPropagation(); deleteEvaluation('${evaluation.evaluationId}')">
+                <button class="icon-btn" onclick="event.stopPropagation(); deleteEvaluation('${evalId}')">
                     🗑️
                 </button>
                 <span class="expand-icon">▼</span>
             </div>
         </div>
-        <div class="eval-details" style="display: none;">
-            ${renderEvaluationDetails(evaluation)}
+        <div class="eval-details" style="display: none;" data-loaded="false">
+            <div class="loading">Loading details…</div>
         </div>
     `;
 
@@ -834,13 +848,65 @@ function renderEvaluationDetails(evaluation) {
     `;
 }
 
-function toggleEvaluation(header) {
+async function toggleEvaluation(header) {
     const item = header.closest('.evaluation-item');
     const details = item.querySelector('.eval-details');
 
-    if (details.style.display === 'none') {
+    const isHidden = details.style.display === 'none';
+    if (isHidden) {
         details.style.display = 'block';
         item.classList.add('expanded');
+        // Lazy-load full details on first expand
+        const alreadyLoaded = details.dataset.loaded === 'true';
+        if (!alreadyLoaded) {
+            const evalId = item.dataset.evalId;
+            const email = currentProfile?.rsEmail;
+            let evaluation = null;
+            // Try in-memory cache
+            if (evaluationDetailsCache.has(evalId)) {
+                evaluation = evaluationDetailsCache.get(evalId);
+            }
+            // Try IndexedDB
+            if (!evaluation && window.idbStore && email) {
+                try { evaluation = await window.idbStore.getDetail(email, evalId); } catch (_) {}
+            }
+            // Try remote GitHub
+            if (!evaluation && typeof githubService !== 'undefined' && navigator.onLine) {
+                try {
+                    const token = await githubService.getTokenFromEnvironment?.();
+                    if (token) {
+                        githubService.initialize(token);
+                        const ok = await githubService.verifyConnection?.();
+                        if (ok) {
+                            evaluation = await githubService.getEvaluationDetail(email, evalId);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Lazy detail fetch failed:', e);
+                }
+            }
+
+            // Merge into existing list item context for rendering
+            const indexObj = profileEvaluations.find(e => (e.evaluationId || e.id) === evalId) || {};
+            const renderObj = {
+                evaluationId: evalId,
+                occasion: indexObj.occasion || evaluation?.occasion || '',
+                completedDate: indexObj.completedDate || evaluation?.completedDate || '',
+                fitrepAverage: indexObj.fitrepAverage || evaluation?.fitrepAverage || '',
+                marineInfo: indexObj.marineInfo || indexObj.marine || evaluation?.marineInfo || evaluation?.marine || {},
+                rsInfo: indexObj.rsInfo || indexObj.rs || evaluation?.rsInfo || evaluation?.rs || {},
+                sectionIComments: evaluation?.sectionIComments || '',
+                traitEvaluations: Array.isArray(evaluation?.traitEvaluations) ? evaluation.traitEvaluations : []
+            };
+
+            details.innerHTML = renderEvaluationDetails(renderObj);
+            details.dataset.loaded = 'true';
+            // Cache for future
+            evaluationDetailsCache.set(evalId, renderObj);
+            if (window.idbStore && email && evaluation) {
+                try { await window.idbStore.putDetail(email, evalId, evaluation); } catch (_) {}
+            }
+        }
     } else {
         details.style.display = 'none';
         item.classList.remove('expanded');
@@ -945,6 +1011,22 @@ async function confirmSaveToProfile() {
     localStorage.setItem('has_profile', 'true');
     // IMPORTANT: mark this as an offline save, not a form login
     localStorage.setItem('login_source', 'offline');
+
+    // Persist index/detail to IndexedDB for offline cache
+    try {
+        if (window.idbStore) {
+            await window.idbStore.putIndex(currentProfile.rsEmail, profileEvaluations.map(e => ({
+                id: e.evaluationId,
+                occasion: e.occasion,
+                completedDate: e.completedDate,
+                fitrepAverage: e.fitrepAverage,
+                marine: { name: e.marineInfo?.name || '', rank: e.marineInfo?.rank || '' },
+                rs: { name: e.rsInfo?.name || e.rsInfo?.rsName || '', rank: e.rsInfo?.rank || e.rsInfo?.rsRank || '' },
+                file: ''
+            })));
+            await window.idbStore.putDetail(currentProfile.rsEmail, evaluation.evaluationId, evaluation);
+        }
+    } catch (_) { /* ignore */ }
 
     // Optional: sync to GitHub when online and logged in
     if (shouldSyncToGitHub && navigator.onLine) {
@@ -1854,28 +1936,41 @@ async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile,
             lastUpdated: new Date().toISOString()
         };
 
-        // Load per-evaluation files
-        let remoteEvaluations = [];
-        try {
-            remoteEvaluations = await githubService.loadUserEvaluations(email);
-        } catch (e) {
-            console.warn('Failed to load remote evaluations:', e);
-            remoteEvaluations = [];
+        // Step 2: migrate legacy embedded evaluations to per-file + index.json
+        try { await githubService.migrateLegacyProfileEvaluations?.(email); } catch (_) {}
+
+        // Step 3: load evaluations index.json (lightweight summaries)
+        let remoteIndex = null;
+        try { remoteIndex = await githubService.loadEvaluationIndex(email); } catch (_) { remoteIndex = null; }
+
+        // Fallback: build index from individual files if index.json missing
+        if (!Array.isArray(remoteIndex)) {
+            let remoteEvaluations = [];
+            try { remoteEvaluations = await githubService.loadUserEvaluations(email); } catch (e) {
+                console.warn('Failed to load remote evaluations:', e);
+                remoteEvaluations = [];
+            }
+            try {
+                remoteIndex = remoteEvaluations.map(ev => githubService.buildIndexEntry(ev, email));
+                // Best-effort: save index remotely
+                await githubService.saveEvaluationIndex(email, remoteIndex);
+            } catch (_) { /* ignore */ }
         }
 
         // Merge metadata and eval count
         const mergedProfile = mergeProfiles(localProfile, {
             ...remoteProfile,
-            totalEvaluations: remoteEvaluations.length || (localProfile?.totalEvaluations || 0)
+            totalEvaluations: (Array.isArray(remoteIndex) ? remoteIndex.length : 0) || (localProfile?.totalEvaluations || 0)
         });
         const mergedEvaluations = mergeEvaluations(
             Array.isArray(localEvaluations) ? localEvaluations : [],
-            Array.isArray(remoteEvaluations) ? remoteEvaluations : []
+            Array.isArray(remoteIndex) ? remoteIndex : []
         );
 
         // Persist merged result locally for offline-first UX
         saveProfileToLocal(profileKey, mergedProfile);
         saveEvaluationsToLocal(profileKey, mergedEvaluations);
+        try { if (window.idbStore) { await window.idbStore.putIndex(email, mergedEvaluations); } } catch (_) {}
 
         return { profile: mergedProfile, evaluations: mergedEvaluations };
     } catch (error) {

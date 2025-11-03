@@ -418,6 +418,178 @@ class GitHubDataService {
     }
 
     /**
+     * Build a lightweight index entry from an evaluation
+     * Used for evaluations/index.json listing
+     * @param {Object} evaluation
+     * @param {string} userEmail
+     * @returns {Object}
+     */
+    buildIndexEntry(evaluation, userEmail) {
+        const localPart = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+        const evalIdSafe = String(evaluation.evaluationId || '').replace(/[^a-zA-Z0-9\-_.]/g, '_');
+        return {
+            id: evaluation.evaluationId,
+            occasion: evaluation.occasion || null,
+            completedDate: evaluation.completedDate || null,
+            fitrepAverage: evaluation.fitrepAverage || null,
+            marine: {
+                name: evaluation?.marineInfo?.name || '',
+                rank: evaluation?.marineInfo?.rank || ''
+            },
+            rs: {
+                name: evaluation?.rsInfo?.name || evaluation?.rsInfo?.rsName || '',
+                rank: evaluation?.rsInfo?.rank || evaluation?.rsInfo?.rsRank || ''
+            },
+            file: `users/${localPart}/evaluations/${evalIdSafe}.yml`
+        };
+    }
+
+    /**
+     * Load evaluations index.json if present
+     * @param {string} userEmail
+     * @returns {Promise<Array|null>} Array of index entries or null if not found
+     */
+    async loadEvaluationIndex(userEmail) {
+        try {
+            const localPart = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+            const path = `users/${localPart}/evaluations/index.json`;
+            const data = await this.getFileContent(path);
+            if (!data) return null;
+            const list = Array.isArray(data?.entries) ? data.entries : (Array.isArray(data) ? data : []);
+            return list;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Save evaluations index.json
+     * @param {string} userEmail
+     * @param {Array} entries
+     * @returns {Promise<boolean>}
+     */
+    async saveEvaluationIndex(userEmail, entries) {
+        // If not initialized, skip remote write (handled by server/local or IndexedDB by caller)
+        if (!this.initialized || !this.token) {
+            return false;
+        }
+        const localPart = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+        const filePath = `users/${localPart}/evaluations/index.json`;
+        const content = JSON.stringify({ entries, updatedAt: new Date().toISOString() }, null, 2);
+        const existingSha = await this.getFileSha(filePath);
+        const message = existingSha ? `Update evaluations index for ${userEmail}` : `Create evaluations index for ${userEmail}`;
+        const result = await this.createOrUpdateFile(filePath, content, message, existingSha);
+        return !!result;
+    }
+
+    /**
+     * Upsert a single entry into index.json
+     * @param {string} userEmail
+     * @param {Object} evaluation
+     */
+    async upsertEvaluationIndex(userEmail, evaluation) {
+        try {
+            const current = await this.loadEvaluationIndex(userEmail) || [];
+            const entry = this.buildIndexEntry(evaluation, userEmail);
+            const idx = current.findIndex(e => String(e.id) === String(entry.id));
+            if (idx >= 0) {
+                current[idx] = entry;
+            } else {
+                current.push(entry);
+            }
+            await this.saveEvaluationIndex(userEmail, current);
+            return true;
+        } catch (e) {
+            console.warn('Upsert index failed:', e);
+            return false;
+        }
+    }
+
+    /**
+     * Fetch full evaluation detail by ID (JSON or YAML)
+     * @param {string} userEmail
+     * @param {string} evaluationId
+     * @returns {Promise<Object|null>}
+     */
+    async getEvaluationDetail(userEmail, evaluationId) {
+        try {
+            const localPart = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+            const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9\-_.]/g, '_');
+            const base = `users/${localPart}/evaluations/${evalIdSafe}`;
+            // Try JSON then YAML
+            let data = null;
+            try { data = await this.getFileContent(`${base}.json`); } catch (_) {}
+            if (data && (data.evaluation || data.id)) {
+                return data.evaluation ? data.evaluation : {
+                    evaluationId: data.id,
+                    occasion: data.occasion || null,
+                    completedDate: data.completedDate || null,
+                    fitrepAverage: data.fitrepAverage || null,
+                    marineInfo: data.marine || {},
+                    rsInfo: data.rs || {},
+                    sectionIComments: data.sectionIComments || '',
+                    directedComments: data.directedComments || '',
+                    traitEvaluations: Array.isArray(data.traitEvaluations) ? data.traitEvaluations : []
+                };
+            }
+
+            const raw = await this.getRawFileContent(`${base}.yml`);
+            if (!raw) return null;
+            // Minimal parse (no external YAML lib). This returns core fields.
+            const ev = this.parseEvaluationYamlMinimal(raw);
+            return ev;
+        } catch (e) {
+            console.warn('getEvaluationDetail failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Migrate legacy aggregate user file that contains embedded evaluations array
+     * Extract each evaluation to per-file and build evaluations/index.json
+     * Then rewrite aggregate user file to metadata-only
+     * @param {string} userEmail
+     * @returns {Promise<{migrated:number, index:boolean}>}
+     */
+    async migrateLegacyProfileEvaluations(userEmail) {
+        try {
+            const legacy = await this.loadUserData(userEmail);
+            const evals = Array.isArray(legacy?.evaluations) ? legacy.evaluations : [];
+            if (!evals.length) {
+                return { migrated: 0, index: false };
+            }
+
+            let migrated = 0;
+            const indexEntries = [];
+            for (const ev of evals) {
+                try {
+                    await this.saveEvaluationUniqueFile(ev, userEmail);
+                    migrated += 1;
+                    indexEntries.push(this.buildIndexEntry(ev, userEmail));
+                } catch (e) {
+                    console.warn('Failed to migrate evaluation', ev?.evaluationId, e);
+                }
+            }
+
+            // Save index.json
+            const indexOk = await this.saveEvaluationIndex(userEmail, indexEntries);
+
+            // Rewrite aggregate user file to metadata-only
+            const userData = {
+                rsName: legacy?.rsName || legacy?.profile?.rsName || '',
+                rsEmail: legacy?.rsEmail || legacy?.profile?.rsEmail || userEmail,
+                rsRank: legacy?.rsRank || legacy?.profile?.rsRank || ''
+            };
+            try { await this.saveUserData(userData); } catch (_) {}
+
+            return { migrated, index: indexOk };
+        } catch (e) {
+            console.warn('Legacy migration failed:', e);
+            return { migrated: 0, index: false };
+        }
+    }
+
+    /**
      * Load per-user evaluation files from the data repo
      * Supports both JSON (server) and YAML (client) formats
      * @param {string} userEmail
@@ -1028,6 +1200,8 @@ class GitHubDataService {
             // Also persist a unique per-evaluation file under the member's directory
             try {
                 const evalResult = await this.saveEvaluationUniqueFile(evaluation, userEmail);
+                // Attempt to upsert index.json (best-effort; does not block save)
+                try { await this.upsertEvaluationIndex(userEmail, evaluation); } catch (_) {}
                 const bothOk = !!(aggregateResult?.success && evalResult?.success);
                 const msg = bothOk
                     ? 'Evaluation saved (profile metadata and unique file) successfully'
