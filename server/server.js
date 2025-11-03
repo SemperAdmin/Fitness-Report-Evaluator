@@ -656,7 +656,34 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       // Try migration from previousEmail in local mode
       let previousUser = null;
       if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidEmail(previousEmail)) {
-        try { previousUser = await readLocalUser(sanitizePrefix(previousEmail)); } catch (_) { previousUser = null; }
+        // Prefer GitHub read using client-provided token when available
+        previousUser = null;
+        try {
+          const clientToken = req.headers['x-github-token'] || req.body?.token || '';
+          if (clientToken) {
+            const prevPrefix = sanitizePrefix(previousEmail);
+            const prevApi = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prevPrefix}.json`;
+            const prevResp = await fetch(prevApi, {
+              headers: {
+                'Authorization': `Bearer ${clientToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+              }
+            });
+            if (prevResp.status === 200) {
+              const prev = await prevResp.json();
+              try {
+                const prevStr = Buffer.from(prev.content || '', 'base64').toString('utf8');
+                previousUser = prevStr ? JSON.parse(prevStr) : null;
+              } catch (_) {
+                previousUser = null;
+              }
+            }
+          }
+        } catch (_) { /* ignore */ }
+        // If GitHub read not possible or failed, try local fallback
+        if (!previousUser) {
+          try { previousUser = await readLocalUser(sanitizePrefix(previousEmail)); } catch (_) { previousUser = null; }
+        }
       }
       const now = new Date().toISOString();
       const bodyObj = {
