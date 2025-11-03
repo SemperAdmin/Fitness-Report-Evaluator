@@ -1837,10 +1837,10 @@ function mergeProfiles(local, remote) {
 
 async function syncEvaluationToGitHub(evaluation) {
     try {
-        // Validate user email (required for per-user file path)
+        // Validate username (required for per-user file path)
         const userEmail = (currentProfile && currentProfile.rsEmail) || (evaluation?.rsInfo?.email) || '';
         if (!userEmail || userEmail === 'offline@local') {
-            console.warn('GitHub sync skipped: no valid user email');
+            console.warn('GitHub sync skipped: no valid username');
             return false;
         }
 

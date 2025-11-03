@@ -1065,7 +1065,7 @@ class GitHubDataService {
         try {
             // Validate input (use normalized shape)
             if (!normalized.rsEmail) {
-                throw new Error('User email is required');
+                throw new Error('Username is required');
             }
 
             const fileName = this.generateUserFileName(normalized.rsEmail);
@@ -1272,7 +1272,7 @@ class GitHubDataService {
         }
 
         if (!userEmail) {
-            throw new Error('User email is required');
+            throw new Error('Username is required');
         }
 
         // Backend fallback path when no client token is available
