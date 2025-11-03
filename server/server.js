@@ -122,6 +122,46 @@ async function writeLocalUser(prefix, userObj) {
   await fsp.writeFile(p, str, 'utf8');
 }
 
+// Minimal YAML parser for evaluation files created by workflows
+// Extracts core fields without external dependencies
+function parseEvaluationYamlMinimal(yamlStr) {
+  const get = (re) => {
+    const m = yamlStr.match(re);
+    return m ? m[1] : null;
+  };
+  const id = get(/\bid:\s*"([^"]+)"/);
+  const occasion = get(/\boccasion:\s*"([^"]+)"/);
+  const completedDate = get(/\bcompletedDate:\s*"([^"]+)"/);
+  const fitrepAverageStr = get(/\bfitrepAverage:\s*"?([0-9.]+)"?/);
+  const fitrepAverage = fitrepAverageStr ? parseFloat(fitrepAverageStr) : null;
+  const sectionIComments = get(/\bsectionIComments:\s*"([\s\S]*?)"\s*(?:\n|$)/);
+  // Marine block
+  const marineName = get(/\bmarine:\s*[\r\n]+\s{2}name:\s*"([^"]+)"/);
+  const marineRank = get(/\bmarine:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
+  const periodFrom = get(/\bevaluationPeriod:\s*[\r\n]+\s{4}from:\s*"([^"]+)"/);
+  const periodTo = get(/\bevaluationPeriod:[\s\S]*?\n\s{4}to:\s*"([^"]+)"/);
+  // RS block
+  const rsName = get(/\brs:\s*[\r\n]+\s{2}name:\s*"([^"]+)"/);
+  const rsEmail = get(/\brs:[\s\S]*?\n\s{2}email:\s*"([^"]+)"/);
+  const rsRank = get(/\brs:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
+
+  return {
+    evaluationId: id || `eval-${Date.now()}`,
+    occasion: occasion || null,
+    completedDate: completedDate || null,
+    fitrepAverage: Number.isFinite(fitrepAverage) ? String(fitrepAverage) : null,
+    marineInfo: {
+      name: marineName || '',
+      rank: marineRank || '',
+      evaluationPeriod: { from: periodFrom || '', to: periodTo || '' }
+    },
+    rsInfo: { name: rsName || '', email: rsEmail || '', rank: rsRank || '' },
+    sectionIComments: sectionIComments || '',
+    traitEvaluations: [],
+    syncStatus: 'synced'
+  };
+}
+
 // Lightweight rate limiter per IP
 function rateLimit({ windowMs, limit }) {
   const hits = new Map();
@@ -776,12 +816,37 @@ app.get('/api/evaluations/list', async (req, res) => {
           if (!fileResp.ok) continue;
           const fileData = await fileResp.json();
           const contentStr = Buffer.from(fileData.content || '', 'base64').toString('utf8');
-          try {
-            const obj = JSON.parse(contentStr);
-            if (obj && obj.evaluation) {
-              evaluations.push(obj.evaluation);
-            }
-          } catch (_) { /* ignore parse errors */ }
+          const ext = String(f.name || '').split('.').pop().toLowerCase();
+          if (ext === 'json') {
+            try {
+              const obj = JSON.parse(contentStr);
+              if (obj && obj.evaluation) {
+                evaluations.push(obj.evaluation);
+              } else if (obj && obj.id) {
+                evaluations.push({
+                  evaluationId: obj.id,
+                  occasion: obj.occasion || null,
+                  completedDate: obj.completedDate || null,
+                  fitrepAverage: obj.fitrepAverage || null,
+                  marineInfo: obj.marine || {},
+                  rsInfo: obj.rs || {},
+                  sectionIComments: obj.sectionIComments || '',
+                  traitEvaluations: Array.isArray(obj.traitEvaluations) ? obj.traitEvaluations : []
+                });
+              }
+            } catch (_) { /* ignore parse errors */ }
+          } else if (ext === 'yml' || ext === 'yaml') {
+            try {
+              const ev = parseEvaluationYamlMinimal(contentStr || '');
+              if (ev) evaluations.push(ev);
+            } catch (_) { /* ignore yaml parse errors */ }
+          } else {
+            // Unknown extension: attempt JSON parse as a best effort
+            try {
+              const obj = JSON.parse(contentStr);
+              if (obj && obj.evaluation) evaluations.push(obj.evaluation);
+            } catch (_) { /* ignore */ }
+          }
         } catch (_) { /* ignore individual file errors */ }
       }
       return res.json({ ok: true, evaluations });
