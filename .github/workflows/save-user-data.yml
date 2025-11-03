@@ -24,6 +24,7 @@ jobs:
           email=$(jq -r '.userData.rsEmail // ""' payload.json)
           name=$(jq -r '.userData.rsName // ""' payload.json)
           rank=$(jq -r '.userData.rsRank // ""' payload.json)
+          prevEmail=$(jq -r '.userData.previousEmail // ""' payload.json)
 
           if [ -z "$email" ] || [ "$email" = "null" ]; then
             echo "rsEmail is required in client_payload.userData" >&2
@@ -31,7 +32,12 @@ jobs:
           fi
 
           # users/<emailPrefix>.json (sanitize non-alnum to underscore)
-          prefix=$(echo "$email" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
+          # If previousEmail provided, prefer writing to the previous file path
+          if [ -n "$prevEmail" ] && [ "$prevEmail" != "null" ]; then
+            prefix=$(echo "$prevEmail" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
+          else
+            prefix=$(echo "$email" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
+          fi
           filePath="users/${prefix}.json"
 
           echo "filePath=$filePath" >> $GITHUB_OUTPUT

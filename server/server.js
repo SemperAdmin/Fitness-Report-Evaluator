@@ -513,8 +513,10 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
 
     // Prefer direct write when FITREP_DATA is available
     if (fitrepToken) {
-      const prefix = sanitizePrefix(userData.rsEmail);
-      const filePath = `users/${prefix}.json`;
+      const writePrefix = (previousEmail && isValidEmail(previousEmail))
+        ? sanitizePrefix(previousEmail)
+        : sanitizePrefix(userData.rsEmail);
+      const filePath = `users/${writePrefix}.json`;
       const apiBase = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
 
       // Try to get existing SHA and existing file for preserving fields like passwordHash
@@ -609,8 +611,8 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
         console.error('save user: put failed, falling back to local:', text);
         // Fall back to local persistence to avoid 5xx
         try {
-          await writeLocalUser(prefix, bodyObj);
-          return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local', fallback: 'put-failed' });
+          await writeLocalUser(writePrefix, bodyObj);
+          return res.json({ ok: true, path: `local:${writePrefix}.json`, method: 'local', fallback: 'put-failed' });
         } catch (err) {
           console.error('save user: local write failed after put error:', err);
           return res.status(500).json({ error: 'Local write failed' });
@@ -650,9 +652,11 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
 
     // Local filesystem fallback when no tokens are available
     try {
-      const prefix = sanitizePrefix(userData.rsEmail);
+      const writePrefix = (previousEmail && isValidEmail(previousEmail))
+        ? sanitizePrefix(previousEmail)
+        : sanitizePrefix(userData.rsEmail);
       // Merge with existing local user to preserve passwordHash
-      const existingUser = await readLocalUser(prefix);
+      const existingUser = await readLocalUser(writePrefix);
       // Try migration from previousEmail in local mode
       let previousUser = null;
       if ((!existingUser || !existingUser.passwordHash) && previousEmail && isValidEmail(previousEmail)) {
@@ -698,8 +702,8 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       } else if (previousUser?.passwordHash) {
         bodyObj.passwordHash = previousUser.passwordHash;
       }
-      await writeLocalUser(prefix, bodyObj);
-      return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local' });
+      await writeLocalUser(writePrefix, bodyObj);
+      return res.json({ ok: true, path: `local:${writePrefix}.json`, method: 'local' });
     } catch (err) {
       console.error('save user: local write failed:', err);
       return res.status(500).json({ error: 'Local write failed' });
