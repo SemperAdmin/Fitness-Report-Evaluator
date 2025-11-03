@@ -157,19 +157,21 @@ async function accountLogin() {
             lastUpdated: new Date().toISOString()
         };
         // Fetch per-user evaluation files to populate events list
+        // Always attempt to load evaluations; githubService will use backend fallback when no token
         let evaluations = [];
         try {
             const token = await githubService.getTokenFromEnvironment?.();
             if (token) {
                 githubService.initialize(token);
                 const connected = await githubService.verifyConnection?.();
-                if (connected) {
-                    evaluations = await githubService.loadUserEvaluations(email);
+                if (!connected) {
+                    console.warn('GitHub connection unavailable; using backend fallback for evaluations.');
                 }
             }
+            evaluations = await githubService.loadUserEvaluations(email);
         } catch (e) {
-            console.warn('Remote evaluations fetch failed during login:', e);
-            evaluations = res.evaluations || [];
+            console.warn('Evaluations fetch failed during login; defaulting to empty list:', e);
+            evaluations = [];
         }
         const profile = { ...baseProfile, totalEvaluations: Array.isArray(evaluations) ? evaluations.length : 0 };
 
