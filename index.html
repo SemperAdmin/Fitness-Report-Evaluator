@@ -567,8 +567,79 @@
         <!-- Profile actions bar: add id to Grid View for visibility control -->
         <div class="profile-actions-bar">
             <button class="btn btn-meets" onclick="startNewEvaluation()">+ New Evaluation</button>
-            <button class="btn btn-secondary" onclick="syncAllEvaluations()">🔄 Sync to GitHub</button>
-            <button class="btn btn-secondary" onclick="exportProfile()">📥 Export All</button>
+            <!-- Manage Data dropdown replacing Export All -->
+            <style>
+            .sub-button{background-color:transparent;border:none;line-height:1;display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;cursor:pointer;font-weight:600;color:#fff;white-space:nowrap;border-radius:6px;border:1px solid rgba(255,255,255,0.2);transition:all .2s ease-in-out;text-shadow:0 1px 1px rgba(0,0,0,0.2)}
+            .upload-button{--bg:linear-gradient(180deg,hsla(0,0%,100%,.1),hsla(0,0%,100%,0)),hsl(128,52%,45%);box-shadow:0 1px 2px #25114f66,0 0 0 1px hsla(128,50%,45%,.761);background:var(--bg)}
+            .export-button{--bg:linear-gradient(180deg,hsla(0,0%,100%,.1),hsla(0,0%,100%,0)),hsl(350,60%,50%);box-shadow:0 1px 2px #25114f66,0 0 0 1px hsla(350,60%,50%,.761);background:var(--bg)}
+            .template-button{--bg:linear-gradient(180deg,hsla(0,0%,100%,.1),hsla(0,0%,100%,0)),hsl(230,60%,55%);box-shadow:0 1px 2px #25114f66,0 0 0 1px hsla(230,60%,55%,.761);background:var(--bg)}
+            .sync-button{--bg:linear-gradient(180deg, hsla(0,0%,100%,.08), hsla(0,0%,100%,0)), #111827; box-shadow:0 1px 2px #25114f66, 0 0 0 1px rgba(17,24,39,0.9); background:var(--bg)}
+            .sub-button:hover{transform:translateY(-2px);box-shadow:0 3px 6px rgba(0,0,0,.2),0 0 0 1px rgba(255,255,255,.4)}
+            .sub-button:active{transform:translateY(0);box-shadow:0 1px 2px #25114f66,0 0 0 1px hsla(128,50%,45%,.761)}
+            .btn__icon{display:flex;align-items:center}
+            /* Override to align Manage Data like New Evaluation but with icon inline */
+            .manage-toggle{display:inline-flex;flex-direction:row;align-items:center;gap:.5rem}
+            .manage-data-container{position:relative;display:inline-block;margin-left:.5rem}
+            .manage-submenu{display:none;position:absolute;top:100%;left:0;margin-top:.5rem;width:15rem;padding:.75rem;background:#1f2937;border-radius:.5rem;box-shadow:0 10px 20px rgba(0,0,0,.25);z-index:20}
+            .manage-submenu.active{display:flex;flex-direction:column;gap:.5rem}
+            .btn-icon-chevron{width:1rem;height:1rem;transition:transform .3s ease}
+            .btn-icon-chevron.rotated{transform:rotate(180deg)}
+            .manage-button{--bg:linear-gradient(180deg,hsla(0,0%,100%,.12),hsla(0,0%,100%,0)),hsl(265,60%,52%);box-shadow:0 1px 2px #25114f66,0 0 0 1px hsla(265,60%,52%,.75);background:var(--bg)}
+            </style>
+            <div class="manage-data-container">
+              <button id="mainToggleButton" onclick="toggleSubMenu()" class="btn manage-button manage-toggle">
+                <span class="mr-2">Manage Data</span>
+                <svg class="btn-icon-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div id="subMenu" class="manage-submenu">
+                <button onclick="syncAllEvaluations()" class="sub-button sync-button w-full justify-start">
+                  <span class="btn__icon">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20 12a8 8 0 10-15.5 2m-.5 4v-4h4"/>
+                      <path d="M4 12a8 8 0 1015.5-2m.5-4v4h-4"/>
+                    </svg>
+                  </span>
+                  <span class="btn__text">Sync to GitHub</span>
+                </button>
+                <button onclick="initiateUpload()" class="sub-button upload-button w-full justify-start">
+                  <span class="btn__icon">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                      <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
+                      <path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1"></path>
+                      <path d="M9 15l3 -3l3 3"></path>
+                      <path d="M12 12l0 9"></path>
+                    </svg>
+                  </span>
+                  <span class="btn__text">Upload CSV Data</span>
+                </button>
+                <button onclick="exportAllData()" class="sub-button export-button w-full justify-start">
+                  <span class="btn__icon">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                      <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
+                      <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+                      <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
+                      <path d="M9 17h6"></path>
+                      <path d="M9 13h6"></path>
+                    </svg>
+                  </span>
+                  <span class="btn__text">Export All Data</span>
+                </button>
+                <button onclick="downloadTemplate()" class="sub-button template-button w-full justify-start">
+                  <span class="btn__icon">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                      <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
+                      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
+                      <path d="M7 11l5 5l5 -5"></path>
+                      <path d="M12 4l0 12"></path>
+                    </svg>
+                  </span>
+                  <span class="btn__text">Download Template</span>
+                </button>
+              </div>
+              <input type="file" id="csvUploadInput" accept=".csv" style="display:none" />
+            </div>
             <button class="btn btn-secondary" id="gridViewBtn" onclick="showRankSummaryView()">📊 RS Summary View</button>
             <!-- Dev-only: dispatch save-user-data to workflow -->
             <button class="btn btn-secondary" id="devDispatchSaveUserBtn" style="display:none;">⚙️ Dev: Dispatch Save</button>

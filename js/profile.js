@@ -1096,6 +1096,241 @@ function exportProfile() {
     a.click();
 }
 
+// Manage Data dropdown logic and CSV import/template export
+function toggleSubMenu() {
+    const menu = document.getElementById('subMenu');
+    const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
+    if (!menu) return;
+    const isActive = menu.classList.contains('active');
+    if (isActive) {
+        menu.classList.remove('active');
+        if (chevron) chevron.classList.remove('rotated');
+    } else {
+        menu.classList.add('active');
+        if (chevron) chevron.classList.add('rotated');
+    }
+}
+
+function exportAllData() {
+    // Preserve existing JSON export for full profile + evaluations
+    exportProfile();
+    // Close menu after action
+    const menu = document.getElementById('subMenu');
+    if (menu) menu.classList.remove('active');
+    const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
+    if (chevron) chevron.classList.remove('rotated');
+}
+
+function initiateUpload() {
+    const input = document.getElementById('csvUploadInput');
+    if (!input) {
+        alert('Upload input not found.');
+        return;
+    }
+    input.value = '';
+    input.onchange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const { headers, rows } = parseCsv(text);
+            const added = importEvaluationsFromRows(headers, rows);
+            // Persist to local storage
+            const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
+            saveEvaluationsToLocal(profileKey, profileEvaluations);
+            currentProfile.totalEvaluations = profileEvaluations.length;
+            currentProfile.lastUpdated = new Date().toISOString();
+            saveProfileToLocal(profileKey, currentProfile);
+            renderEvaluationsList();
+            alert(`${added} evaluations imported from CSV.`);
+        } catch (err) {
+            console.error('CSV import failed:', err);
+            alert(`CSV import failed: ${err.message || err}`);
+        } finally {
+            // Close menu
+            const menu = document.getElementById('subMenu');
+            if (menu) menu.classList.remove('active');
+            const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
+            if (chevron) chevron.classList.remove('rotated');
+        }
+    };
+    input.click();
+}
+
+function downloadTemplate() {
+    const headers = [
+        'Marine','Rank','Occasion','Ending Date',
+        'Performance','Proficiency','Courage','Stress Tolerance','Initiative','Leading','Developing Others',
+        'Setting the Example','Well-Being/Health','Communication Skills','Professional Military Education','Decision Making','Judgement','Evals'
+    ];
+    const csv = headers.map(h => `"${h}"`).join(',') + '\r\n';
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'FITREP_Manage_Data_Template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    const menu = document.getElementById('subMenu');
+    if (menu) menu.classList.remove('active');
+    const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
+    if (chevron) chevron.classList.remove('rotated');
+}
+
+function parseCsv(text) {
+    // Simple CSV parser with quote handling
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim().length > 0);
+    if (lines.length === 0) throw new Error('CSV is empty');
+    const parseLine = (line) => {
+        const result = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (inQuotes) {
+                if (ch === '"') {
+                    if (line[i + 1] === '"') { // escaped quote
+                        cur += '"';
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    cur += ch;
+                }
+            } else {
+                if (ch === ',') {
+                    result.push(cur.trim());
+                    cur = '';
+                } else if (ch === '"') {
+                    inQuotes = true;
+                } else {
+                    cur += ch;
+                }
+            }
+        }
+        result.push(cur.trim());
+        return result;
+    };
+    const headers = parseLine(lines[0]).map(h => h.trim());
+    const rows = lines.slice(1).map(parseLine).filter(r => r.some(v => v && v.trim().length));
+    return { headers, rows };
+}
+
+function importEvaluationsFromRows(headers, rows) {
+    const idx = (name) => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+    const lookup = {
+        marine: idx('Marine'),
+        rank: idx('Rank'),
+        occasion: idx('Occasion'),
+        endDate: idx('Ending Date'),
+        Performance: idx('Performance'),
+        Proficiency: idx('Proficiency'),
+        Courage: idx('Courage'),
+        'Stress Tolerance': idx('Stress Tolerance'),
+        Initiative: idx('Initiative'),
+        Leading: idx('Leading'),
+        'Developing Others': idx('Developing Others'),
+        'Setting the Example': idx('Setting the Example'),
+        'Well-Being/Health': idx('Well-Being/Health'),
+        'Communication Skills': idx('Communication Skills'),
+        'Professional Military Education': idx('Professional Military Education'),
+        'Decision Making': idx('Decision Making'),
+        Judgement: idx('Judgement'),
+        Evals: idx('Evals')
+    };
+    const requiredBase = ['marine','rank','endDate'];
+    requiredBase.forEach(k => { if (lookup[k] === -1) throw new Error(`Missing required column: ${k}`); });
+
+    const letterToNumber = { A:1, B:2, C:3, D:4, E:5, F:6, G:7 };
+    const traitToSection = {
+        'Performance': 'Mission Accomplishment',
+        'Proficiency': 'Mission Accomplishment',
+        'Courage': 'Individual Character',
+        'Effectiveness Under Stress': 'Individual Character',
+        'Stress Tolerance': 'Individual Character',
+        'Initiative': 'Individual Character',
+        'Leading Subordinates': 'Leadership',
+        'Leading': 'Leadership',
+        'Developing Subordinates': 'Leadership',
+        'Developing Others': 'Leadership',
+        'Setting the Example': 'Leadership',
+        'Ensuring Well-being of Subordinates': 'Leadership',
+        'Well-Being/Health': 'Leadership',
+        'Communication Skills': 'Leadership',
+        'Professional Military Education (PME)': 'Intellect and Wisdom',
+        'Professional Military Education': 'Intellect and Wisdom',
+        'Decision Making Ability': 'Intellect and Wisdom',
+        'Decision Making': 'Intellect and Wisdom',
+        'Judgment': 'Intellect and Wisdom',
+        'Judgement': 'Intellect and Wisdom',
+        'Evaluations': 'Fulfillment of Evaluation Responsibilities',
+        'Evals': 'Fulfillment of Evaluation Responsibilities'
+    };
+
+    let added = 0;
+    rows.forEach((row, i) => {
+        const getVal = (idx) => idx >= 0 ? String(row[idx] || '').trim() : '';
+        const marineName = getVal(lookup.marine);
+        const marineRank = getVal(lookup.rank);
+        const occasion = lookup.occasion >= 0 ? getVal(lookup.occasion) : '';
+        const endDate = getVal(lookup.endDate);
+        if (!marineName || !marineRank || !endDate) return; // skip incomplete rows
+
+        const traitItems = [];
+        const traitCols = [
+            'Performance','Proficiency','Courage','Stress Tolerance','Initiative','Leading','Developing Others',
+            'Setting the Example','Well-Being/Health','Communication Skills','Professional Military Education','Decision Making','Judgement','Evals'
+        ];
+        traitCols.forEach(tc => {
+            const letter = getVal(lookup[tc]);
+            if (!letter) return;
+            const L = letter.toUpperCase();
+            const num = letterToNumber[L];
+            if (!num) return; // ignore invalid letters
+            const traitName = tc;
+            const sectionName = traitToSection[tc] || 'Unknown Section';
+            traitItems.push({
+                section: sectionName,
+                trait: traitName,
+                grade: L,
+                gradeNumber: num,
+                justification: ''
+            });
+        });
+
+        const evaluationId = `bulk-${new Date().toISOString().slice(0,10)}-${Date.now()}-${i}`;
+        const evaluation = {
+            evaluationId,
+            rsInfo: {
+                name: currentProfile ? currentProfile.rsName : 'Reporting Senior',
+                email: currentProfile ? currentProfile.rsEmail : 'offline@local',
+                rank: currentProfile ? currentProfile.rsRank : 'Unknown'
+            },
+            marineInfo: {
+                name: marineName,
+                rank: marineRank,
+                evaluationPeriod: { from: endDate, to: endDate }
+            },
+            occasion,
+            completedDate: new Date().toISOString(),
+            fitrepAverage: (() => {
+                const nums = traitItems.map(t => t.gradeNumber);
+                return nums.length ? (nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(2) : '0';
+            })(),
+            traitEvaluations: traitItems,
+            sectionIComments: '',
+            directedComments: '',
+            savedToProfile: true,
+            syncStatus: 'local-only'
+        };
+
+        profileEvaluations.push(evaluation);
+        added += 1;
+    });
+    return added;
+}
+
 function logoutProfile() {
     if (confirm('Log out? Unsaved changes will remain in local storage.')) {
         currentProfile = null;
