@@ -1543,6 +1543,103 @@ app.post('/api/admin/users/reset-password', authRateLimit, requireAdmin, async (
   }
 });
 
+// One-time migration endpoint to grant admin privileges to SemperAdmin
+// This endpoint allows SemperAdmin to grant themselves admin privileges
+app.post('/api/admin/grant-admin', authRateLimit, async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+
+    // Only allow SemperAdmin to use this endpoint
+    if (!username || username.toLowerCase() !== 'semperadmin') {
+      return res.status(403).json({ error: 'This endpoint is only available for SemperAdmin user' });
+    }
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password required' });
+    }
+
+    const prefix = sanitizePrefix(username);
+    let user = null;
+
+    // Try to fetch user from GitHub
+    const fitrepToken = process.env.FITREP_DATA || '';
+    if (fitrepToken) {
+      const userUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      const resp = await fetch(userUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (resp.status === 200) {
+        const data = await resp.json();
+        const content = Buffer.from(data.content, 'base64').toString('utf8');
+        user = JSON.parse(content);
+
+        // Verify password
+        const ok = await bcrypt.compare(password, user.passwordHash || '');
+        if (!ok) {
+          return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Grant admin privileges
+        user.isAdmin = true;
+        user.lastUpdated = new Date().toISOString();
+
+        // Update the user file
+        const updateResp = await fetch(userUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${fitrepToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: `Grant admin privileges to ${username}`,
+            content: Buffer.from(JSON.stringify(user, null, 2), 'utf8').toString('base64'),
+            sha: data.sha
+          })
+        });
+
+        if (!updateResp.ok) {
+          const text = await updateResp.text();
+          console.error('Failed to grant admin:', text);
+          return res.status(502).json({ error: 'Failed to update user' });
+        }
+
+        return res.json({ ok: true, message: 'Admin privileges granted. Please log out and log back in.' });
+      } else if (resp.status === 404) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+    } else {
+      // Try local storage
+      user = await readLocalUser(prefix);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Verify password
+      const ok = await bcrypt.compare(password, user.passwordHash || '');
+      if (!ok) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Grant admin privileges
+      user.isAdmin = true;
+      user.lastUpdated = new Date().toISOString();
+      await writeLocalUser(prefix, user);
+
+      return res.json({ ok: true, message: 'Admin privileges granted. Please log out and log back in.' });
+    }
+
+    return res.status(500).json({ error: 'Failed to grant admin privileges' });
+  } catch (err) {
+    console.error('grant admin error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Start server if executed directly
 if (require.main === module) {
   const port = process.env.PORT || 5173;

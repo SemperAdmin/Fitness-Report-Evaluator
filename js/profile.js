@@ -172,7 +172,10 @@ async function accountLogin() {
             return;
         }
 
-        const baseProfile = res.profile || {
+        const baseProfile = res.profile ? {
+            ...res.profile,
+            isAdmin: res.profile.isAdmin || false
+        } : {
             rsName: res.rsName,
             rsEmail: email,
             rsRank: res.rsRank,
