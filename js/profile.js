@@ -80,6 +80,13 @@ async function createAccount() {
         return;
     }
 
+    // Client-side username format validation (aligns with server rules)
+    const usernamePattern = /^[a-zA-Z0-9._-]{3,50}$/;
+    if (!usernamePattern.test(email)) {
+        alert('Invalid username format. Use 3–50 chars: letters, numbers, ., _, -');
+        return;
+    }
+
     // Local-only validation: ensure confirm password matches the original
     if (typeof confirm === 'string' && confirm.length > 0 && confirm !== password) {
         alert('Passwords do not match. Please re-enter to confirm.');
@@ -87,19 +94,11 @@ async function createAccount() {
     }
 
     // Preflight: check username availability
-    try {
-        const checkResp = await fetch(`/api/account/available?username=${encodeURIComponent(email)}`);
-        if (checkResp.ok) {
-            const check = await checkResp.json();
-            if (check && check.ok && check.available === false) {
-                alert('Username is already taken. Please choose another.');
-                return;
-            }
-        }
-    } catch (_) { /* non-blocking: proceed to create */ }
+    // Removed availability preflight; rely on server-side uniqueness check during create
 
     try {
-        const res = await postJson('/api/account/create', { rank, name, email, password });
+        // Send explicit username for clarity; keep email for compatibility
+        const res = await postJson('/api/account/create', { rank, name, email, username: email, password });
         if (!res || !res.ok) {
             const msg = res && res.error ? res.error : 'Account creation failed.';
             alert(msg);
@@ -142,6 +141,13 @@ async function accountLogin() {
         return;
     }
 
+    // Client-side username validation to reduce server round-trips
+    const usernamePattern = /^[a-zA-Z0-9._-]{3,50}$/;
+    if (!usernamePattern.test(email)) {
+        alert('Invalid username format. Use 3–50 chars: letters, numbers, ., _, -');
+        return;
+    }
+
     // Show typewriter animation during login, hide input fields
     const loginCard = document.getElementById('profileLoginCard');
     const typewriter = loginCard ? loginCard.querySelector('.typewriter-wrapper') : null;
@@ -150,14 +156,18 @@ async function accountLogin() {
     if (loginFieldsEl) loginFieldsEl.style.display = 'none';
 
     try {
-        const res = await postJson('/api/account/login', { email, password });
+        // Send explicit username for clarity; keep email for compatibility
+        const res = await postJson('/api/account/login', { email, username: email, password });
         if (!res || !res.ok) {
             // Restore UI when login fails
             if (typewriter) typewriter.style.display = 'none';
             if (loginFieldsEl) loginFieldsEl.style.display = 'block';
-            const msg = res && res.error
+            let msg = res && res.error
                 ? res.error
                 : 'Login failed. Password validation failed or service unavailable.';
+            if (typeof msg === 'string' && msg.includes('Invalid username format')) {
+                msg = 'Invalid username format. Use 3–50 chars: letters, numbers, ., _, -';
+            }
             alert(msg);
             return;
         }
@@ -271,6 +281,7 @@ function showCreateAccount() {
     const createSection = document.getElementById('createAccountSection');
     if (loginFields) { loginFields.style.display = 'none'; }
     if (createSection) { createSection.style.display = 'block'; }
+    // Availability watcher removed per request; rely on server checks at create
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
@@ -2609,4 +2620,8 @@ async function syncEvaluationToGitHub(evaluation) {
         console.error('Error during GitHub sync:', error);
         return false;
     }
+}
+// Inline availability feedback for Create Account username input
+function initUsernameAvailabilityWatcher() {
+    // No-op: availability UI removed; server will enforce uniqueness on create
 }

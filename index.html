@@ -500,6 +500,7 @@
             <div class="form-group">
                 <label class="form-label">Username</label>
                 <input type="text" class="form-input" id="caEmailInput" placeholder="your-username">
+                <!-- Availability UI removed; rely on server checks at create time -->
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
@@ -742,8 +743,8 @@
         if (window.location.origin.includes('semperadmin.github.io')) {
           window.API_BASE_URL_OVERRIDE = 'https://fitness-report-evaluator.onrender.com';
         } else {
-          // Clear override so config.js defaults to the current origin (localhost)
-          window.API_BASE_URL_OVERRIDE = '';
+          // Use same-origin backend when served by Express locally
+          window.API_BASE_URL_OVERRIDE = window.location.origin;
         }
         // Disable client-side token assembly; backend should manage auth/secrets
         window.USE_ASSEMBLED_TOKEN = false;

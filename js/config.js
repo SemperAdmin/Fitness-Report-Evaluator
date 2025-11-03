@@ -135,11 +135,11 @@ try {
       ? window.API_BASE_URL_OVERRIDE.trim()
       : '';
 
-    // Choose base: override if provided; otherwise use a safe default
-    // When running from GitHub Pages, default to the backend (localhost) to avoid 405s
-    const defaultBase = pageOrigin.includes('semperadmin.github.io')
-      ? 'http://localhost:5173'
-      : pageOrigin;
+    // Choose base: override if provided; otherwise use page origin for same-origin APIs
+    // Local development: prefer same-origin to avoid CORS with multiple local servers
+    // GitHub Pages: override set in index.html to Render backend
+    const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const defaultBase = pageOrigin;
     const base = override || defaultBase;
     window.API_BASE_URL = base;
 
@@ -157,6 +157,44 @@ try {
 
     console.log('[api] base:', window.API_BASE_URL);
     console.log('[api] allowed origins:', window.API_ALLOWED_ORIGINS);
+
+    // Auto-detect local backend only if override is not set and current base is unreachable
+    // Tries a list of known dev ports: 5173, 5174, 8081, 8080
+    if (isLocal && !override) {
+      const candidates = [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:8081',
+        'http://localhost:8080'
+      ];
+      const probe = async (url) => {
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 1200);
+          const resp = await fetch(new URL('/health', url).toString(), { signal: ctrl.signal });
+          clearTimeout(timer);
+          return resp && resp.ok;
+        } catch (_) { return false; }
+      };
+      (async () => {
+        // If current base is healthy, keep it and skip detection
+        const baseOk = await probe(window.API_BASE_URL);
+        if (baseOk) {
+          console.log('[api] base healthy; skipping auto-detect');
+          return;
+        }
+        for (const c of candidates) {
+          const ok = await probe(c);
+          if (ok) {
+            window.API_BASE_URL = c;
+            const origin = new URL(c).origin;
+            window.API_ALLOWED_ORIGINS = Array.from(new Set([origin, ...window.API_ALLOWED_ORIGINS]));
+            console.log('[api] auto-detected backend:', c);
+            break;
+          }
+        }
+      })();
+    }
   }
 } catch (e) {
   console.warn('API base resolution failed:', e);
