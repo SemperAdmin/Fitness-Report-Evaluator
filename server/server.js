@@ -505,6 +505,9 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
       return res.status(400).json({ error: 'Invalid rsEmail format' });
     }
 
+    // Ensure previousEmail is defined for both direct and local fallback paths
+    const previousEmail = userData.previousEmail || null;
+
     const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
     const dispatchToken = DISPATCH_TOKEN;
 
