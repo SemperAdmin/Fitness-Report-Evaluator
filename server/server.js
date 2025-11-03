@@ -37,7 +37,7 @@ app.use((req, res, next) => {
   const pagesOrigin = 'https://semperadmin.github.io';
   const allowedOrigins = CORS_ALLOW_ALL
     ? ['*']
-    : (CORS_ORIGINS.length ? CORS_ORIGINS : [defaultOrigin, pagesOrigin]);
+    : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, pagesOrigin])) : [defaultOrigin, pagesOrigin]);
 
   const isAllowed = !CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin));
 
@@ -46,7 +46,7 @@ app.use((req, res, next) => {
 
   // Build allowed headers dynamically, echoing requested headers when present
   const requestedHeaders = req.headers['access-control-request-headers'];
-  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token'];
+  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token', 'Authorization'];
   const allowHeaderValue = requestedHeaders
     ? Array.from(new Set([...baseAllowed, ...requestedHeaders.split(',').map(h => h.trim()).filter(Boolean)])).join(', ')
     : baseAllowed.join(', ');
@@ -69,6 +69,9 @@ app.use((req, res, next) => {
   } else if (CORS_ALLOW_ALL) {
     res.header('Access-Control-Allow-Origin', '*');
   }
+
+  // Improve UX: provide a small max-age for preflight caching
+  res.header('Access-Control-Max-Age', '600');
 
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
