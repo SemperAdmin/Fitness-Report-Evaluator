@@ -2121,11 +2121,10 @@ function renderProfileGrid() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    const rvMap = computeRvValues(profileEvaluations);
-    const cumRvMap = computeCumulativeRv(profileEvaluations, rvMap);
-
-    // Define evals, apply filters, then sort
+    // Define evals, apply filters by current rank, then compute RVs within this subset
     const evals = [...getFilteredEvaluations()];
+    const rvMap = computeRvValues(evals);
+    const cumRvMap = computeCumulativeRv(evals, rvMap);
     evals.sort((a, b) => {
         const avgA = parseFloat(a.fitrepAverage || '0');
         const avgB = parseFloat(b.fitrepAverage || '0');
@@ -2277,37 +2276,70 @@ function getTraitGrades(evaluation) {
 }
 
 function computeRvValues(evals) {
-    const sorted = [...evals].sort((a, b) => parseFloat(b.fitrepAverage || '0') - parseFloat(a.fitrepAverage || '0'));
-    const n = sorted.length;
+    // Excel-based RV per row: within evaluations with date <= current row date
+    // Formula: RV = MAX(80, 90 + 10 * (score - avgPast) / (maxPast - avgPast)) if countPast >= 3, else 'N/A'
     const rvMap = new Map();
-    if (n === 0) return rvMap;
-    if (n === 1) {
-        rvMap.set(sorted[0].evaluationId, 100);
-        return rvMap;
-    }
-    sorted.forEach((e, i) => {
-        const rv = Math.round(100 - (i * 100 / (n - 1)));
-        rvMap.set(e.evaluationId, rv);
+    const byDate = [...evals].sort((a, b) => new Date(a.completedDate || 0) - new Date(b.completedDate || 0));
+    byDate.forEach((curr, idx) => {
+        const currDate = new Date(curr.completedDate || 0);
+        const past = byDate.filter(e => new Date(e.completedDate || 0) <= currDate);
+        const scores = past.map(e => parseFloat(e.fitrepAverage || '0')).filter(s => Number.isFinite(s));
+        if (scores.length < 3) {
+            rvMap.set(curr.evaluationId, 'N/A');
+            return;
+        }
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        const max = Math.max(...scores);
+        const denom = max - avg;
+        let rv;
+        if (!Number.isFinite(denom) || denom <= 0) {
+            rv = 90; // avoid divide-by-zero; all scores equal -> baseline
+        } else {
+            const currScore = parseFloat(curr.fitrepAverage || '0');
+            rv = 90 + 10 * ((currScore - avg) / denom);
+        }
+        rv = Math.max(80, rv);
+        rvMap.set(curr.evaluationId, Math.round(rv * 100) / 100);
     });
     return rvMap;
 }
 
 function computeCumulativeRv(evals, rvMap) {
-    // Cumulative RV: running average over numeric RVs only; "N/A" until any numeric RV present.
-    const byDate = [...evals].sort((a, b) => new Date(a.completedDate || 0) - new Date(b.completedDate || 0));
+    // Excel-based Cum RV per row: use all non-zero FitRep scores in subset
+    // Formula: CumRV = if score==0 -> 80
+    // else if countNonZero >= 3 -> MAX(80, 90 + 10 * (score - avgNZ) / (maxNZ - avgNZ))
+    // else 'N/A'
     const cumMap = new Map();
-    let sum = 0;
-    let count = 0;
-    byDate.forEach(e => {
-        const rv = rvMap.get(e.evaluationId);
-        if (typeof rv === 'number' && Number.isFinite(rv)) {
-            sum += rv;
-            count += 1;
-            cumMap.set(e.evaluationId, Math.round(sum / count));
-        } else {
-            // Still no numeric RVs — show N/A
-            cumMap.set(e.evaluationId, count > 0 ? Math.round(sum / count) : 'N/A');
+    const scoresNZ = evals
+        .map(e => parseFloat(e.fitrepAverage || '0'))
+        .filter(s => Number.isFinite(s) && s > 0);
+    const countNZ = scoresNZ.length;
+    const avgNZ = countNZ > 0 ? (scoresNZ.reduce((a, b) => a + b, 0) / countNZ) : 0;
+    const maxNZ = countNZ > 0 ? Math.max(...scoresNZ) : 0;
+    const denomNZ = maxNZ - avgNZ;
+
+    evals.forEach(e => {
+        const score = parseFloat(e.fitrepAverage || '0');
+        if (!Number.isFinite(score)) {
+            cumMap.set(e.evaluationId, 'N/A');
+            return;
         }
+        if (score === 0) {
+            cumMap.set(e.evaluationId, 80);
+            return;
+        }
+        if (countNZ < 3) {
+            cumMap.set(e.evaluationId, 'N/A');
+            return;
+        }
+        let rv;
+        if (!Number.isFinite(denomNZ) || denomNZ <= 0) {
+            rv = 90;
+        } else {
+            rv = 90 + 10 * ((score - avgNZ) / denomNZ);
+        }
+        rv = Math.max(80, rv);
+        cumMap.set(e.evaluationId, Math.round(rv * 100) / 100);
     });
     return cumMap;
 }
@@ -2317,7 +2349,8 @@ function badgeForRv(rv) {
         return `<span class="rv-badge rv-mid">N/A</span>`;
     }
     const cls = rv >= 90 ? 'rv-high' : rv >= 75 ? 'rv-mid' : 'rv-low';
-    return `<span class="rv-badge ${cls}">${rv}</span>`;
+    const display = Number.isFinite(rv) ? rv.toFixed(2) : 'N/A';
+    return `<span class="rv-badge ${cls}">${display}</span>`;
 }
 
 function capitalize(s) {
@@ -2327,10 +2360,10 @@ function capitalize(s) {
 
 // Add: CSV export based on current render order
 function exportProfileGridCsv() {
-    const rvMap = computeRvValues(profileEvaluations);
-    const cumRvMap = computeCumulativeRv(profileEvaluations, rvMap);
-
-    const evals = [...profileEvaluations];
+    // Export based on current filtered subset (rank-specific)
+    const evals = [...getFilteredEvaluations()];
+    const rvMap = computeRvValues(evals);
+    const cumRvMap = computeCumulativeRv(evals, rvMap);
     evals.sort((a, b) => {
         const avgA = parseFloat(a.fitrepAverage || '0');
         const avgB = parseFloat(b.fitrepAverage || '0');
