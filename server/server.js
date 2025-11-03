@@ -5,6 +5,7 @@ const express = require('express');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const fsp = fs.promises;
 
@@ -99,7 +100,10 @@ function emailPrefix(email) {
 }
 
 // --- Local filesystem fallback storage (no-env/dev friendly) ---
-const LOCAL_DATA_DIR = path.join(__dirname, 'local-data', 'users');
+// Use OS temp dir by default to ensure writeability on platforms like Render
+// Allow override via LOCAL_DATA_DIR env var
+const LOCAL_BASE_DIR = process.env.LOCAL_DATA_DIR || path.join(os.tmpdir(), 'fitrep-local');
+const LOCAL_DATA_DIR = path.join(LOCAL_BASE_DIR, 'users');
 async function ensureLocalDir() {
   try { await fsp.mkdir(LOCAL_DATA_DIR, { recursive: true }); } catch (_) {}
 }
