@@ -242,8 +242,8 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
           }
         });
         if (getResp.status === 200) {
-          const existing = await getResp.json();
-          sha = existing.sha || '';
+          // Username already exists; prevent account overwrite
+          return res.status(409).json({ error: 'Username already exists' });
         } else if (getResp.status !== 404 && !getResp.ok) {
           const text = await getResp.text();
           console.error('create-account: get SHA failed:', text);
@@ -294,6 +294,11 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
       // If none provided, fallback to local filesystem for dev/no-env usage.
       try {
         const prefix = sanitizePrefix(email);
+        // Prevent duplicate username locally
+        const existingLocal = await readLocalUser(prefix);
+        if (existingLocal) {
+          return res.status(409).json({ error: 'Username already exists' });
+        }
         const now = new Date().toISOString();
         const userJson = {
           rsEmail: email,
@@ -309,6 +314,24 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
         console.error('create-account: local write error:', err);
         return res.status(500).json({ error: 'Local write failed' });
       }
+    }
+
+    // If dispatch is available, attempt a remote existence check before dispatching
+    try {
+      const prefix = sanitizePrefix(username);
+      const checkUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      const checkResp = await fetch(checkUrl, {
+        headers: {
+          'Authorization': `Bearer ${dispatchToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (checkResp.status === 200) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
+    } catch (e) {
+      // Non-fatal; proceed to dispatch
+      console.warn('create-account: dispatch pre-check failed:', e?.message || e);
     }
 
     const payload = {
@@ -414,6 +437,52 @@ app.get('/health', (req, res) => {
     hasFitrepData: Boolean(process.env.FITREP_DATA),
     allowDevToken: process.env.ALLOW_DEV_TOKEN === 'true'
   });
+});
+
+// Check if a username is available (not already taken)
+app.get('/api/account/available', async (req, res) => {
+  try {
+    const username = String((req.query.username || req.query.email || '')).trim();
+    if (!username) return res.status(400).json({ error: 'Missing username query param' });
+    if (!isValidUsername(username)) return res.status(400).json({ error: 'Invalid username format' });
+
+    const prefix = sanitizePrefix(username);
+    const token = process.env.FITREP_DATA || DISPATCH_TOKEN || '';
+    if (token) {
+      try {
+        const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+        const resp = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json'
+          }
+        });
+        if (resp.status === 200) {
+          return res.json({ ok: true, available: false });
+        }
+        if (resp.status === 404) {
+          return res.json({ ok: true, available: true });
+        }
+        const text = await resp.text();
+        console.warn('availability check: github read unexpected:', text);
+        // Fallback to local check
+      } catch (e) {
+        console.warn('availability check: github read failed:', e?.message || e);
+      }
+    }
+
+    // Local filesystem fallback
+    try {
+      const existing = await readLocalUser(prefix);
+      return res.json({ ok: true, available: !existing });
+    } catch (_) {
+      // If local read fails, assume available to avoid blocking legitimate users
+      return res.json({ ok: true, available: true });
+    }
+  } catch (err) {
+    console.error('availability check error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Development-only endpoint to provide a GitHub token to the client.

@@ -86,6 +86,18 @@ async function createAccount() {
         return;
     }
 
+    // Preflight: check username availability
+    try {
+        const checkResp = await fetch(`/api/account/available?username=${encodeURIComponent(email)}`);
+        if (checkResp.ok) {
+            const check = await checkResp.json();
+            if (check && check.ok && check.available === false) {
+                alert('Username is already taken. Please choose another.');
+                return;
+            }
+        }
+    } catch (_) { /* non-blocking: proceed to create */ }
+
     try {
         const res = await postJson('/api/account/create', { rank, name, email, password });
         if (!res || !res.ok) {
