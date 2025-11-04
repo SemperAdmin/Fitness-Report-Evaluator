@@ -81,6 +81,20 @@ app.use((req, res, next) => {
 // may get intercepted and return 405 from the static middleware. We'll
 // mount static at the end after defining API routes.
 
+// Serve favicon to avoid default /favicon.ico 404s
+// Uses existing PNG logo; returns 200 with image/png
+app.get('/favicon.ico', (req, res) => {
+  try {
+    const iconPath = path.join(__dirname, '..', 'assets', 'images', 'Logo.png');
+    if (fs.existsSync(iconPath)) {
+      res.type('image/png');
+      return res.sendFile(iconPath);
+    }
+  } catch (_) { /* no-op */ }
+  // If logo isn't present, return 204 (no content) instead of 404
+  return res.status(204).end();
+});
+
 // Environment variables:
 // - DISPATCH_TOKEN: PAT with repo:dispatch permission to trigger repository_dispatch
 // - FITREP_DATA (optional, for login): PAT with repo read access to the data repository
