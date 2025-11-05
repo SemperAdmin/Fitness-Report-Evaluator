@@ -1,9 +1,9 @@
 # Product Requirements Document: Admin Dashboard
 
 ## Document Control
-- **Version**: 1.0
-- **Date**: 2025-11-04
-- **Status**: Draft
+- **Version**: 1.1
+- **Date**: 2025-11-05
+- **Status**: Draft (Revised)
 - **Owner**: SemperAdmin
 - **Application**: USMC Fitness Report Evaluator
 
@@ -81,22 +81,23 @@ Create a powerful, data-centric administrative interface that provides complete 
 #### 4.1.1 Admin Authentication
 **Priority**: P0 (Critical)
 
-- **FR-AUTH-001**: System shall recognize username `semperadmin` as the admin account
+- **FR-AUTH-001**: System shall recognize users with `isAdmin: true` flag as admin accounts
 - **FR-AUTH-002**: Admin shall authenticate with username and password
 - **FR-AUTH-003**: Admin password shall be hashed using bcrypt (12 rounds) like regular users
 - **FR-AUTH-004**: Admin account shall be created via backend API endpoint
 - **FR-AUTH-005**: System shall redirect admin to dashboard UI after successful authentication
 - **FR-AUTH-006**: Admin account shall NOT be able to create fitness report evaluations
-- **FR-AUTH-007**: Admin session shall persist in localStorage with `admin_session` flag
+- **FR-AUTH-007**: Admin session shall be stored in HttpOnly cookies (not accessible via JavaScript)
 - **FR-AUTH-008**: System shall auto-logout admin after 4 hours of inactivity
 
 #### 4.1.2 Admin Authorization
 **Priority**: P0 (Critical)
 
-- **FR-AUTH-009**: All admin API endpoints shall verify username is `semperadmin`
+- **FR-AUTH-009**: All admin API endpoints shall verify user has `isAdmin: true` flag
 - **FR-AUTH-010**: Regular users shall not access admin routes (403 Forbidden)
-- **FR-AUTH-011**: Admin shall not appear in user listings or public metrics
+- **FR-AUTH-011**: Admin accounts shall not appear in user listings or public metrics
 - **FR-AUTH-012**: Unauthenticated requests to admin endpoints shall return 401 Unauthorized
+- **FR-AUTH-013**: Session token shall use Secure and SameSite flags for CSRF protection
 
 ### 4.2 Dashboard Overview
 
@@ -152,7 +153,7 @@ Create a powerful, data-centric administrative interface that provides complete 
 - **FR-DASH-031**: Display number of evaluations pending sync
 - **FR-DASH-032**: Display data storage usage (total JSON size)
 - **FR-DASH-033**: Display API response time health check
-- **FR-DASH-034**: Display local filesystem vs GitHub data discrepancies (if any)
+- **FR-DASH-034**: Provide manual "Check Data Integrity" button to verify local vs GitHub consistency
 
 ### 4.3 User Account Management
 
@@ -210,11 +211,14 @@ Create a powerful, data-centric administrative interface that provides complete 
 
 - **FR-USER-024**: Display confirmation modal before deleting user account
 - **FR-USER-025**: Confirmation shall require admin to type username to confirm deletion
-- **FR-USER-026**: System shall delete user profile JSON from GitHub and local storage
-- **FR-USER-027**: System shall delete all user evaluations from GitHub and local storage
-- **FR-USER-028**: System shall provide deletion progress indicator
-- **FR-USER-029**: System shall display success message with count of deleted files
-- **FR-USER-030**: System shall handle deletion errors gracefully (partial deletes)
+- **FR-USER-026**: System shall support soft-delete by default (mark account as `deleted: true`)
+- **FR-USER-027**: Soft-deleted users shall be hidden from listings but data retained for recovery
+- **FR-USER-028**: System shall provide optional hard-delete (permanent removal) with additional confirmation
+- **FR-USER-029**: Hard-delete shall remove user profile JSON and all evaluations from GitHub and local storage
+- **FR-USER-030**: System shall provide deletion progress indicator
+- **FR-USER-031**: System shall display success message with count of affected files
+- **FR-USER-032**: System shall handle deletion errors gracefully (partial deletes)
+- **FR-USER-033**: Soft-deleted accounts can be restored by admin within 30 days
 
 ### 4.4 Evaluation Data Viewer
 
@@ -302,7 +306,7 @@ Create a powerful, data-centric administrative interface that provides complete 
 │  │  │  • admin-charts.js (data visualization)          │  │  │
 │  │  └──────────────────────────────────────────────────┘  │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
-│  │  │  Storage: localStorage (admin_session)           │  │  │
+│  │  │  Storage: HttpOnly Cookies (session token)       │  │  │
 │  │  └──────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────┘  │
 └────────────────────────┬──────────────────────────────────────┘
@@ -313,7 +317,7 @@ Create a powerful, data-centric administrative interface that provides complete 
         │   /server/admin-routes.js                      │
         ├────────────────────────────────────────────────┤
         │  Admin Middleware:                             │
-        │  • validateAdminAuth() - verify semperadmin    │
+        │  • validateAdminAuth() - verify isAdmin flag   │
         │  • adminRateLimit() - 60 req/min               │
         │                                                 │
         │  Admin Controllers:                            │
@@ -323,17 +327,19 @@ Create a powerful, data-centric administrative interface that provides complete 
         │  • evaluationController()                      │
         └────────┬───────────────────────────────────────┘
                  │
-        ┌────────┴────────┐
-        ↓                 ↓
-  ┌─────────────┐  ┌──────────────┐
-  │   GitHub    │  │ Local File   │
-  │ API / PAT   │  │ System       │
-  │             │  │              │
-  │ Data Repo:  │  │ Aggregation  │
-  │ Fetch ALL   │  │ & Caching    │
-  │ users/*.json│  │ Layer        │
-  │ evaluations │  │              │
-  └─────────────┘  └──────────────┘
+        ┌────────┴────────────────────┐
+        ↓                             ↓
+  ┌─────────────────┐  ┌──────────────────────────┐
+  │   GitHub API    │  │ Pre-Aggregated Metrics   │
+  │                 │  │ Cache (Server-Side)      │
+  │ Data Repo:      │  │                          │
+  │ • Background    │  │ • 60-second TTL          │
+  │   jobs fetch    │  │ • Summary data only      │
+  │   incrementally │  │ • Calculated metrics     │
+  │ • Webhook       │  │                          │
+  │   triggers on   │  │ Local Filesystem:        │
+  │   data changes  │  │ • Fallback storage       │
+  └─────────────────┘  └──────────────────────────┘
 ```
 
 ### 5.3 Technology Stack
@@ -342,20 +348,112 @@ Create a powerful, data-centric administrative interface that provides complete 
 - **Core**: Vanilla JavaScript (ES6+)
 - **Styling**: CSS3 (Dark Mode Theme)
 - **Charts**: Chart.js v4.x or D3.js v7.x (for data visualization)
-- **Storage**: localStorage (admin session)
-- **HTTP**: Fetch API
+- **Storage**: HttpOnly cookies (session management, handled by browser)
+- **HTTP**: Fetch API with credentials: 'include' for cookie support
 
 #### 5.3.2 Backend
 - **Runtime**: Node.js v18+
 - **Framework**: Express.js v4.19+
+- **Session Management**: express-session v1.18+ (server-side sessions)
 - **Authentication**: bcryptjs v2.4+
 - **Data Access**: node-fetch v3.3+ (GitHub API)
 - **Validation**: Express-validator v7.x (input validation)
+- **Background Jobs**: node-cron v3.x (scheduled metric aggregation)
 
-#### 5.3.3 Data Storage
+#### 5.3.3 Data Storage & Aggregation Strategy
 - **Primary**: GitHub API (SemperAdmin/Fitness-Report-Evaluator-Data)
 - **Fallback**: Local filesystem (temp/fitrep-local)
-- **Cache**: In-memory caching for aggregated metrics (60-second TTL)
+- **Metrics Cache**: Server-side pre-aggregated metrics (60-second TTL)
+- **Background Jobs**: Periodic data aggregation (every 5 minutes) to avoid "fetch-all" pattern
+- **Incremental Updates**: Webhook-triggered updates when data changes in GitHub repo
+
+### 5.4 Scalable Data Aggregation Architecture
+
+**Problem:** Fetching all user files and evaluations on every dashboard request creates scalability issues:
+- GitHub API rate limits (5000 requests/hour)
+- Slow response times as data grows
+- Excessive memory usage
+- Poor user experience
+
+**Solution:** Pre-aggregated metrics with incremental updates
+
+#### 5.4.1 Background Aggregation Service
+
+The admin dashboard uses a background service that runs independently of user requests:
+
+```javascript
+// /server/services/admin-metrics-aggregator.js
+
+class MetricsAggregator {
+  constructor() {
+    this.cache = {
+      metrics: null,
+      lastUpdate: null,
+      ttl: 60000 // 60 seconds
+    }
+  }
+
+  // Scheduled job runs every 5 minutes
+  async aggregateMetrics() {
+    const summary = {
+      totalUsers: 0,
+      activeUsers: 0,
+      totalEvaluations: 0,
+      gradeDistribution: {},
+      // ... other metrics
+      lastCalculated: new Date().toISOString()
+    }
+
+    // Fetch only user summary files (not full evaluations)
+    // Use GitHub API with pagination, process incrementally
+    // Store results in cache
+
+    this.cache.metrics = summary
+    this.cache.lastUpdate = Date.now()
+  }
+
+  // API endpoints read from cache
+  getMetrics() {
+    if (!this.cache.metrics || this.isCacheExpired()) {
+      // Return stale data with warning or trigger immediate refresh
+    }
+    return this.cache.metrics
+  }
+}
+```
+
+#### 5.4.2 Incremental Data Fetching
+
+Instead of fetching all files:
+1. **On first load**: Aggregate all data (one-time cost)
+2. **On updates**: GitHub webhook notifies server of changes
+3. **Background job**: Fetches only changed files since last update
+4. **Incremental merge**: Update aggregate metrics with deltas
+
+#### 5.4.3 Webhook Integration
+
+```javascript
+// POST /api/webhooks/github
+app.post('/api/webhooks/github', async (req, res) => {
+  const { commits, repository } = req.body
+
+  // Extract changed user files from commit
+  const changedUsers = extractUserFiles(commits)
+
+  // Update only affected metrics incrementally
+  await metricsAggregator.updateIncremental(changedUsers)
+
+  res.sendStatus(200)
+})
+```
+
+#### 5.4.4 Performance Characteristics
+
+- **Cold start**: 5-10 seconds (initial aggregation)
+- **Warm cache**: <100ms (read from memory)
+- **Incremental update**: <1 second (single user change)
+- **Background refresh**: Transparent to users
+- **Scalability**: Handles 1000+ users, 10000+ evaluations
 
 ---
 
@@ -366,9 +464,9 @@ Create a powerful, data-centric administrative interface that provides complete 
 #### 6.1.1 Admin Profile Schema
 ```json
 {
-  "rsEmail": "semperadmin",
-  "rsName": "System Administrator",
-  "rsRank": "Admin",
+  "username": "semperadmin",
+  "name": "System Administrator",
+  "rank": "Admin",
   "passwordHash": "$2a$12$...",
   "isAdmin": true,
   "createdDate": "2025-11-04T00:00:00Z",
@@ -376,6 +474,8 @@ Create a powerful, data-centric administrative interface that provides complete 
   "lastLogin": "2025-11-04T12:00:00Z"
 }
 ```
+
+**Note**: Regular user profiles continue to use `rsEmail`, `rsName`, `rsRank` for compatibility with existing evaluation system. Admin profiles use simplified `username`, `name`, `rank` fields since admins don't create evaluations.
 
 ### 6.2 Admin API Endpoints
 
@@ -1089,8 +1189,8 @@ Actions Legend:
 
 **Total Users:**
 ```javascript
-// Count all user profile JSON files excluding admin
-totalUsers = allUserProfiles.filter(u => u.rsEmail !== 'semperadmin').length
+// Count all user profile JSON files excluding admin accounts
+totalUsers = allUserProfiles.filter(u => !u.isAdmin).length
 ```
 
 **Active Users:**
@@ -1223,7 +1323,8 @@ avgGradeBySection = {
 ### 9.1 Authentication & Authorization
 
 #### 9.1.1 Admin Authentication Requirements
-- Admin username MUST be exactly `semperadmin` (case-sensitive)
+- Admin identified by `isAdmin: true` flag in user profile
+- Initial admin account uses username `semperadmin` (additional admins supported in future)
 - Password must meet strength requirements:
   - Minimum 12 characters
   - At least 1 uppercase letter
@@ -1231,33 +1332,40 @@ avgGradeBySection = {
   - At least 1 number
   - At least 1 special character
 - Password hashed with bcrypt (12 rounds)
-- Admin profile stored in same format as regular users
+- Admin profile schema differs from regular users (see section 6.1.1)
 
 #### 9.1.2 Session Management
-- Admin session token stored in localStorage (`admin_session`)
+- Admin session token stored in HttpOnly cookies (protected from XSS attacks)
+- Cookie flags: `HttpOnly`, `Secure` (HTTPS only), `SameSite=Strict` (CSRF protection)
 - Session expires after 4 hours of inactivity
 - Session validated on every API request
 - Failed authentication attempts logged (future: rate limiting)
+- Session data stored server-side (cookie contains only session ID)
 
 #### 9.1.3 Authorization Middleware
 ```javascript
 // server/middleware/admin-auth.js
 function validateAdminAuth(req, res, next) {
-  const username = req.body.username || req.session?.username
+  // User object populated by session middleware after successful login
+  const user = req.session?.user
 
-  if (username !== 'semperadmin') {
+  // Verify user is authenticated and has admin privileges
+  if (!user || !user.isAdmin) {
     return res.status(403).json({
       ok: false,
       error: 'Forbidden: Admin access required'
     })
   }
 
-  // Verify session token or password
-  // ...
-
+  // User is authenticated admin, proceed
   next()
 }
 ```
+
+**Security Notes:**
+- User identity determined ONLY from verified session (never from request body)
+- `isAdmin` flag is the single source of truth for authorization
+- Session data validated on every request to prevent tampering
 
 ### 9.2 Data Protection
 
@@ -1310,32 +1418,40 @@ const adminRateLimit = {
 **Duration:** 3 days
 
 **Tasks:**
-1. Create admin profile for `semperadmin`
-2. Implement admin authentication endpoint (`POST /api/admin/auth/login`)
-3. Create admin authorization middleware (`validateAdminAuth`)
-4. Set up admin route structure (`/server/admin-routes.js`)
-5. Implement rate limiting for admin endpoints
-6. Add admin session management
+1. Create admin profile for `semperadmin` with `isAdmin: true` flag
+2. Install and configure express-session middleware
+3. Implement HttpOnly cookie session management
+4. Implement admin authentication endpoint (`POST /api/admin/auth/login`)
+5. Create admin authorization middleware (`validateAdminAuth`) using `isAdmin` flag
+6. Set up admin route structure (`/server/admin-routes.js`)
+7. Implement rate limiting for admin endpoints
+8. Configure cookie security flags (HttpOnly, Secure, SameSite)
 
 **Deliverables:**
-- Admin can authenticate via API
-- Middleware protects admin routes
+- Admin can authenticate via API with secure session cookies
+- Middleware protects admin routes using `isAdmin` flag
 - Admin profile stored in data repo
+- Session management prevents XSS and CSRF attacks
 
 #### Milestone 1.2: Data Aggregation Layer
-**Duration:** 2 days
+**Duration:** 3 days
 
 **Tasks:**
 1. Create data aggregation service (`/server/services/admin-data-service.js`)
 2. Implement metric calculation functions
-3. Add caching layer (60-second TTL)
-4. Implement user listing and search
-5. Test GitHub API data fetching performance
+3. Add server-side caching layer (60-second TTL)
+4. Create background job for periodic metric aggregation (5-minute intervals)
+5. Implement incremental data fetching (only fetch changed files)
+6. Set up GitHub webhook handler for real-time updates
+7. Implement user listing and search with pagination
+8. Test performance with large datasets (100+ users, 1000+ evaluations)
 
 **Deliverables:**
-- Backend can calculate all required metrics
-- API responds within 1 second
-- Caching reduces GitHub API calls
+- Backend calculates all required metrics via pre-aggregation
+- API responds within 500ms for cached metrics
+- Background jobs minimize GitHub API calls
+- Webhook integration provides near real-time updates
+- System scales to handle 10x current data volume
 
 ### 10.2 Phase 2: Admin Dashboard UI (Week 2)
 
@@ -1560,7 +1676,7 @@ const adminRateLimit = {
 **Risk 4: Accidental Data Deletion**
 - **Impact:** High
 - **Likelihood:** Medium
-- **Mitigation:** Confirmation modals, username verification, no bulk delete (initially)
+- **Mitigation:** Soft-delete by default, 30-day recovery window, confirmation modals, username verification, no bulk delete (initially)
 
 **Risk 5: UI Complexity**
 - **Impact:** Medium
@@ -1656,7 +1772,34 @@ const adminRateLimit = {
 
 *(Mockups would be included here in a real PRD - wireframes/screenshots of key pages)*
 
-### Appendix D: Glossary
+### Appendix D: Architectural Changes from V1.0
+
+**Version 1.1 includes critical architectural improvements based on security and scalability review:**
+
+#### Security Enhancements:
+1. **HttpOnly Cookies**: Session tokens now stored in HttpOnly cookies instead of localStorage to prevent XSS attacks
+2. **isAdmin Flag Authorization**: Admin authorization uses `isAdmin` flag instead of hardcoded username checks for scalability
+3. **Session-Only Identity**: User identity determined exclusively from verified session data (never from request body)
+4. **CSRF Protection**: SameSite=Strict cookie flag prevents cross-site request forgery
+
+#### Scalability Improvements:
+1. **Pre-Aggregated Metrics**: Background jobs pre-calculate metrics instead of "fetch-all" on demand
+2. **Incremental Updates**: Webhook-triggered updates fetch only changed data
+3. **60-Second Cache**: Reduces API calls while maintaining near real-time data
+4. **5-Minute Background Jobs**: Periodic aggregation keeps metrics current without user-facing latency
+
+#### Data Protection:
+1. **Soft-Delete by Default**: Users marked as `deleted: true` instead of immediate removal
+2. **30-Day Recovery Window**: Soft-deleted accounts can be restored to prevent data loss
+3. **Optional Hard-Delete**: Permanent deletion requires additional confirmation
+
+#### User Experience:
+1. **Manual Data Integrity Check**: Changed from real-time dashboard metric to admin-triggered action
+2. **Consistent Response Times**: Pre-aggregation ensures <500ms API responses regardless of data volume
+
+These changes ensure the admin dashboard is secure, scalable, and maintainable as the system grows.
+
+### Appendix E: Glossary
 
 - **FITREP**: Fitness Report - performance evaluation for USMC personnel
 - **RS**: Reporting Senior - officer conducting the evaluation
