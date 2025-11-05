@@ -1,7 +1,7 @@
 # Product Requirements Document: Admin Dashboard
 
 ## Document Control
-- **Version**: 1.1
+- **Version**: 1.2
 - **Date**: 2025-11-05
 - **Status**: Draft (Revised)
 - **Owner**: SemperAdmin
@@ -249,6 +249,19 @@ Create a powerful, data-centric administrative interface that provides complete 
 - **FR-SYNC-004**: Display last data refresh timestamp
 - **FR-SYNC-005**: Auto-refresh dashboard data every 30 seconds (configurable)
 - **FR-SYNC-006**: Show loading indicators during data fetch operations
+- **FR-SYNC-007**: System shall use stale-while-revalidate caching strategy (return stale data immediately while refreshing in background)
+- **FR-SYNC-008**: Prevent concurrent cache refreshes (single refresh at a time)
+
+#### 4.5.2 Webhook Integration
+**Priority**: P1 (High)
+
+- **FR-WEBHOOK-001**: System shall support GitHub webhook integration for real-time data updates
+- **FR-WEBHOOK-002**: Webhook endpoint shall validate request signature using shared secret (HMAC-SHA256)
+- **FR-WEBHOOK-003**: Invalid webhook signatures shall be rejected with 401 Unauthorized
+- **FR-WEBHOOK-004**: Webhook handler shall verify repository matches expected data repo
+- **FR-WEBHOOK-005**: Webhook updates shall trigger incremental metric aggregation
+- **FR-WEBHOOK-006**: Webhook processing shall be non-blocking (respond immediately, process async)
+- **FR-WEBHOOK-007**: Failed webhook processing shall be logged but not block future webhooks
 
 ---
 
@@ -415,9 +428,27 @@ class MetricsAggregator {
   // API endpoints read from cache
   getMetrics() {
     if (!this.cache.metrics || this.isCacheExpired()) {
-      // Return stale data with warning or trigger immediate refresh
+      // Stale-while-revalidate: return stale data and trigger a non-blocking background refresh.
+      // This prevents "thundering herd" if multiple requests arrive during cache expiry.
+      if (this.cache.metrics && !this.isRefreshing) {
+        this.triggerBackgroundRefresh() // Non-blocking
+        return this.cache.metrics // Return stale data immediately
+      }
+      // No cached data at all (cold start) - must wait for initial load
+      throw new Error('Metrics not yet available. Please retry in a few seconds.')
     }
     return this.cache.metrics
+  }
+
+  triggerBackgroundRefresh() {
+    if (this.isRefreshing) return // Prevent multiple concurrent refreshes
+    this.isRefreshing = true
+    this.aggregateMetrics()
+      .then(() => { this.isRefreshing = false })
+      .catch(err => {
+        console.error('Background refresh failed:', err)
+        this.isRefreshing = false
+      })
   }
 }
 ```
@@ -432,28 +463,63 @@ Instead of fetching all files:
 
 #### 5.4.3 Webhook Integration
 
+GitHub webhooks provide real-time notifications when data changes, enabling incremental updates:
+
 ```javascript
 // POST /api/webhooks/github
 app.post('/api/webhooks/github', async (req, res) => {
+  // CRITICAL: Verify webhook signature before processing
+  // This prevents forged requests that could corrupt metrics
+  if (!isValidGitHubSignature(req)) {
+    console.warn('Invalid webhook signature from IP:', req.ip)
+    return res.status(401).send('Invalid signature')
+  }
+
   const { commits, repository } = req.body
+
+  // Verify webhook is from the expected data repository
+  if (repository.full_name !== 'SemperAdmin/Fitness-Report-Evaluator-Data') {
+    return res.status(400).send('Unexpected repository')
+  }
 
   // Extract changed user files from commit
   const changedUsers = extractUserFiles(commits)
 
-  // Update only affected metrics incrementally
-  await metricsAggregator.updateIncremental(changedUsers)
+  // Update only affected metrics incrementally (non-blocking)
+  metricsAggregator.updateIncremental(changedUsers)
+    .catch(err => console.error('Incremental update failed:', err))
 
   res.sendStatus(200)
 })
+
+// Validate GitHub webhook signature using shared secret
+function isValidGitHubSignature(req) {
+  const signature = req.headers['x-hub-signature-256']
+  if (!signature) return false
+
+  const secret = process.env.GITHUB_WEBHOOK_SECRET
+  const payload = JSON.stringify(req.body)
+  const expectedSignature = 'sha256=' + crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex')
+
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  )
+}
 ```
 
 #### 5.4.4 Performance Characteristics
 
 - **Cold start**: 5-10 seconds (initial aggregation)
 - **Warm cache**: <100ms (read from memory)
+- **Stale cache**: <100ms (stale-while-revalidate returns immediately, refreshes in background)
 - **Incremental update**: <1 second (single user change)
-- **Background refresh**: Transparent to users
+- **Background refresh**: Transparent to users, no request blocking
 - **Scalability**: Handles 1000+ users, 10000+ evaluations
+- **Concurrency**: Single refresh at a time (prevents thundering herd)
 
 ---
 
@@ -1408,6 +1474,31 @@ const adminRateLimit = {
 - Encode special characters in outputs
 - Validate file paths (for evaluation access)
 
+### 9.5 Webhook Security
+
+#### 9.5.1 GitHub Webhook Validation
+- All incoming webhook requests MUST be validated using HMAC-SHA256 signature
+- Webhook secret stored in environment variable (`GITHUB_WEBHOOK_SECRET`)
+- Use `crypto.timingSafeEqual()` to prevent timing attacks
+- Invalid signatures logged and rejected with 401 status
+- Webhook endpoint accepts only POST requests
+- Rate limiting applied (max 60 webhooks/minute)
+
+#### 9.5.2 Webhook Configuration
+```bash
+# Environment variables
+GITHUB_WEBHOOK_SECRET=<secure_random_string>  # Used for signature validation
+GITHUB_WEBHOOK_URL=https://domain.com/api/webhooks/github
+```
+
+#### 9.5.3 GitHub Repository Settings
+1. Navigate to repository settings → Webhooks
+2. Add webhook URL: `https://domain.com/api/webhooks/github`
+3. Content type: `application/json`
+4. Secret: Use value from `GITHUB_WEBHOOK_SECRET`
+5. Events: Select "Push" events only
+6. Active: ✓ Enabled
+
 ---
 
 ## 10. Implementation Plan
@@ -1439,18 +1530,22 @@ const adminRateLimit = {
 **Tasks:**
 1. Create data aggregation service (`/server/services/admin-data-service.js`)
 2. Implement metric calculation functions
-3. Add server-side caching layer (60-second TTL)
+3. Add server-side caching layer with stale-while-revalidate pattern
 4. Create background job for periodic metric aggregation (5-minute intervals)
 5. Implement incremental data fetching (only fetch changed files)
-6. Set up GitHub webhook handler for real-time updates
-7. Implement user listing and search with pagination
-8. Test performance with large datasets (100+ users, 1000+ evaluations)
+6. Set up GitHub webhook endpoint with signature validation
+7. Implement webhook handler for real-time updates
+8. Add concurrency protection (prevent thundering herd)
+9. Implement user listing and search with pagination
+10. Test performance with large datasets (100+ users, 1000+ evaluations)
+11. Configure GitHub repository webhook settings
 
 **Deliverables:**
 - Backend calculates all required metrics via pre-aggregation
-- API responds within 500ms for cached metrics
+- API responds within 100ms for cached metrics (even if stale)
 - Background jobs minimize GitHub API calls
-- Webhook integration provides near real-time updates
+- Webhook integration provides real-time updates with signature validation
+- Stale-while-revalidate prevents request blocking
 - System scales to handle 10x current data volume
 
 ### 10.2 Phase 2: Admin Dashboard UI (Week 2)
@@ -1738,6 +1833,7 @@ const adminRateLimit = {
 | GET | /api/admin/users/:email/evaluations | Get user evaluations | Yes |
 | GET | /api/admin/evaluations/:id | Get evaluation details | Yes |
 | GET | /api/admin/system/health | System health check | Yes |
+| POST | /api/webhooks/github | GitHub webhook receiver | Signature validation |
 
 ### Appendix B: Component File Structure
 
@@ -1785,8 +1881,9 @@ const adminRateLimit = {
 #### Scalability Improvements:
 1. **Pre-Aggregated Metrics**: Background jobs pre-calculate metrics instead of "fetch-all" on demand
 2. **Incremental Updates**: Webhook-triggered updates fetch only changed data
-3. **60-Second Cache**: Reduces API calls while maintaining near real-time data
+3. **Stale-While-Revalidate Cache**: Returns stale data immediately while refreshing in background (prevents thundering herd)
 4. **5-Minute Background Jobs**: Periodic aggregation keeps metrics current without user-facing latency
+5. **Webhook Signature Validation**: HMAC-SHA256 validation prevents forged webhook requests
 
 #### Data Protection:
 1. **Soft-Delete by Default**: Users marked as `deleted: true` instead of immediate removal
@@ -1795,7 +1892,8 @@ const adminRateLimit = {
 
 #### User Experience:
 1. **Manual Data Integrity Check**: Changed from real-time dashboard metric to admin-triggered action
-2. **Consistent Response Times**: Pre-aggregation ensures <500ms API responses regardless of data volume
+2. **Consistent Response Times**: Stale-while-revalidate ensures <100ms API responses regardless of cache state or data volume
+3. **No Request Blocking**: Background refreshes never block user requests
 
 These changes ensure the admin dashboard is secure, scalable, and maintainable as the system grows.
 
