@@ -1278,6 +1278,8 @@ function exportEvaluation(evalId) {
     doc.setFontSize(9);
     doc.text(`Generated on ${when}`, margin, doc.internal.pageSize.getHeight() - margin);
 
+    // Always trigger a direct download to avoid in-page/open-tab behavior
+    // This ensures consistent UX across machines/browsers that may open PDFs inline
     doc.save(`${pdfTitle}.pdf`);
 }
 
@@ -1541,6 +1543,8 @@ function logoutProfile() {
         localStorage.removeItem('current_evaluations');
         localStorage.removeItem('has_profile');
         localStorage.removeItem('login_source');
+        // Also clear the session-scoped login source to prevent auto-routing
+        try { sessionStorage.removeItem('login_source'); } catch (_) {}
         
         // Hide dashboard
         const dash = document.getElementById('profileDashboardCard');
@@ -1549,27 +1553,29 @@ function logoutProfile() {
             dash.style.display = 'none';
         }
         
-        // Route back to the login page (hide setup, hide app chrome)
-        if (typeof showRSLoginFirst === 'function') {
-            showRSLoginFirst();
-        } else {
-            const login = document.getElementById('profileLoginCard');
-            const setup = document.getElementById('setupCard');
-            const header = document.querySelector('.header');
-            const warning = document.getElementById('dataWarning');
+        // Route back to the main Mode Selection home page
+        const header = document.querySelector('.header');
+        const warning = document.getElementById('dataWarning');
+        const mode = document.getElementById('modeSelectionCard');
+        const login = document.getElementById('profileLoginCard');
+        const setup = document.getElementById('setupCard');
 
-            if (header) header.style.display = 'none';
-            if (warning) warning.style.display = 'none';
-            if (setup) {
-                setup.classList.remove('active');
-                setup.style.display = 'none';
-            }
-            if (login) {
-                login.classList.add('active');
-                login.style.display = 'block';
-            }
-            window.scrollTo({ top: 0, behavior: 'auto' });
-        }
+        // Restore app chrome
+        if (header) header.style.display = '';
+        if (warning) warning.style.display = '';
+
+        // Hide login and setup cards
+        if (login) { login.classList.remove('active'); login.style.display = 'none'; }
+        if (setup) { setup.classList.remove('active'); setup.style.display = 'none'; }
+
+        // Show the welcome Mode Selection card
+        if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
+
+        // Ensure other app cards are hidden
+        ['howItWorksCard','evaluationContainer','reviewCard','sectionIGenerationCard','directedCommentsCard','summaryCard']
+            .forEach(id => { const el = document.getElementById(id); if (el) { el.classList.remove('active'); el.style.display = 'none'; } });
+
+        window.scrollTo({ top: 0, behavior: 'auto' });
     }
 }
 
