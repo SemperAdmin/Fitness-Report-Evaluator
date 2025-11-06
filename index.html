@@ -134,6 +134,7 @@
             </div>
             
             <button class="btn btn-meets" onclick="startEvaluation()" style="margin-top: 20px; width: 100%;">Begin Evaluation</button>
+            <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="margin-top: 10px; width: 100%; display: none;">← Return to RS Dashboard</button>
         </div>
 
         <!-- How This Works Card -->
@@ -297,8 +298,8 @@
             <div class="export-section">
                 <div class="button-row">
                     <button class="btn btn-export" onclick="window.print()">Print Summary</button>
-                    <button class="btn btn-export" onclick="confirmSaveToProfileAndReturn()">View RS Dashboard</button>
-                    <button class="btn btn-export" onclick="resetEvaluation()">Start Over</button>
+                    <button class="btn btn-export" id="viewRsDashboardBtn" onclick="confirmSaveToProfileAndReturn()">View RS Dashboard</button>
+                    <button class="btn btn-export" id="startOverBtn" onclick="resetEvaluation()">Start Over</button>
                 </div>
             </div>
         </div>
@@ -648,10 +649,8 @@
               </div>
               <input type="file" id="csvUploadInput" accept=".csv" style="display:none" />
             </div>
-            <button class="btn btn-secondary" id="gridViewBtn" onclick="showRankSummaryView()">📊 RS Summary View</button>
-            <!-- Dev-only: dispatch save-user-data to workflow -->
-            <button class="btn btn-secondary" id="devDispatchSaveUserBtn" style="display:none;">⚙️ Dev: Dispatch Save</button>
-            <span id="workflowStatusText" class="stat-label" style="display:none; margin-left:8px; font-size:12px;">Workflow: none</span>
+            <button class="btn btn-secondary" id="gridViewBtn" onclick="showRankSummaryView()" style="display:none">📊 RS Summary View</button>
+            
         </div>
         
         <!-- Rank buttons stay visible; used to select the rank -->
@@ -772,8 +771,8 @@
     <script src="js/evaluation.js"></script>
     <script src="js/app.js"></script>
     
-    <!-- Save to Profile Modal: add Save & Return to Profile button -->
-    <div class="save-profile-modal" id="saveProfileModal">
+  <!-- Save to Profile Modal: add Save & Return to Profile button -->
+  <div class="save-profile-modal" id="saveProfileModal">
         <div class="save-profile-content">
             <h3>Save Evaluation to Profile</h3>
             <p>Review details and choose storage options.</p>
@@ -801,10 +800,10 @@
                 <span id="saveStatusText">Offline - Changes saved locally</span>
             </div>
         </div>
-    </div>
+  </div>
 
-    <!-- Edit Profile Modal -->
-    <div class="save-profile-modal" id="editProfileModal" style="display:none;">
+  <!-- Edit Profile Modal -->
+  <div class="save-profile-modal" id="editProfileModal" style="display:none;">
         <div class="save-profile-content">
             <h3>Edit Profile</h3>
             <p>Update your Reporting Senior profile information.</p>
@@ -812,7 +811,21 @@
             <div class="form-group">
                 <label class="form-label" for="editRsNameInput">Name</label>
                 <input type="text" class="form-input" id="editRsNameInput" placeholder="Last, First M">
-            </div>
+  </div>
+
+  <!-- Pending Sync Confirmation Modal -->
+  <div class="save-profile-modal" id="pendingSyncModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pendingSyncTitle">
+    <div class="modal-content">
+      <h3 id="pendingSyncTitle">Sync Required</h3>
+      <p>You have <span id="pendingSyncCount">0</span> evaluation(s) not synced to the repository.</p>
+      <p>Please sync before leaving the RS Dashboard.</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closePendingSyncModal()">Cancel</button>
+        <button class="btn btn-meets" onclick="handlePendingSyncConfirm()">🔄 Sync Now</button>
+      </div>
+    </div>
+    <input type="hidden" id="pendingSyncNextAction" value="">
+  </div>
 
             <div class="form-group">
                 <label class="form-label" for="editRsEmailInput">Username</label>

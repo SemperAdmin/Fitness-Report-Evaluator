@@ -218,6 +218,7 @@ function rateLimit({ windowMs, limit }) {
 }
 const authRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
 const saveRateLimit = rateLimit({ windowMs: 60_000, limit: 60 });
+const feedbackRateLimit = rateLimit({ windowMs: 60_000, limit: 20 });
 
 app.post('/api/account/create', authRateLimit, async (req, res) => {
   try {
@@ -540,6 +541,11 @@ function buildUserDataJson(userData) {
 function sanitizePrefix(username) {
   const prefix = String(username || '').trim().toLowerCase();
   return prefix.replace(/[^a-z0-9._-]/gi, '_');
+}
+
+function sanitizeString(str) {
+  const s = String(str || '');
+  return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
 
 // Simple input validation helpers
@@ -1101,12 +1107,137 @@ app.get('/api/user/load', async (req, res) => {
   }
 });
 
+// Feedback submission endpoint: creates GitHub issues or stores locally
+app.post('/api/feedback', feedbackRateLimit, async (req, res) => {
+  try {
+    const { type, title, description, email, context } = req.body || {};
+    const t = String(type || '').toLowerCase();
+    const typeSafe = ['bug', 'feature', 'ux'].includes(t) ? t : 'other';
+    const titleSan = sanitizeString(title).trim().substring(0, 200);
+    const descSan = sanitizeString(description).trim().substring(0, 50000);
+    const emailSan = sanitizeString(email).trim().substring(0, 200);
+    if (!titleSan || !descSan) {
+      return res.status(400).json({ error: 'Missing title or description' });
+    }
+
+    const repo = process.env.GITHUB_REPO || process.env.MAIN_REPO || 'SemperAdmin/Fitness-Report-Evaluator';
+    // Prefer a dedicated GitHub token for issue creation; fall back to dispatch/data tokens
+    const token = process.env.GITHUB_TOKEN || process.env.DISPATCH_TOKEN || process.env.FITREP_DATA;
+
+    if (!token) {
+      // Fallback: store feedback locally for later triage in development
+      try { await ensureLocalDir(); } catch (_) {}
+      const fbDir = path.join(LOCAL_BASE_DIR, 'feedback');
+      await fsp.mkdir(fbDir, { recursive: true });
+      const now = new Date().toISOString().replace(/[:.]/g, '-');
+      const fname = `${now}-${Math.random().toString(36).slice(2, 8)}.json`;
+      const payload = { type: typeSafe, title: titleSan, description: descSan, email: emailSan, context: (context || {}), createdAt: new Date().toISOString() };
+      await fsp.writeFile(path.join(fbDir, fname), JSON.stringify(payload, null, 2), 'utf8');
+      return res.json({ ok: true, stored: 'local', file: fname });
+    }
+
+    const issueBody = [
+      `Type: ${typeSafe}`,
+      '',
+      'Description:',
+      descSan,
+      '',
+      'Context:',
+      `- Route: ${(context && context.route) ? String(context.route) : ''}`,
+      `- User-Agent: ${(context && context.userAgent) ? String(context.userAgent) : ''}`,
+      `- Screen: ${(context && context.screen) ? String(context.screen) : ''}`,
+      `- Viewport: ${(context && context.viewport) ? String(context.viewport) : ''}`,
+      `- Theme: ${(context && context.theme) ? String(context.theme) : ''}`,
+      `- Timestamp: ${(context && context.timestamp) ? String(context.timestamp) : new Date().toISOString()}`,
+      emailSan ? `- Reporter Email: ${emailSan}` : ''
+    ].filter(Boolean).join('\n');
+
+    const resp = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: `[Feedback] ${typeSafe}: ${titleSan}`,
+        body: issueBody,
+        labels: ['feedback', typeSafe]
+      })
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('feedback issue create failed:', text);
+      // Graceful fallback: if token lacks permission or credentials are invalid, store locally
+      if (resp.status === 401 || resp.status === 403) {
+        try { await ensureLocalDir(); } catch (_) {}
+        const fbDir = path.join(LOCAL_BASE_DIR, 'feedback');
+        await fsp.mkdir(fbDir, { recursive: true });
+        const now = new Date().toISOString().replace(/[:.]/g, '-');
+        const fname = `${now}-${Math.random().toString(36).slice(2, 8)}.json`;
+        const payload = { type: typeSafe, title: titleSan, description: descSan, email: emailSan, context: (context || {}), createdAt: new Date().toISOString(), githubError: text };
+        await fsp.writeFile(path.join(fbDir, fname), JSON.stringify(payload, null, 2), 'utf8');
+        return res.json({ ok: true, stored: 'local', file: fname, reason: 'github_unauthorized' });
+      }
+      return res.status(502).json({ error: 'GitHub issue creation failed' });
+    }
+    const data = await resp.json();
+    return res.json({ ok: true, issueUrl: data.html_url, issueNumber: data.number });
+  } catch (err) {
+    console.error('feedback error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Debug minimal GitHub configuration exposure (safe for dev)
+app.get('/api/debug/github', (req, res) => {
+  try {
+    const expose = process.env.ALLOW_DEV_TOKEN === 'true';
+    return res.json({
+      ok: true,
+      mainRepo: MAIN_REPO,
+      dataRepo: DATA_REPO,
+      githubRepo: process.env.GITHUB_REPO || MAIN_REPO,
+      tokenPresent: Boolean(process.env.GITHUB_TOKEN),
+      dispatchPresent: Boolean(DISPATCH_TOKEN),
+      devTokenExposureEnabled: expose
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Start server if executed directly
 if (require.main === module) {
   const port = process.env.PORT || 5173;
   // Serve static files for local preview after all API routes
   app.use(express.static('.'));
-  app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
+  const commitSha = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
+  const listRoutes = () => {
+    try {
+      const routes = [];
+      const stack = (app && app._router && app._router.stack) ? app._router.stack : [];
+      for (const layer of stack) {
+        if (layer.route && layer.route.path) {
+          const methods = Object.keys(layer.route.methods || {}).map(m => m.toUpperCase()).join(',');
+          routes.push(`${methods} ${layer.route.path}`);
+        } else if (layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)) {
+          for (const h of layer.handle.stack) {
+            if (h.route && h.route.path) {
+              const methods = Object.keys(h.route.methods || {}).map(m => m.toUpperCase()).join(',');
+              routes.push(`${methods} ${h.route.path}`);
+            }
+          }
+        }
+      }
+      console.log('[routes]', routes.sort().join(' | '));
+    } catch (_) {}
+  };
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Server listening on http://localhost:${port}`);
+    if (commitSha) console.log('[build] commit', commitSha);
+    listRoutes();
+  });
 }
 
 module.exports = app;

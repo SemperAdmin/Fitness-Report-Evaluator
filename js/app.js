@@ -50,43 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Dev-only: show dispatch button if token present and running locally
-    try {
-        const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
-        const devToken = window.GITHUB_CONFIG?.token || window.localStorage.getItem('FITREP_DEV_TOKEN');
-        const btn = document.getElementById('devDispatchSaveUserBtn');
-        const statusEl = document.getElementById('workflowStatusText');
-        if (btn && statusEl && isLocal && devToken) {
-            btn.style.display = '';
-            statusEl.style.display = '';
-            btn.addEventListener('click', async () => {
-                // Build userData from current profile state
-                const profile = window.currentProfile || JSON.parse(localStorage.getItem('current_profile') || 'null');
-                if (!profile || !profile.rsEmail) {
-                    statusEl.textContent = 'Workflow: error - no profile loaded';
-                    return;
-                }
-                // Send metadata-only profile; evaluations are saved as unique files
-                const userData = {
-                    rsEmail: profile.rsEmail,
-                    rsName: profile.rsName,
-                    rsRank: profile.rsRank
-                };
-                statusEl.textContent = 'Workflow: dispatching...';
-                try {
-                    const res = await window.BackendAPI.saveUserDataViaWorkflow(userData);
-                    if (res && res.success) {
-                        statusEl.textContent = 'Workflow dispatch OK';
-                    } else {
-                        statusEl.textContent = 'Workflow: unexpected response';
-                    }
-                } catch (err) {
-                    console.error('Dev dispatch failed:', err);
-                    statusEl.textContent = 'Workflow: error - ' + (err && err.message ? err.message : 'failed');
-                }
-            });
-        }
-    } catch (_) { /* noop */ }
+    // Dev-only dispatch removed; production UI should not expose workflow controls here
 });
 
 // Add Single Evaluation entrypoint used by index.html button
@@ -104,6 +68,9 @@ function startStandaloneMode() {
 
     const setup = document.getElementById('setupCard');
     if (setup) { setup.classList.add('active'); setup.style.display = 'block'; }
+
+    // Ensure RS display/input reflect standalone mode (no profile)
+    try { if (typeof updateRSSetupDisplay === 'function') updateRSSetupDisplay(); } catch (_) {}
 
     // Align navigation state if available
     try {

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="styles/admin.css" />
+</head>
+<body>
+  <header class="admin-header">
+    <h1>USMC Fitness Report Evaluator — Admin</h1>
+    <div class="session-info" id="sessionInfo">Not authenticated</div>
+    <button id="logoutBtn" title="Logout and return to main app">Logout</button>
+  </header>
+
+  <main class="admin-main">
+    <!-- Admin dashboard relies on normal app login/session; no separate admin login form. -->
+    <div class="tabs" id="adminTabs" style="display:flex;gap:8px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">
+      <button id="tabOverview" class="tab active" style="padding:8px 12px;border:none;border-bottom:2px solid #2563eb;background:none;cursor:pointer;">Overview</button>
+      <button id="tabUsers" class="tab" style="padding:8px 12px;border:none;background:none;cursor:pointer;">Users</button>
+      <button id="tabAnalytics" class="tab" style="padding:8px 12px;border:none;background:none;cursor:pointer;">Analytics</button>
+    </div>
+
+    <section class="panel" id="overviewPanel">
+      <h2>Overview</h2>
+      <div class="grid metrics-grid">
+        <div class="card"><div class="label">Total Users</div><div class="value" id="metricTotalUsers">—</div></div>
+        <div class="card"><div class="label">Total Evaluations</div><div class="value" id="metricTotalEvaluations">—</div></div>
+        <div class="card"><div class="label">Last 24h</div><div class="value" id="metricEval24h">—</div></div>
+        <div class="card"><div class="label">Last 7d</div><div class="value" id="metricEval7d">—</div></div>
+        <div class="card"><div class="label">Last 30d</div><div class="value" id="metricEval30d">—</div></div>
+        <div class="card"><div class="label">Avg/User</div><div class="value" id="metricAvgPerUser">—</div></div>
+      </div>
+      <div class="actions">
+        <button id="refreshDataBtn">Refresh Data</button>
+        <span id="lastRefresh">Last refresh: —</span>
+      </div>
+      <div id="overviewLoading" style="display:none;color:#6b7280;margin:8px 0;">Loading overview...</div>
+      <div class="grid metrics-grid" style="margin-top: 12px;">
+        <div class="card" style="grid-column: span 3;">
+          <div class="label">Top Users</div>
+          <div id="topUsersSkeleton" class="skeleton-surface skeleton-table">
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+          </div>
+          <table class="table" id="topUsersTable" style="width:100%;">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Rank</th>
+                <th>Evaluations</th>
+                <th>Average Score</th>
+              </tr>
+            </thead>
+            <tbody id="topUsersTableBody">
+              <tr><td colspan="4" style="color:#9aa7b8">No data</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="grid-column: span 3;">
+          <div class="label">Recent Registrations</div>
+          <div id="recentRegsSkeleton" class="skeleton-surface skeleton-table">
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+          </div>
+          <table class="table" id="recentRegsTable" style="width:100%;">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Rank</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="recentRegsTableBody">
+              <tr><td colspan="3" style="color:#9aa7b8">No data</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="usersPanel">
+      <h2>Users</h2>
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Search name or username" />
+        <select id="sortSelect">
+          <option value="name">Name</option>
+          <option value="username">Username</option>
+          <option value="evalCount">Evaluations</option>
+          <option value="created">Date Created</option>
+        </select>
+        <select id="rankFilter" style="margin-left:8px">
+          <option value="">All Ranks</option>
+        </select>
+      </div>
+      <table class="table" id="usersTable">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Created</th>
+            <th>Evaluations</th>
+            <th>Status</th>
+            <th>Type</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="pagination" id="usersPagination"></div>
+    </section>
+
+    <section class="panel" id="analyticsPanel" style="display:none;">
+      <h2>Analytics</h2>
+      <div id="analyticsLoading" style="display:none;color:#6b7280;margin:8px 0;">Loading analytics...</div>
+      <div class="chart-wrap" style="margin-bottom:12px;">
+        <div id="gradeDistributionSkeleton" class="skeleton-surface skeleton-chart"></div>
+        <canvas id="gradeDistributionChart" height="120"></canvas>
+      </div>
+      <div class="grid metrics-grid" style="margin-top: 12px;">
+        <div class="card">
+          <div class="label">Performance Tiers</div>
+          <div class="chart-wrap" style="margin-top:6px;">
+            <div id="performanceTiersSkeleton" class="skeleton-surface skeleton-chart"></div>
+            <canvas id="performanceTiersChart" height="120"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Section Averages</div>
+          <div class="chart-wrap" style="margin-top:6px;">
+            <div id="sectionAveragesSkeleton" class="skeleton-surface skeleton-chart"></div>
+            <canvas id="sectionAveragesChart" height="120"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Rank Distribution</div>
+          <div class="chart-wrap" style="margin-top:6px;">
+            <div id="rankDistributionSkeleton" class="skeleton-surface skeleton-chart"></div>
+            <canvas id="rankDistributionChart" height="120"></canvas>
+          </div>
+          <div id="rankFilterControls" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- User Detail Drawer -->
+  <div id="userDrawer" class="drawer hidden" style="position:fixed;inset:0;display:none;">
+    <div class="drawer-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.35)"></div>
+    <div class="drawer-panel" style="position:absolute;right:0;top:0;height:100%;width:420px;background:#fff;box-shadow:-2px 0 12px rgba(0,0,0,0.2);display:flex;flex-direction:column;">
+      <div class="drawer-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+        <h3 id="drawerTitle" style="margin:0;font-size:16px;">User Details</h3>
+        <button id="drawerCloseBtn" title="Close">Close</button>
+      </div>
+      <div class="drawer-body" style="padding:12px 16px;overflow:auto;">
+        <div class="fields" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:12px;">
+          <div><strong>Name:</strong> <span id="drawerName">—</span></div>
+          <div><strong>Username:</strong> <span id="drawerUsername">—</span></div>
+          <div><strong>Rank:</strong> <span id="drawerRank">—</span></div>
+          <div><strong>Created:</strong> <span id="drawerCreated">—</span></div>
+          <div><strong>Last Updated:</strong> <span id="drawerLastUpdated">—</span></div>
+          <div><strong>Evaluations:</strong> <span id="drawerEvalCount">—</span></div>
+        </div>
+        <h4 style="margin:8px 0 6px;">Recent Activity</h4>
+        <ul id="recentActivityList" class="activity-list" style="list-style:none;padding:0;margin:0;">
+          <li style="color:#9aa7b8">No recent activity</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div id="editUserModal" class="modal hidden" style="position:fixed;inset:0;display:none;">
+    <div class="modal-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.35)"></div>
+    <div class="modal-panel" style="position:absolute;left:50%;top:20%;transform:translateX(-50%);width:520px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 10px 20px rgba(0,0,0,0.2);">
+      <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+        <h3 style="margin:0;font-size:16px;">Edit User</h3>
+        <button id="editCancelBtn" title="Cancel">Cancel</button>
+      </div>
+      <div class="modal-body" style="padding:12px 16px;">
+        <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;">
+          <label> Name
+            <input id="editNameInput" type="text" placeholder="Full name" />
+          </label>
+          <label> Username
+            <input id="editUsernameInput" type="text" placeholder="username" />
+          </label>
+          <label style="grid-column: span 2;"> Rank
+            <input id="editRankInput" type="text" placeholder="Rank (e.g., Capt, Maj)" />
+          </label>
+        </div>
+        <div id="editStatus" style="margin-top:8px;color:#9aa7b8">—</div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid #e5e7eb;">
+        <button id="editSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteUserModal" class="modal hidden" style="position:fixed;inset:0;display:none;">
+    <div class="modal-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.35)"></div>
+    <div class="modal-panel" style="position:absolute;left:50%;top:25%;transform:translateX(-50%);width:520px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 10px 20px rgba(0,0,0,0.2);">
+      <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+        <h3 style="margin:0;font-size:16px;">Delete User</h3>
+        <button id="deleteCancelBtn" title="Cancel">Cancel</button>
+      </div>
+      <div class="modal-body" style="padding:12px 16px;">
+        <p>Type the username to confirm deletion.</p>
+        <div style="margin:8px 0;padding:8px;border:1px solid #e5e7eb;background:#fff7f7;color:#7a1f1f;">
+          <strong>Warning:</strong> You can choose a hard delete below. Hard delete permanently removes the profile and all evaluations.
+        </div>
+        <label> Username
+          <input id="deleteConfirmInput" type="text" placeholder="username" />
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+          <input id="hardDeleteCheckbox" type="checkbox" />
+          <span>Hard delete (permanent)</span>
+        </label>
+        <div id="deleteStatus" style="margin-top:8px;color:#9aa7b8">—</div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid #e5e7eb;">
+        <button id="deleteConfirmBtn" style="background:#b24;color:#fff">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evaluation Detail Modal -->
+  <div id="evaluationModal" class="modal hidden" style="position:fixed;inset:0;display:none;">
+    <div class="modal-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.35)"></div>
+    <div class="modal-panel" style="position:absolute;left:50%;top:10%;transform:translateX(-50%);width:720px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 10px 20px rgba(0,0,0,0.2);">
+      <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+        <h3 id="evalModalTitle" style="margin:0;font-size:16px;">Evaluation Details</h3>
+        <button id="evalCloseBtn" title="Close">Close</button>
+      </div>
+      <div id="evalModalBody" class="modal-body" style="padding:12px 16px;max-height:70vh;overflow:auto;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;">
+          <div>
+            <div style="color:#6b7280;font-size:12px;">Occasion</div>
+            <div id="evalOccasion" style="font-weight:600"></div>
+          </div>
+          <div>
+            <div style="color:#6b7280;font-size:12px;">Completed Date</div>
+            <div id="evalCompleted" style="font-weight:600"></div>
+          </div>
+          <div>
+            <div style="color:#6b7280;font-size:12px;">FITREP Average</div>
+            <div id="evalAverage" style="font-weight:600"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="color:#6b7280;font-size:12px;">Marine</div>
+          <div id="evalMarine" style="font-weight:600"></div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="color:#6b7280;font-size:12px;">Reporting Senior</div>
+          <div id="evalRS" style="font-weight:600"></div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="color:#6b7280;font-size:12px;">Section I Comments</div>
+          <div id="evalComments" style="white-space:pre-wrap;border:1px solid #e5e7eb;padding:8px;border-radius:6px;background:#fafafa"></div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="color:#6b7280;font-size:12px;">Traits</div>
+          <div id="evalTraits" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid #e5e7eb;"></div>
+    </div>
+  </div>
+
+  <script src="js/admin/admin-api.js"></script>
+  <script src="js/admin/admin-auth.js"></script>
+  <script src="js/admin/admin-dashboard.js"></script>
+  <script src="js/admin/admin-metrics.js"></script>
+  <script src="js/admin/admin-users.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="js/admin/admin-charts.js"></script>
+  <!-- API base configuration for Admin page -->
+  <script>
+    window.TRUSTED_API_ORIGINS = [];
+    if (window.location.origin.includes('semperadmin.github.io')) {
+      window.API_BASE_URL_OVERRIDE = 'https://fitness-report-evaluator.onrender.com';
+    } else {
+      window.API_BASE_URL_OVERRIDE = window.location.origin;
+    }
+  </script>
+  <script src="js/config.js"></script>
+  <div id="toastContainer" class="toast-container"></div>
+  <!-- Feedback widget script -->
+  <script src="js/feedback.js"></script>
+</body>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    window.AdminAuth?.init?.();
+    window.AdminDashboard?.init?.();
+    window.AdminUsers?.init?.();
+  });
+</script>
+</html>
