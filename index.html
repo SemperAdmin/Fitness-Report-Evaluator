@@ -125,8 +125,11 @@
                 </select>
             </div>
             
-            <div class="form-group">
+            <div class="form-group" id="rsInfoGroup">
                 <label class="form-label">Reporting Senior Information:</label>
+                <!-- Readonly display when launched from RS Dashboard -->
+                <div id="rsProfileDisplay" class="form-static" style="display: none;"></div>
+                <!-- Input shown when not launched from a profile -->
                 <input type="text" class="form-input" id="evaluatorNameInput" placeholder="Reporting Senior Name">
             </div>
             

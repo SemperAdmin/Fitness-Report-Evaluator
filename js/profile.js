@@ -1146,10 +1146,32 @@ function startNewEvaluation() {
         setup.style.display = 'block';
     }
 
-    // Prefill RS name from profile when logged in
+    // Prefill and toggle RS info display/input based on profile context
     const evaluatorInput = document.getElementById('evaluatorNameInput');
-    if (evaluatorInput && window.currentProfile?.rsName) {
-        evaluatorInput.value = window.currentProfile.rsName;
+    const rsDisplay = document.getElementById('rsProfileDisplay');
+    const rsName = window.currentProfile?.rsName || '';
+    const rsRank = window.currentProfile?.rsRank || '';
+
+    if (rsName) {
+        // Show readonly RS info and hide input when launched from RS Dashboard
+        if (rsDisplay) {
+            rsDisplay.textContent = `Reporting Senior: ${rsRank ? rsRank + ' ' : ''}${rsName}`;
+            rsDisplay.style.display = 'block';
+        }
+        if (evaluatorInput) {
+            evaluatorInput.value = rsName;
+            evaluatorInput.style.display = 'none';
+        }
+    } else {
+        // No profile context: hide readonly display and show input
+        if (rsDisplay) {
+            rsDisplay.textContent = '';
+            rsDisplay.style.display = 'none';
+        }
+        if (evaluatorInput) {
+            evaluatorInput.value = '';
+            evaluatorInput.style.display = '';
+        }
     }
 
     // Align navigation state if available
