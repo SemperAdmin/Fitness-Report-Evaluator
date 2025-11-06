@@ -118,6 +118,18 @@ body {
     color: #333;
 }
 
+/* Readonly form display (matches form-input alignment) */
+.form-static {
+    padding: 10px 12px;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #f9fafb;
+    color: #111827;
+}
+
 /* Layout */
 .container {
     max-width: 900px;
@@ -198,6 +210,108 @@ body {
 .auto-save-indicator.active {
     opacity: 1;
 }
+
+/* ---------------------------------------------
+   Feedback Widget Styles (light + dark-friendly)
+---------------------------------------------- */
+.feedback-floating-btn {
+    position: fixed;
+    right: 16px;
+    bottom: 92px; /* offset above help-button to avoid overlap */
+    z-index: 1000;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: none;
+    background: #2563eb;
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    cursor: pointer;
+    font-weight: 600;
+}
+.feedback-floating-btn:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+}
+
+.feedback-modal-open {
+    overflow: hidden;
+}
+.feedback-modal-wrapper {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+}
+.feedback-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+}
+.feedback-modal {
+    position: absolute;
+    left: 50%;
+    top: 12%;
+    transform: translateX(-50%);
+    width: 92%;
+    max-width: 560px;
+    background: #fff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+@media (prefers-color-scheme: dark) {
+    .feedback-modal {
+        background: #111827;
+        color: #f9fafb;
+        border-color: #374151;
+        box-shadow: 0 12px 24px rgba(0,0,0,0.6);
+    }
+}
+.feedback-title {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+}
+.feedback-close {
+    position: absolute;
+    right: 10px;
+    top: 8px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+}
+.feedback-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0;
+}
+.feedback-row label { font-weight: 600; }
+.feedback-row input,
+.feedback-row select,
+.feedback-row textarea {
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #111827;
+}
+@media (prefers-color-scheme: dark) {
+    .feedback-row input,
+    .feedback-row select,
+    .feedback-row textarea {
+        background: #1f2937;
+        color: #f3f4f6;
+        border-color: #374151;
+    }
+}
+.feedback-help { color: #b45309; font-size: 12px; }
+.feedback-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.feedback-submit { background: #2563eb; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+.feedback-cancel { background: #e5e7eb; color: #111827; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+.feedback-status { margin-top: 8px; font-size: 13px; }
 
 /* Warning Banner */
 .warning-banner {
@@ -2013,6 +2127,10 @@ body {
         font-size: 20px;
         bottom: 15px;
         right: 15px;
+    }
+    .feedback-floating-btn {
+        right: 15px;
+        bottom: 80px; /* adjusted for smaller help-button size */
     }
     
     .directed-comments-grid {
