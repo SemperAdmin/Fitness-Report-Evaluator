@@ -490,7 +490,7 @@ function populateReviewScreen() {
             const fullText = String(trait.justification || '').trim();
 
             return `
-                <div class="review-trait-item">
+                <div class="review-trait-item" id="review-item-${trait.key}">
                     <div class="review-trait-header">
                         <div class="review-trait-name">${trait.trait}</div>
                         <!-- Grade removed -->
@@ -502,6 +502,10 @@ function populateReviewScreen() {
                     </div>
                     <div class="review-trait-justification" style="white-space: pre-line;">
                         ${fullText || '<em>No justification provided</em>'}
+                    </div>
+                    <div class="button-row" style="margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="editJustification('${trait.key}')">Edit Justification</button>
+                        <button class="btn btn-meets" onclick="editTrait('${trait.key}')">Re-evaluate Trait</button>
                     </div>
                 </div>
             `;
@@ -542,6 +546,26 @@ function editTrait(traitKey) {
     
     // Show re-evaluation modal first
     showReevaluationModal(trait, traitKey);
+}
+
+function editJustification(traitKey) {
+    // Parse keys and locate trait
+    const [sectionKey, traitKeyPart] = String(traitKey).split('_');
+    const trait = allTraits.find(t => t.sectionKey === sectionKey && t.traitKey === traitKeyPart);
+    if (!trait) {
+        console.error('Trait not found for editJustification:', traitKey);
+        return;
+    }
+    const existing = evaluationResults[traitKey] || {};
+    // Seed pendingEvaluation with current grade to reuse the justification modal
+    pendingEvaluation = {
+        trait,
+        grade: existing.grade || 'B',
+        gradeNumber: existing.gradeNumber || 0
+    };
+    // Ensure we return to review after saving
+    traitBeingReevaluated = trait;
+    showJustificationModal();
 }
 
 function showReevaluationModal(trait, traitKey) {

@@ -153,6 +153,48 @@ function showRSLoginFirst() {
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
+// --- Global Tooltip Helpers ---
+let __tooltipHideTimer = null;
+
+function showTooltip(event, tooltipId) {
+    try {
+        const tip = document.getElementById(tooltipId);
+        if (!tip) return;
+        // Position near the triggering element
+        const target = event.currentTarget || event.target;
+        const rect = target.getBoundingClientRect();
+        const top = rect.bottom + window.scrollY + 8;
+        const left = rect.left + window.scrollX;
+        tip.style.top = `${top}px`;
+        tip.style.left = `${left}px`;
+        tip.style.display = 'block';
+
+        // Clear previous timer and set a new auto-hide
+        if (__tooltipHideTimer) clearTimeout(__tooltipHideTimer);
+        __tooltipHideTimer = setTimeout(() => hideTooltip(tooltipId), 5000);
+
+        // Hide when clicking anywhere else
+        const dismiss = (e) => {
+            if (!tip.contains(e.target) && e.target !== target) {
+                hideTooltip(tooltipId);
+                document.removeEventListener('click', dismiss);
+            }
+        };
+        document.addEventListener('click', dismiss);
+    } catch (err) {
+        console.warn('showTooltip error:', err);
+    }
+}
+
+function hideTooltip(tooltipId) {
+    const tip = document.getElementById(tooltipId);
+    if (tip) tip.style.display = 'none';
+    if (__tooltipHideTimer) {
+        clearTimeout(__tooltipHideTimer);
+        __tooltipHideTimer = null;
+    }
+}
+
 // Backward-compat alias for legacy/cached markup
 function showProfileLogin() {
     return showRSLoginFirst();
