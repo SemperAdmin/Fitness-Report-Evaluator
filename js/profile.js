@@ -869,9 +869,6 @@ function renderEvaluationDetails(evaluation) {
             <button class="btn btn-secondary" onclick="exportEvaluation('${evaluation.evaluationId}')">
                 Export This Evaluation
             </button>
-            <button class="btn btn-secondary" onclick="duplicateEvaluation('${evaluation.evaluationId}')">
-                Use as Template
-            </button>
         </div>
     `;
 }
@@ -1182,13 +1179,106 @@ function exportEvaluation(evalId) {
     const evaluation = profileEvaluations.find(e => e.evaluationId === evalId);
     if (!evaluation) return;
 
-    const json = JSON.stringify(evaluation, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${evalId}.json`;
-    a.click();
+    const jspdfNS = window.jspdf || {};
+    const jsPDF = jspdfNS.jsPDF;
+    if (!jsPDF) {
+        alert('PDF library not loaded. Please check your internet connection.');
+        return;
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+    const margin = 40;
+    let y = margin;
+
+    // Header: Marine - Rank - Occasion - EndDate (YYYYMMDD)
+    doc.setFontSize(18);
+    const headerMarine = ((evaluation.marineInfo || {}).name) || '';
+    const headerRank = ((evaluation.marineInfo || {}).rank) || '';
+    const headerOccasion = evaluation.occasion || (evaluation.evaluationMeta?.occasionType) || 'N/A';
+    const endDateRaw = (((evaluation.marineInfo || {}).evaluationPeriod || {}).to) || '';
+    const endDateYYYYMMDD = endDateRaw ? endDateRaw.replace(/-/g, '') : '';
+    const pdfTitle = `${headerMarine} - ${headerRank} - ${headerOccasion} - ${endDateYYYYMMDD}`;
+    doc.text(pdfTitle, margin, y);
+    y += 28;
+
+    // Meta information
+    doc.setFontSize(11);
+    const rsName = (evaluation.rsInfo || {}).name || '';
+    const rsRank = (evaluation.rsInfo || {}).rank || '';
+    const marineName = (evaluation.marineInfo || {}).name || '';
+    const marineRank = (evaluation.marineInfo || {}).rank || '';
+    const periodFrom = ((evaluation.marineInfo || {}).evaluationPeriod || {}).from || '';
+    const periodTo = ((evaluation.marineInfo || {}).evaluationPeriod || {}).to || '';
+    const occasion = evaluation.occasion || evaluation.evaluationMeta?.occasionType || '';
+    const metaLines = [
+        `Marine: ${marineRank ? marineRank + ' ' : ''}${marineName}`,
+        `Period: ${periodFrom} to ${periodTo}`,
+        `Reporting Senior: ${rsRank ? rsRank + ' ' : ''}${rsName}`,
+        `Occasion: ${occasion || 'N/A'}`,
+        `FitRep Score: ${evaluation.fitrepAverage}`
+    ];
+    metaLines.forEach(line => { doc.text(line, margin, y); y += 16; });
+
+    // Trait evaluations table
+    const rows = Object.values(evaluation.traitEvaluations || {}).map(r => [
+        r.section || '',
+        r.trait || '',
+        r.grade || '',
+        (r.justification || '').replace(/\s+/g, ' ').slice(0, 200)
+    ]);
+
+    if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+            startY: y + 10,
+            head: [[ 'Section', 'Trait', 'Grade', 'Justification' ]],
+            body: rows,
+            styles: { fontSize: 10, cellPadding: 4, overflow: 'linebreak' },
+            columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 220 }, 2: { cellWidth: 60 }, 3: { cellWidth: 'auto' } }
+        });
+        y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 20 : y + 20;
+    } else {
+        // Fallback: simple list if autotable is unavailable
+        y += 10;
+        doc.setFontSize(12);
+        doc.text('Trait Evaluations:', margin, y);
+        y += 16;
+        doc.setFontSize(10);
+        rows.forEach(row => {
+            const line = `${row[0]} - ${row[1]} | Grade: ${row[2]}`;
+            doc.text(line, margin, y);
+            y += 14;
+            const wrapped = doc.splitTextToSize(row[3], doc.internal.pageSize.getWidth() - margin * 2);
+            doc.text(wrapped, margin, y);
+            y += Math.max(14, wrapped.length * 12) + 6;
+        });
+    }
+
+    // Section I comments
+    doc.setFontSize(12);
+    doc.text('Section I - Narrative Comments', margin, y);
+    y += 16;
+    doc.setFontSize(10);
+    const sectionI = (evaluation.sectionIComments || '').trim() || 'None provided';
+    const sectionIWrapped = doc.splitTextToSize(sectionI, doc.internal.pageSize.getWidth() - margin * 2);
+    doc.text(sectionIWrapped, margin, y);
+    y += Math.max(20, sectionIWrapped.length * 12) + 10;
+
+    // Directed comments
+    doc.setFontSize(12);
+    doc.text('Section I - Directed Comments', margin, y);
+    y += 16;
+    doc.setFontSize(10);
+    const directed = (evaluation.directedComments || '').trim() || 'None provided';
+    const directedWrapped = doc.splitTextToSize(directed, doc.internal.pageSize.getWidth() - margin * 2);
+    doc.text(directedWrapped, margin, y);
+    y += Math.max(20, directedWrapped.length * 12) + 10;
+
+    // Footer
+    const when = new Date(evaluation.completedDate || Date.now()).toLocaleDateString();
+    doc.setFontSize(9);
+    doc.text(`Generated on ${when}`, margin, doc.internal.pageSize.getHeight() - margin);
+
+    doc.save(`${pdfTitle}.pdf`);
 }
 
 function exportProfile() {
@@ -1561,18 +1651,6 @@ function calculateFitrepAverage() {
     return avg.toFixed(2);
 }
 
-function duplicateEvaluation(evalId) {
-    const original = profileEvaluations.find(e => e.evaluationId === evalId);
-    if (!original) return;
-    const copy = JSON.parse(JSON.stringify(original));
-    copy.evaluationId = `eval-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
-    copy.completedDate = new Date().toISOString();
-    copy.syncStatus = 'pending';
-    profileEvaluations.unshift(copy);
-    const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
-    saveEvaluationsToLocal(profileKey, profileEvaluations);
-    renderEvaluationsList();
-}
 
 
 // Add: sorting state and setter
