@@ -939,42 +939,14 @@ async function toggleEvaluation(header) {
 }
 
 // Save Evaluation to Profile
-function showSaveToProfilePrompt() {
-    document.getElementById('saveProfileModal').classList.add('active');
-
-    // Populate preview
-    document.getElementById('savePreviewMarine').textContent = evaluationMeta.marineName;
-    document.getElementById('savePreviewPeriod').textContent =
-        `${evaluationMeta.fromDate} to ${evaluationMeta.toDate}`;
-    document.getElementById('savePreviewAverage').textContent = calculateFitrepAverage();
-
-    // New: prefill occasion from setup if available
-    const occSel = document.getElementById('evaluationOccasion');
-    if (occSel && evaluationMeta.occasionType) {
-        occSel.value = evaluationMeta.occasionType;
-    }
-
-    // Initialize GitHub sync checkbox from persisted preference and keep it synced
-    const gitCb = document.getElementById('saveGitHub');
-    if (gitCb) {
-        const pref = localStorage.getItem('pref_syncGitHub');
-        gitCb.checked = pref === 'true';
-        gitCb.onchange = () => {
-            localStorage.setItem('pref_syncGitHub', gitCb.checked ? 'true' : 'false');
-        };
-    }
-}
+// Removed: showSaveToProfilePrompt (modal no longer used in streamlined flow)
 
 async function confirmSaveToProfile() {
     const occasionEl = document.getElementById('evaluationOccasion');
     const occasion = occasionEl ? occasionEl.value : (evaluationMeta?.occasionType || '');
 
-    const githubEl = document.getElementById('saveGitHub');
     const storedPref = localStorage.getItem('pref_syncGitHub');
-    const shouldSyncToGitHub = githubEl ? !!githubEl.checked : (storedPref === 'true');
-
-    // Persist current GitHub sync preference (from checkbox or stored fallback)
-    try { localStorage.setItem('pref_syncGitHub', shouldSyncToGitHub ? 'true' : 'false'); } catch (_) {}
+    const shouldSyncToGitHub = storedPref === 'true';
 
     // If not logged in, create a local offline profile to persist the evaluation
     if (!currentProfile) {
