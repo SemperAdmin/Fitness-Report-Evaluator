@@ -295,13 +295,9 @@
             <div id="evaluationMeta" style="text-align: center; margin: 20px 0; color: #666;"></div>
             <div class="summary-grid" id="summaryGrid"></div>
             <div class="export-section">
-                <div class="button-row" style="margin-bottom: 15px;">
-                    <button class="btn btn-meets" onclick="showSaveToProfilePrompt()" style="font-size: 16px; padding: 12px 24px;">💾 Save to Profile</button>
-                </div>
                 <div class="button-row">
                     <button class="btn btn-export" onclick="window.print()">Print Summary</button>
-                    <button class="btn btn-export" onclick="exportToClipboard()">Copy to Clipboard</button>
-                    <button class="btn btn-export" onclick="openProfileDashboardFromLogin()">View RS Dashboard</button>
+                    <button class="btn btn-export" onclick="confirmSaveToProfileAndReturn()">View RS Dashboard</button>
                     <button class="btn btn-export" onclick="resetEvaluation()">Start Over</button>
                 </div>
             </div>
@@ -796,8 +792,7 @@
             </div>
 
             <div class="modal-actions">
-                <button class="btn btn-meets" onclick="confirmSaveToProfile()">Save to Profile</button>
-                <button class="btn btn-secondary" onclick="confirmSaveToProfileAndReturn()">Save & Return to Profile</button>
+                <button class="btn btn-meets" onclick="confirmSaveToProfileAndReturn()">Save to Profile</button>
                 <button class="btn btn-secondary" onclick="skipSaveToProfile()">Cancel</button>
             </div>
 

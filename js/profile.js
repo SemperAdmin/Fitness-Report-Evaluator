@@ -953,6 +953,16 @@ function showSaveToProfilePrompt() {
     if (occSel && evaluationMeta.occasionType) {
         occSel.value = evaluationMeta.occasionType;
     }
+
+    // Initialize GitHub sync checkbox from persisted preference and keep it synced
+    const gitCb = document.getElementById('saveGitHub');
+    if (gitCb) {
+        const pref = localStorage.getItem('pref_syncGitHub');
+        gitCb.checked = pref === 'true';
+        gitCb.onchange = () => {
+            localStorage.setItem('pref_syncGitHub', gitCb.checked ? 'true' : 'false');
+        };
+    }
 }
 
 async function confirmSaveToProfile() {
@@ -960,7 +970,11 @@ async function confirmSaveToProfile() {
     const occasion = occasionEl ? occasionEl.value : (evaluationMeta?.occasionType || '');
 
     const githubEl = document.getElementById('saveGitHub');
-    const shouldSyncToGitHub = !!(githubEl && githubEl.checked);
+    const storedPref = localStorage.getItem('pref_syncGitHub');
+    const shouldSyncToGitHub = githubEl ? !!githubEl.checked : (storedPref === 'true');
+
+    // Persist current GitHub sync preference (from checkbox or stored fallback)
+    try { localStorage.setItem('pref_syncGitHub', shouldSyncToGitHub ? 'true' : 'false'); } catch (_) {}
 
     // If not logged in, create a local offline profile to persist the evaluation
     if (!currentProfile) {
