@@ -118,6 +118,9 @@ function startStandaloneMode() {
 // Login-first routing helper
 function showRSLoginFirst() {
     const login = document.getElementById('profileLoginCard');
+    const loginFields = document.getElementById('loginFields');
+    const createSection = document.getElementById('createAccountSection');
+    const typewriter = login ? login.querySelector('.typewriter-wrapper') : null;
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
     const mode = document.getElementById('modeSelectionCard');
@@ -141,6 +144,11 @@ function showRSLoginFirst() {
     if (login) {
         login.classList.add('active');
         login.style.display = 'block'; // show the login card only when RS Dashboard is chosen
+
+        // Ensure a clean login state: show fields, hide create-account and animation
+        if (typewriter) typewriter.style.display = 'none';
+        if (createSection) createSection.style.display = 'none';
+        if (loginFields) loginFields.style.display = 'block';
     }
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
