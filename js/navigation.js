@@ -230,7 +230,7 @@ function updateRSSetupDisplay() {
         }
         if (returnBtn) {
             // Force visible display when launched from a profile
-            returnBtn.style.display = 'block';
+            try { returnBtn.style.setProperty('display', 'block', 'important'); } catch (_) { returnBtn.style.display = 'block'; }
         }
     } else {
         if (rsDisplay) {
@@ -246,7 +246,7 @@ function updateRSSetupDisplay() {
             evaluatorInput.style.display = '';
         }
         if (returnBtn) {
-            returnBtn.style.display = 'none';
+            try { returnBtn.style.setProperty('display', 'none', 'important'); } catch (_) { returnBtn.style.display = 'none'; }
         }
     }
 }

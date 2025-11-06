@@ -127,14 +127,16 @@
             
             <div class="form-group" id="rsInfoGroup">
                 <label class="form-label">Reporting Senior Information:</label>
-                <!-- Readonly display when launched from RS Dashboard -->
-                <div id="rsProfileDisplay" class="form-static" style="display: none;"></div>
+                <!-- Inline RS name + Return button when launched from RS Dashboard -->
+                <div class="rs-inline" style="display: flex; align-items: center; gap: 10px; justify-content: space-between;">
+                    <div id="rsProfileDisplay" class="form-static" style="display: none;"></div>
+                    <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="display: none; white-space: nowrap;">← Return to RS Dashboard</button>
+                </div>
                 <!-- Input shown when not launched from a profile -->
                 <input type="text" class="form-input" id="evaluatorNameInput" placeholder="Reporting Senior Name">
             </div>
             
             <button class="btn btn-meets" onclick="startEvaluation()" style="margin-top: 20px; width: 100%;">Begin Evaluation</button>
-            <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="margin-top: 10px; width: 100%; display: none;">← Return to RS Dashboard</button>
         </div>
 
         <!-- How This Works Card -->
@@ -768,6 +770,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js" integrity="sha384-9crLjtL468FQqFa24VM0ldxiM0tbREUHExinok4MhgLH2s+0FRgU2Qs6PACeFB43" crossorigin="anonymous"></script>
     <script src="js/profile.js"></script>
+    <script src="js/navigation.js"></script>
     <script src="js/evaluation.js"></script>
     <script src="js/app.js"></script>
     
