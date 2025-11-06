@@ -50,43 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Dev-only: show dispatch button if token present and running locally
-    try {
-        const isLocal = ['localhost','127.0.0.1'].includes(window.location.hostname);
-        const devToken = window.GITHUB_CONFIG?.token || window.localStorage.getItem('FITREP_DEV_TOKEN');
-        const btn = document.getElementById('devDispatchSaveUserBtn');
-        const statusEl = document.getElementById('workflowStatusText');
-        if (btn && statusEl && isLocal && devToken) {
-            btn.style.display = '';
-            statusEl.style.display = '';
-            btn.addEventListener('click', async () => {
-                // Build userData from current profile state
-                const profile = window.currentProfile || JSON.parse(localStorage.getItem('current_profile') || 'null');
-                if (!profile || !profile.rsEmail) {
-                    statusEl.textContent = 'Workflow: error - no profile loaded';
-                    return;
-                }
-                // Send metadata-only profile; evaluations are saved as unique files
-                const userData = {
-                    rsEmail: profile.rsEmail,
-                    rsName: profile.rsName,
-                    rsRank: profile.rsRank
-                };
-                statusEl.textContent = 'Workflow: dispatching...';
-                try {
-                    const res = await window.BackendAPI.saveUserDataViaWorkflow(userData);
-                    if (res && res.success) {
-                        statusEl.textContent = 'Workflow dispatch OK';
-                    } else {
-                        statusEl.textContent = 'Workflow: unexpected response';
-                    }
-                } catch (err) {
-                    console.error('Dev dispatch failed:', err);
-                    statusEl.textContent = 'Workflow: error - ' + (err && err.message ? err.message : 'failed');
-                }
-            });
-        }
-    } catch (_) { /* noop */ }
+    // Dev-only dispatch removed; production UI should not expose workflow controls here
 });
 
 // Add Single Evaluation entrypoint used by index.html button
@@ -104,6 +68,9 @@ function startStandaloneMode() {
 
     const setup = document.getElementById('setupCard');
     if (setup) { setup.classList.add('active'); setup.style.display = 'block'; }
+
+    // Ensure RS display/input reflect standalone mode (no profile)
+    try { if (typeof updateRSSetupDisplay === 'function') updateRSSetupDisplay(); } catch (_) {}
 
     // Align navigation state if available
     try {
@@ -151,6 +118,48 @@ function showRSLoginFirst() {
         if (loginFields) loginFields.style.display = 'block';
     }
     window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+// --- Global Tooltip Helpers ---
+let __tooltipHideTimer = null;
+
+function showTooltip(event, tooltipId) {
+    try {
+        const tip = document.getElementById(tooltipId);
+        if (!tip) return;
+        // Position near the triggering element
+        const target = event.currentTarget || event.target;
+        const rect = target.getBoundingClientRect();
+        const top = rect.bottom + window.scrollY + 8;
+        const left = rect.left + window.scrollX;
+        tip.style.top = `${top}px`;
+        tip.style.left = `${left}px`;
+        tip.style.display = 'block';
+
+        // Clear previous timer and set a new auto-hide
+        if (__tooltipHideTimer) clearTimeout(__tooltipHideTimer);
+        __tooltipHideTimer = setTimeout(() => hideTooltip(tooltipId), 5000);
+
+        // Hide when clicking anywhere else
+        const dismiss = (e) => {
+            if (!tip.contains(e.target) && e.target !== target) {
+                hideTooltip(tooltipId);
+                document.removeEventListener('click', dismiss);
+            }
+        };
+        document.addEventListener('click', dismiss);
+    } catch (err) {
+        console.warn('showTooltip error:', err);
+    }
+}
+
+function hideTooltip(tooltipId) {
+    const tip = document.getElementById(tooltipId);
+    if (tip) tip.style.display = 'none';
+    if (__tooltipHideTimer) {
+        clearTimeout(__tooltipHideTimer);
+        __tooltipHideTimer = null;
+    }
 }
 
 // Backward-compat alias for legacy/cached markup

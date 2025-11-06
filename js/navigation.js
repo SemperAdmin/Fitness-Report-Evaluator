@@ -182,6 +182,72 @@ function showSetupCard() {
     if (setupCard) {
         setupCard.classList.add('active');
         setupCard.style.display = 'block';
+        // Sync RS display/input visibility based on profile context or restored meta
+        if (typeof updateRSSetupDisplay === 'function') {
+            try { updateRSSetupDisplay(); } catch (_) {}
+        }
+    }
+}
+
+// Ensure RS name display on setup reflects whether we launched from the RS profile
+function updateRSSetupDisplay() {
+    const rsDisplay = document.getElementById('rsProfileDisplay');
+    const evaluatorInput = document.getElementById('evaluatorNameInput');
+    const returnBtn = document.getElementById('returnToDashboardBtn');
+    let profile = window.currentProfile || null;
+    let hasProfile = !!(profile && profile.rsName);
+
+    // Fallback: hydrate profile from storage if session lost but a profile exists
+    if (!hasProfile) {
+        try {
+            const hasProfileFlag = localStorage.getItem('has_profile') === 'true';
+            if (hasProfileFlag && typeof loadProfileFromStorage === 'function') {
+                const stored = loadProfileFromStorage();
+                if (stored && stored.rsName) {
+                    window.currentProfile = {
+                        rsName: stored.rsName,
+                        rsEmail: stored.rsEmail,
+                        rsRank: stored.rsRank,
+                        totalEvaluations: (stored.evaluations || []).length,
+                        lastUpdated: stored.lastUpdated || new Date().toISOString()
+                    };
+                    profile = window.currentProfile;
+                    hasProfile = true;
+                }
+            }
+        } catch (_) {}
+    }
+
+    if (hasProfile) {
+        if (rsDisplay) {
+            const rank = profile.rsRank ? profile.rsRank + ' ' : '';
+            rsDisplay.textContent = `Reporting Senior: ${rank}${profile.rsName}`;
+            rsDisplay.style.display = 'block';
+        }
+        if (evaluatorInput) {
+            evaluatorInput.value = profile.rsName || '';
+            evaluatorInput.style.display = 'none';
+        }
+        if (returnBtn) {
+            // Force visible display when launched from a profile
+            returnBtn.style.display = 'block';
+        }
+    } else {
+        if (rsDisplay) {
+            rsDisplay.textContent = '';
+            rsDisplay.style.display = 'none';
+        }
+        if (evaluatorInput) {
+            // Preserve restored name if present
+            const restoredName = (typeof evaluationMeta === 'object' && evaluationMeta && evaluationMeta.evaluatorName) ? evaluationMeta.evaluatorName : '';
+            if (restoredName && !evaluatorInput.value) {
+                evaluatorInput.value = restoredName;
+            }
+            evaluatorInput.style.display = '';
+        }
+        if (returnBtn) {
+            returnBtn.style.display = 'none';
+        }
     }
 }
 

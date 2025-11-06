@@ -8,6 +8,16 @@ let pendingEvaluation = null;
 let evaluationMeta = {};
 let isInReviewMode = false;
 let traitBeingReevaluated = null;
+let reevaluationReturnTo = null;
+
+// Safely split a composite trait key like "E_effectiveness_under_stress"
+function splitTraitKey(compositeKey) {
+    const idx = String(compositeKey).indexOf('_');
+    if (idx === -1) return [String(compositeKey), ''];
+    const sectionKey = compositeKey.slice(0, idx);
+    const traitKeyPart = compositeKey.slice(idx + 1);
+    return [sectionKey, traitKeyPart];
+}
 
 // Helper Functions (defined first)
 function getSectionProgress(sectionKey) {
@@ -125,7 +135,9 @@ function startEvaluation() {
         toDate,
         evaluatorName,
         // New: store occasion in evaluationMeta
-        occasionType
+        occasionType,
+        // Track whether this eval was started from RS profile
+        startedFromProfile: !!window.currentProfile
     };
     
     isReportingSenior = (selection === 'yes');
@@ -401,11 +413,27 @@ function saveJustification() {
     
     // Handle post-save navigation
     if (traitBeingReevaluated) {
-        // Return to review screen after re-evaluation
+        const returnTo = reevaluationReturnTo || 'review';
+        // Clear re-evaluation state
         traitBeingReevaluated = null;
+        reevaluationReturnTo = null;
         currentEvaluationLevel = 'B';
         document.getElementById('evaluationContainer').innerHTML = '';
-        showReviewScreen();
+
+        // Route back to desired page
+        if (returnTo === 'directedComments') {
+            try {
+                if (typeof jumpToStep === 'function' && typeof STEPS !== 'undefined') {
+                    jumpToStep(STEPS.comments);
+                } else {
+                    showDirectedCommentsScreen();
+                }
+            } catch (_) {
+                showDirectedCommentsScreen();
+            }
+        } else {
+            showReviewScreen();
+        }
     } else {
         // Continue with normal flow
         currentTraitIndex++;
@@ -490,7 +518,7 @@ function populateReviewScreen() {
             const fullText = String(trait.justification || '').trim();
 
             return `
-                <div class="review-trait-item">
+                <div class="review-trait-item" id="review-item-${trait.key}">
                     <div class="review-trait-header">
                         <div class="review-trait-name">${trait.trait}</div>
                         <!-- Grade removed -->
@@ -502,6 +530,10 @@ function populateReviewScreen() {
                     </div>
                     <div class="review-trait-justification" style="white-space: pre-line;">
                         ${fullText || '<em>No justification provided</em>'}
+                    </div>
+                    <div class="button-row" style="margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="editJustification('${trait.key}')">Edit Justification</button>
+                        <button class="btn btn-meets" onclick="editTrait('${trait.key}')">Re-evaluate Trait</button>
                     </div>
                 </div>
             `;
@@ -532,7 +564,7 @@ function getGradeDescription(grade) {
 
 function editTrait(traitKey) {
     // Find the trait in allTraits
-    const [sectionKey, traitKeyPart] = traitKey.split('_');
+    const [sectionKey, traitKeyPart] = splitTraitKey(traitKey);
     const trait = allTraits.find(t => t.sectionKey === sectionKey && t.traitKey === traitKeyPart);
     
     if (!trait) {
@@ -542,6 +574,26 @@ function editTrait(traitKey) {
     
     // Show re-evaluation modal first
     showReevaluationModal(trait, traitKey);
+}
+
+function editJustification(traitKey) {
+    // Parse keys and locate trait
+    const [sectionKey, traitKeyPart] = splitTraitKey(String(traitKey));
+    const trait = allTraits.find(t => t.sectionKey === sectionKey && t.traitKey === traitKeyPart);
+    if (!trait) {
+        console.error('Trait not found for editJustification:', traitKey);
+        return;
+    }
+    const existing = evaluationResults[traitKey] || {};
+    // Seed pendingEvaluation with current grade to reuse the justification modal
+    pendingEvaluation = {
+        trait,
+        grade: existing.grade || 'B',
+        gradeNumber: existing.gradeNumber || 0
+    };
+    // Ensure we return to review after saving
+    traitBeingReevaluated = trait;
+    showJustificationModal();
 }
 
 function showReevaluationModal(trait, traitKey) {
@@ -600,14 +652,40 @@ function startReevaluation() {
         return;
     }
     
-    // Set up for re-evaluation
+    // Set up for re-evaluation: jump back to the trait's evaluation screen
     traitBeingReevaluated = trait;
-    currentEvaluationLevel = 'B';
+    reevaluationReturnTo = 'review';
+
+    // Prefer to start at the previously selected grade, fall back to 'B'
+    const existing = evaluationResults[traitKey];
+    currentEvaluationLevel = (existing && existing.grade) ? existing.grade : 'B';
+
+    // Ensure we render the correct trait index
+    const index = allTraits.findIndex(t => t.sectionKey === sectionKey && t.traitKey === traitKeyPart);
+    if (index !== -1) currentTraitIndex = index;
+
+    // Hide modal and review card, then show evaluation
+    modal.classList.remove('active');
     isInReviewMode = false;
     const reviewCard = document.getElementById('reviewCard');
-    reviewCard.classList.remove('active');
-    reviewCard.style.display = 'none';
-    showDirectedCommentsScreen();
+    if (reviewCard) {
+        reviewCard.classList.remove('active');
+        reviewCard.style.display = 'none';
+    }
+
+    try {
+        if (typeof jumpToStep === 'function' && typeof STEPS !== 'undefined') {
+            jumpToStep(STEPS.evaluation);
+        } else {
+            const container = document.getElementById('evaluationContainer');
+            if (container) container.style.display = 'block';
+            renderCurrentTrait();
+        }
+    } catch (_) {
+        const container = document.getElementById('evaluationContainer');
+        if (container) container.style.display = 'block';
+        renderCurrentTrait();
+    }
 }
 
 // goBackToLastTrait()
@@ -676,6 +754,15 @@ function showSummary() {
 
     const summaryGrid = document.getElementById('summaryGrid');
     summaryGrid.innerHTML = '';
+
+    // Toggle summary action buttons based on origin
+    try {
+        const rsBtn = document.getElementById('viewRsDashboardBtn');
+        const startOverBtn = document.getElementById('startOverBtn');
+        const fromProfile = !!(evaluationMeta && evaluationMeta.startedFromProfile);
+        if (rsBtn) rsBtn.style.display = fromProfile ? '' : 'none';
+        if (startOverBtn) startOverBtn.style.display = fromProfile ? 'none' : '';
+    } catch (_) { /* ignore */ }
     
     // Add trait evaluations
     Object.keys(evaluationResults).forEach(key => {

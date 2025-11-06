@@ -1104,8 +1104,62 @@ async function syncAllEvaluations() {
     alert('Sync complete!');
 }
 
+// Pending sync guard helpers
+function hasPendingSyncs() {
+    try {
+        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => e.syncStatus !== 'synced');
+    } catch (_) {
+        return false;
+    }
+}
+
+function openPendingSyncModal(nextAction) {
+    const modal = document.getElementById('pendingSyncModal');
+    const countEl = document.getElementById('pendingSyncCount');
+    const nextEl = document.getElementById('pendingSyncNextAction');
+    if (!modal) return;
+    const count = (window.profileEvaluations || []).filter(e => e.syncStatus !== 'synced').length;
+    if (countEl) countEl.textContent = String(count);
+    if (nextEl) nextEl.value = nextAction || '';
+    modal.style.display = 'block';
+    modal.classList.add('active');
+}
+
+function closePendingSyncModal() {
+    const modal = document.getElementById('pendingSyncModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+    const nextEl = document.getElementById('pendingSyncNextAction');
+    if (nextEl) nextEl.value = '';
+}
+
+async function handlePendingSyncConfirm() {
+    try {
+        await syncAllEvaluations();
+    } catch (e) {
+        console.warn('Sync attempt failed:', e);
+    }
+    const nextEl = document.getElementById('pendingSyncNextAction');
+    const next = nextEl ? nextEl.value : '';
+    closePendingSyncModal();
+    if (next === 'startNewEvaluation') {
+        continueStartNewEvaluation();
+    } else if (next === 'logoutProfile') {
+        continueLogoutProfile();
+    }
+}
+
 // Utility Functions
 function startNewEvaluation() {
+    if (hasPendingSyncs()) {
+        openPendingSyncModal('startNewEvaluation');
+        return;
+    }
+    continueStartNewEvaluation();
+}
+
+function continueStartNewEvaluation() {
     const dash = document.getElementById('profileDashboardCard');
     if (dash) {
         dash.classList.remove('active');
@@ -1133,20 +1187,25 @@ function startNewEvaluation() {
     }
 
     // Prefill and toggle RS info display/input based on profile context
-    const evaluatorInput = document.getElementById('evaluatorNameInput');
-    const rsDisplay = document.getElementById('rsProfileDisplay');
-    const rsName = window.currentProfile?.rsName || '';
-    const rsRank = window.currentProfile?.rsRank || '';
-
-    if (rsDisplay) {
-        rsDisplay.textContent = rsName ? `Reporting Senior: ${rsRank ? `${rsRank} ` : ''}${rsName}` : '';
-        rsDisplay.style.display = rsName ? 'block' : 'none';
-    }
-
-    if (evaluatorInput) {
-        evaluatorInput.value = rsName;
-        evaluatorInput.style.display = rsName ? 'none' : '';
-    }
+    try {
+        if (typeof updateRSSetupDisplay === 'function') {
+            updateRSSetupDisplay();
+        } else {
+            // Fallback: basic toggle
+            const evaluatorInput = document.getElementById('evaluatorNameInput');
+            const rsDisplay = document.getElementById('rsProfileDisplay');
+            const rsName = window.currentProfile?.rsName || '';
+            const rsRank = window.currentProfile?.rsRank || '';
+            if (rsDisplay) {
+                rsDisplay.textContent = rsName ? `Reporting Senior: ${rsRank ? `${rsRank} ` : ''}${rsName}` : '';
+                rsDisplay.style.display = rsName ? 'block' : 'none';
+            }
+            if (evaluatorInput) {
+                evaluatorInput.value = rsName;
+                evaluatorInput.style.display = rsName ? 'none' : '';
+            }
+        }
+    } catch (_) { /* noop */ }
 
     // Align navigation state if available
     try {
@@ -1530,6 +1589,14 @@ function importEvaluationsFromRows(headers, rows) {
 }
 
 function logoutProfile() {
+    if (hasPendingSyncs()) {
+        openPendingSyncModal('logoutProfile');
+        return;
+    }
+    continueLogoutProfile();
+}
+
+function continueLogoutProfile() {
     if (confirm('Log out? Unsaved changes will remain in local storage.')) {
         currentProfile = null;
         profileEvaluations = [];
@@ -1583,6 +1650,12 @@ function logoutProfile() {
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
 }
+
+// Expose modal handlers
+try {
+    window.handlePendingSyncConfirm = handlePendingSyncConfirm;
+    window.closePendingSyncModal = closePendingSyncModal;
+} catch (_) { /* ignore */ }
 
 // Connection Status
 function updateConnectionStatus() {
@@ -2108,10 +2181,10 @@ function updateDashboardFiltersVisibility() {
         filters.style.display = '';
     }
     
-    // RS Summary View button should always be enabled and visible
+    // RS Summary View button is hidden until a rank is selected
     if (gridBtn) {
-        gridBtn.disabled = false;
-        gridBtn.style.display = '';
+        gridBtn.disabled = !shouldShow;
+        gridBtn.style.display = shouldShow ? '' : 'none';
         gridBtn.textContent = '📊 RS Summary View';
     }
     
