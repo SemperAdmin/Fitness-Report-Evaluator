@@ -1166,26 +1166,14 @@ function startNewEvaluation() {
     const rsName = window.currentProfile?.rsName || '';
     const rsRank = window.currentProfile?.rsRank || '';
 
-    if (rsName) {
-        // Show readonly RS info and hide input when launched from RS Dashboard
-        if (rsDisplay) {
-            rsDisplay.textContent = `Reporting Senior: ${rsRank ? rsRank + ' ' : ''}${rsName}`;
-            rsDisplay.style.display = 'block';
-        }
-        if (evaluatorInput) {
-            evaluatorInput.value = rsName;
-            evaluatorInput.style.display = 'none';
-        }
-    } else {
-        // No profile context: hide readonly display and show input
-        if (rsDisplay) {
-            rsDisplay.textContent = '';
-            rsDisplay.style.display = 'none';
-        }
-        if (evaluatorInput) {
-            evaluatorInput.value = '';
-            evaluatorInput.style.display = '';
-        }
+    if (rsDisplay) {
+        rsDisplay.textContent = rsName ? `Reporting Senior: ${rsRank ? `${rsRank} ` : ''}${rsName}` : '';
+        rsDisplay.style.display = rsName ? 'block' : 'none';
+    }
+
+    if (evaluatorInput) {
+        evaluatorInput.value = rsName;
+        evaluatorInput.style.display = rsName ? 'none' : '';
     }
 
     // Align navigation state if available
@@ -1228,24 +1216,24 @@ function exportEvaluation(evalId) {
 
     // Header: Marine - Rank - Occasion - EndDate (YYYYMMDD)
     doc.setFontSize(18);
-    const headerMarine = ((evaluation.marineInfo || {}).name) || '';
-    const headerRank = ((evaluation.marineInfo || {}).rank) || '';
-    const headerOccasion = evaluation.occasion || (evaluation.evaluationMeta?.occasionType) || 'N/A';
-    const endDateRaw = (((evaluation.marineInfo || {}).evaluationPeriod || {}).to) || '';
-    const endDateYYYYMMDD = endDateRaw ? endDateRaw.replace(/-/g, '') : '';
+    const headerMarine = evaluation.marineInfo?.name ?? '';
+    const headerRank = evaluation.marineInfo?.rank ?? '';
+    const headerOccasion = evaluation.occasion ?? (evaluation.evaluationMeta?.occasionType ?? 'N/A');
+    const endDateRaw = evaluation.marineInfo?.evaluationPeriod?.to ?? '';
+    const endDateYYYYMMDD = endDateRaw ? endDateRaw.replaceAll('-', '') : '';
     const pdfTitle = `${headerMarine} - ${headerRank} - ${headerOccasion} - ${endDateYYYYMMDD}`;
     doc.text(pdfTitle, margin, y);
     y += 28;
 
     // Meta information
     doc.setFontSize(11);
-    const rsName = (evaluation.rsInfo || {}).name || '';
-    const rsRank = (evaluation.rsInfo || {}).rank || '';
-    const marineName = (evaluation.marineInfo || {}).name || '';
-    const marineRank = (evaluation.marineInfo || {}).rank || '';
-    const periodFrom = ((evaluation.marineInfo || {}).evaluationPeriod || {}).from || '';
-    const periodTo = ((evaluation.marineInfo || {}).evaluationPeriod || {}).to || '';
-    const occasion = evaluation.occasion || evaluation.evaluationMeta?.occasionType || '';
+    const rsName = evaluation.rsInfo?.name ?? '';
+    const rsRank = evaluation.rsInfo?.rank ?? '';
+    const marineName = evaluation.marineInfo?.name ?? '';
+    const marineRank = evaluation.marineInfo?.rank ?? '';
+    const periodFrom = evaluation.marineInfo?.evaluationPeriod?.from ?? '';
+    const periodTo = evaluation.marineInfo?.evaluationPeriod?.to ?? '';
+    const occasion = evaluation.occasion ?? (evaluation.evaluationMeta?.occasionType ?? '');
     const metaLines = [
         `Marine: ${marineRank ? marineRank + ' ' : ''}${marineName}`,
         `Period: ${periodFrom} to ${periodTo}`,
@@ -1260,7 +1248,7 @@ function exportEvaluation(evalId) {
         r.section || '',
         r.trait || '',
         r.grade || '',
-        (r.justification || '').replace(/\s+/g, ' ').slice(0, 200)
+        (r.justification ?? '').trim().replace(/\s+/g, ' ').slice(0, 200)
     ]);
 
     if (typeof doc.autoTable === 'function') {
@@ -1593,23 +1581,32 @@ function logoutProfile() {
         const header = document.querySelector('.header');
         const warning = document.getElementById('dataWarning');
         const mode = document.getElementById('modeSelectionCard');
-        const login = document.getElementById('profileLoginCard');
-        const setup = document.getElementById('setupCard');
 
         // Restore app chrome
         if (header) header.style.display = '';
         if (warning) warning.style.display = '';
 
-        // Hide login and setup cards
-        if (login) { login.classList.remove('active'); login.style.display = 'none'; }
-        if (setup) { setup.classList.remove('active'); setup.style.display = 'none'; }
+        // Hide all app cards
+        const cardsToHide = [
+            'profileLoginCard',
+            'setupCard',
+            'howItWorksCard',
+            'evaluationContainer',
+            'reviewCard',
+            'sectionIGenerationCard',
+            'directedCommentsCard',
+            'summaryCard'
+        ];
+        cardsToHide.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('active');
+                el.style.display = 'none';
+            }
+        });
 
         // Show the welcome Mode Selection card
         if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
-
-        // Ensure other app cards are hidden
-        ['howItWorksCard','evaluationContainer','reviewCard','sectionIGenerationCard','directedCommentsCard','summaryCard']
-            .forEach(id => { const el = document.getElementById(id); if (el) { el.classList.remove('active'); el.style.display = 'none'; } });
 
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
