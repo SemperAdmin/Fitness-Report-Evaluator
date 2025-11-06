@@ -1121,7 +1121,8 @@ app.post('/api/feedback', feedbackRateLimit, async (req, res) => {
     }
 
     const repo = process.env.GITHUB_REPO || process.env.MAIN_REPO || 'SemperAdmin/Fitness-Report-Evaluator';
-    const token = process.env.GITHUB_TOKEN || process.env.FITREP_DATA;
+    // Prefer a dedicated GitHub token for issue creation; fall back to dispatch/data tokens
+    const token = process.env.GITHUB_TOKEN || process.env.DISPATCH_TOKEN || process.env.FITREP_DATA;
 
     if (!token) {
       // Fallback: store feedback locally for later triage in development
@@ -1167,6 +1168,17 @@ app.post('/api/feedback', feedbackRateLimit, async (req, res) => {
     if (!resp.ok) {
       const text = await resp.text();
       console.error('feedback issue create failed:', text);
+      // Graceful fallback: if token lacks permission or credentials are invalid, store locally
+      if (resp.status === 401 || resp.status === 403) {
+        try { await ensureLocalDir(); } catch (_) {}
+        const fbDir = path.join(LOCAL_BASE_DIR, 'feedback');
+        await fsp.mkdir(fbDir, { recursive: true });
+        const now = new Date().toISOString().replace(/[:.]/g, '-');
+        const fname = `${now}-${Math.random().toString(36).slice(2, 8)}.json`;
+        const payload = { type: typeSafe, title: titleSan, description: descSan, email: emailSan, context: (context || {}), createdAt: new Date().toISOString(), githubError: text };
+        await fsp.writeFile(path.join(fbDir, fname), JSON.stringify(payload, null, 2), 'utf8');
+        return res.json({ ok: true, stored: 'local', file: fname, reason: 'github_unauthorized' });
+      }
       return res.status(502).json({ error: 'GitHub issue creation failed' });
     }
     const data = await resp.json();
@@ -1221,7 +1233,7 @@ if (require.main === module) {
       console.log('[routes]', routes.sort().join(' | '));
     } catch (_) {}
   };
-  app.listen(port, () => {
+  app.listen(port, '0.0.0.0', () => {
     console.log(`Server listening on http://localhost:${port}`);
     if (commitSha) console.log('[build] commit', commitSha);
     listRoutes();
