@@ -1491,14 +1491,22 @@ function exportProfile() {
 function toggleSubMenu() {
     const menu = document.getElementById('subMenu');
     const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
+    const toggleBtn = document.getElementById('mainToggleButton');
     if (!menu) return;
     const isActive = menu.classList.contains('active');
     if (isActive) {
         menu.classList.remove('active');
         if (chevron) chevron.classList.remove('rotated');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+        try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
     } else {
         menu.classList.add('active');
         if (chevron) chevron.classList.add('rotated');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+        // Focus first actionable item when opening
+        const firstItem = menu.querySelector('button');
+        try { if (firstItem) firstItem.focus(); } catch (_) {}
+        try { if (window.A11y) A11y.announce('Manage data menu expanded'); } catch (_) {}
     }
 }
 

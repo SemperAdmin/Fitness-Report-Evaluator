@@ -312,38 +312,38 @@
     </div>
 
     <!-- Justification Modal -->
-    <div class="justification-modal" id="justificationModal">
+    <div class="justification-modal" id="justificationModal" aria-labelledby="justificationTitle" aria-describedby="justificationDesc" aria-hidden="true">
         <div class="justification-content">
             <div class="justification-header">
                 <div class="justification-title" id="justificationTitle"></div>
-                <p>Please provide justification for this marking:</p>
+                <p id="justificationDesc">Please provide justification for this marking:</p>
             </div>
             
             <div class="justification-tools">
-                <button class="tool-btn" onclick="toggleVoiceInput()" id="voiceBtn">🎤 Voice Input</button>
+                <button class="tool-btn" onclick="toggleVoiceInput()" id="voiceBtn" aria-label="Toggle voice input">🎤 Voice Input</button>
             </div>
             
             <textarea class="justification-textarea" id="justificationText" 
                      placeholder="Enter specific examples and evidence to support this evaluation..."></textarea>
             
             <div class="textarea-info">
-                <span class="word-count" id="wordCount">0 words</span>
+                <span class="word-count" id="wordCount" aria-live="polite" role="status">0 words</span>
                 <span>Minimum recommended: 30 words</span>
             </div>
             
             <div class="justification-buttons">
-                <button class="btn btn-cancel" onclick="cancelJustification()">Cancel</button>
-                <button class="btn btn-save" onclick="saveJustification()">Save & Continue</button>
+                <button class="btn btn-cancel" onclick="cancelJustification()" aria-label="Cancel justification">Cancel</button>
+                <button class="btn btn-save" onclick="saveJustification()" aria-label="Save justification and continue">Save & Continue</button>
             </div>
         </div>
     </div>
 
     <!-- Re-evaluation Modal -->
-    <div class="reevaluate-modal" id="reevaluateModal">
+    <div class="reevaluate-modal" id="reevaluateModal" aria-labelledby="reevaluateTitle" aria-describedby="reevaluateDesc" aria-hidden="true">
         <div class="reevaluate-content">
             <div class="reevaluate-header">
                 <h3 id="reevaluateTitle"></h3>
-                <p>You are re-evaluating this trait. Your current evaluation is shown below.</p>
+                <p id="reevaluateDesc">You are re-evaluating this trait. Your current evaluation is shown below.</p>
             </div>
             
             <div class="reevaluate-body">
@@ -359,24 +359,25 @@
                 <h4>Choose an option:</h4>
                 <p>You can keep the current evaluation or start the trait evaluation process over.</p>
                 <div class="reevaluate-buttons">
-                    <button class="btn btn-secondary" onclick="cancelReevaluation()">Keep Current</button>
-                    <button class="btn btn-meets" onclick="startReevaluation()">Re-evaluate Trait</button>
+                    <button class="btn btn-secondary" onclick="cancelReevaluation()" aria-label="Keep current evaluation">Keep Current</button>
+                    <button class="btn btn-meets" onclick="startReevaluation()" aria-label="Start re-evaluation">Re-evaluate Trait</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Floating Help Button -->
-    <button class="help-button" onclick="openHelpModal()" title="How This Tool Works">
+    <button id="helpButton" class="help-button" onclick="openHelpModal()" title="How This Tool Works" aria-label="Open Help: How This Tool Works" aria-controls="helpModal" aria-expanded="false">
         ?
     </button>
 
     <!-- Help Modal -->
-    <div class="help-modal" id="helpModal">
+    <div class="help-modal" id="helpModal" aria-labelledby="helpModalTitle" aria-describedby="helpModalDesc" aria-hidden="true">
         <div class="help-content">
-            <button class="help-close" onclick="closeHelpModal()">&times;</button>
+            <button class="help-close" onclick="closeHelpModal()" aria-label="Close help">&times;</button>
             
-            <div class="setup-title" style="text-align: center; margin-bottom: 25px;">How This Tool Works</div>
+            <div id="helpModalTitle" class="setup-title" style="text-align: center; margin-bottom: 25px;">How This Tool Works</div>
+            <p id="helpModalDesc" class="sr-only">Information about unbiased evaluation philosophy and tool usage.</p>
             
             <div style="margin-bottom: 20px;">
                 <h3 style="color: #1e3c72; margin-bottom: 10px;">🎯 Unbiased Evaluation Philosophy</h3>
@@ -609,25 +610,25 @@
             .manage-button{--bg:linear-gradient(180deg,hsla(0,0%,100%,.12),hsla(0,0%,100%,0)),hsl(265,60%,52%);box-shadow:0 1px 2px #25114f66,0 0 0 1px hsla(265,60%,52%,.75);background:var(--bg)}
             </style>
             <div class="manage-data-container">
-              <button id="mainToggleButton" onclick="toggleSubMenu()" class="btn manage-button manage-toggle">
+              <button id="mainToggleButton" onclick="toggleSubMenu()" class="btn manage-button manage-toggle" aria-controls="subMenu" aria-expanded="false" aria-label="Manage data options">
                 <span class="mr-2">Manage Data</span>
-                <svg class="btn-icon-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="btn-icon-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true" focusable="false">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               <div id="subMenu" class="manage-submenu">
-                <button onclick="syncAllEvaluations()" class="sub-button sync-button w-full justify-start">
+                <button onclick="syncAllEvaluations()" class="sub-button sync-button w-full justify-start" aria-label="Sync evaluations to GitHub">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path d="M20 12a8 8 0 10-15.5 2m-.5 4v-4h4"/>
                       <path d="M4 12a8 8 0 1015.5-2m.5-4v4h-4"/>
                     </svg>
                   </span>
                   <span class="btn__text">Sync to GitHub</span>
                 </button>
-                <button onclick="initiateUpload()" class="sub-button upload-button w-full justify-start">
+                <button onclick="initiateUpload()" class="sub-button upload-button w-full justify-start" aria-label="Upload CSV data">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
                       <path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1"></path>
                       <path d="M9 15l3 -3l3 3"></path>
@@ -636,9 +637,9 @@
                   </span>
                   <span class="btn__text">Upload CSV Data</span>
                 </button>
-                <button onclick="exportAllData()" class="sub-button export-button w-full justify-start">
+                <button onclick="exportAllData()" class="sub-button export-button w-full justify-start" aria-label="Export all data">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
                       <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
                       <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
@@ -648,9 +649,9 @@
                   </span>
                   <span class="btn__text">Export All Data</span>
                 </button>
-                <button onclick="downloadTemplate()" class="sub-button template-button w-full justify-start">
+                <button onclick="downloadTemplate()" class="sub-button template-button w-full justify-start" aria-label="Download CSV template">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
                       <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
                       <path d="M7 11l5 5l5 -5"></path>
