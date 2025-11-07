@@ -154,3 +154,27 @@ function openHelpModal() {
 function closeHelpModal() {
     document.getElementById('helpModal').classList.remove('active');
 }
+
+// Global HTML escaping utilities for XSS safety
+// Escapes special characters to prevent HTML injection when rendering user-provided content
+function escapeHtml(str) {
+    const s = String(str == null ? '' : str);
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Converts newlines to <br> tags after escaping, preserving line breaks safely
+function nl2br(str) {
+    const s = escapeHtml(str);
+    return s.replace(/\r\n|\n|\r/g, '<br>');
+}
+
+// Expose globally for use across modules loaded via script tags
+try {
+    window.escapeHtml = escapeHtml;
+    window.nl2br = nl2br;
+} catch (_) { /* ignore if window is not available */ }

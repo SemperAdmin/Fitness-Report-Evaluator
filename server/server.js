@@ -8,9 +8,127 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const fsp = fs.promises;
+const crypto = require('crypto');
 
 const app = express();
 app.use(express.json());
+
+// --- Minimal cookie/session helpers ---
+function parseCookies(cookieHeader) {
+  const out = {};
+  const str = String(cookieHeader || '');
+  if (!str) return out;
+  const parts = str.split(';');
+  for (const p of parts) {
+    const idx = p.indexOf('=');
+    if (idx === -1) continue;
+    const k = p.slice(0, idx).trim();
+    const v = p.slice(idx + 1).trim();
+    try { out[k] = decodeURIComponent(v); } catch (_) { out[k] = v; }
+  }
+  return out;
+}
+function serializeCookie(name, value, opts = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  if (opts.maxAge != null) parts.push(`Max-Age=${Math.floor(opts.maxAge)}`);
+  if (opts.expires) parts.push(`Expires=${opts.expires.toUTCString()}`);
+  parts.push(`Path=${opts.path || '/'}`);
+  const same = (opts.sameSite || 'Lax');
+  parts.push(`SameSite=${same}`);
+  if (opts.httpOnly) parts.push('HttpOnly');
+  if (opts.secure) parts.push('Secure');
+  return parts.join('; ');
+}
+const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
+function signSessionPayload(payload) {
+  const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  const h = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
+  return `${data}.${h}`;
+}
+function verifySessionToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const idx = token.lastIndexOf('.');
+  if (idx === -1) return null;
+  const data = token.slice(0, idx);
+  const sig = token.slice(idx + 1);
+  const expect = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
+  try {
+    const obj = JSON.parse(Buffer.from(data, 'base64').toString('utf8'));
+    if (!obj || typeof obj !== 'object') return null;
+    if (obj.exp && Date.now() > Number(obj.exp)) return null;
+    return obj;
+  } catch (_) {
+    return null;
+  }
+}
+// Attach parsed cookies and session user (if valid)
+app.use((req, _res, next) => {
+  req.cookies = parseCookies(req.headers.cookie || '');
+  const tok = req.cookies['fitrep_session'] || '';
+  const sess = verifySessionToken(tok);
+  if (sess && sess.u) {
+    req.sessionUser = String(sess.u);
+  }
+  next();
+});
+
+// CSRF protection: double-submit cookie (skip admin API)
+app.use((req, res, next) => {
+  try {
+    const method = String(req.method || 'GET').toUpperCase();
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return next();
+    const path = String(req.path || req.url || '');
+    if (path.startsWith('/api/admin')) return next();
+    // Only enforce when a session exists
+    if (!req.sessionUser) return next();
+    const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'] || '';
+    const cookieToken = req.cookies['fitrep_csrf'] || '';
+    if (!headerToken || !cookieToken || String(headerToken) !== String(cookieToken)) {
+      return res.status(403).json({ error: 'CSRF token invalid' });
+    }
+    next();
+  } catch (e) {
+    return res.status(403).json({ error: 'CSRF check failed' });
+  }
+});
+
+function requireAuth(req, res, next) {
+  if (!req.sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  next();
+}
+
+// Security headers middleware
+// Adds baseline protections: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+app.use((req, res, next) => {
+  try {
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      // Inline scripts/styles used by the app; consider migrating to nonce/hash in future
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline'",
+      // Allow images from self and data URLs; https for external icons if any
+      "img-src 'self' data: https:",
+      // Allow API calls to same-origin, GitHub API, and Render backend used in production
+      "connect-src 'self' https://api.github.com https://fitness-report-evaluator.onrender.com",
+      // Encourage HTTPS when available; harmless in HTTP during local dev
+      'upgrade-insecure-requests'
+    ].join('; ');
+    res.setHeader('Content-Security-Policy', csp);
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  } catch (_) { /* ignore header errors */ }
+  next();
+});
 
 // Debug request logger (temporary)
 app.use((req, res, next) => {
@@ -425,6 +543,19 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
   if (!ok) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+    // Issue HttpOnly session cookie and CSRF cookie
+    try {
+      const now = Date.now();
+      const payload = { u: sanitizePrefix(username), iat: now, exp: now + SESSION_TTL_MS };
+      const sessionToken = signSessionPayload(payload);
+      const csrfToken = crypto.randomBytes(32).toString('hex');
+      const cookies = [
+        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
+        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
+      ];
+      // Append cookies without clobbering existing headers
+      res.setHeader('Set-Cookie', cookies);
+    } catch (_) { /* cookie setting best-effort */ }
 
     return res.json({
       ok: true,
@@ -440,6 +571,19 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
     console.error('account login error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Logout: clear session and CSRF cookies
+app.post('/api/account/logout', (req, res) => {
+  try {
+    const expired = new Date(0);
+    const cookies = [
+      serializeCookie('fitrep_session', '', { httpOnly: true, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, expires: expired }),
+      serializeCookie('fitrep_csrf', '', { httpOnly: false, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, expires: expired })
+    ];
+    res.setHeader('Set-Cookie', cookies);
+  } catch (_) { /* ignore */ }
+  return res.json({ ok: true });
 });
 
 // Simple health endpoint for debugging env and basic readiness
@@ -595,7 +739,7 @@ function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEval
 }
 
 // Save user data: either direct write via FITREP_DATA or dispatch workflow via DISPATCH_TOKEN
-app.post('/api/user/save', saveRateLimit, async (req, res) => {
+app.post('/api/user/save', saveRateLimit, requireAuth, async (req, res) => {
   try {
     const { userData } = req.body || {};
     if (!userData || !userData.rsEmail) {
@@ -604,6 +748,14 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
     if (!isValidUsername(userData.rsEmail)) {
       return res.status(400).json({ error: 'Invalid username format' });
     }
+    // Enforce that the request user matches the authenticated session
+    try {
+      const reqUser = sanitizePrefix(userData.rsEmail);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
 
     // Optional: previousEmail used only for migrating preserved fields
     const previousEmail = userData.previousEmail || null;
@@ -814,7 +966,7 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
 
 // Save a single evaluation as a unique file and update aggregate user file
 // Path: users/{email_local}/evaluations/{evaluationId}.json
-app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
+app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) => {
   try {
     const { evaluation, userEmail } = req.body || {};
     if (!evaluation || !evaluation.evaluationId) {
@@ -823,6 +975,14 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
     if (!userEmail || !isValidUsername(userEmail)) {
       return res.status(400).json({ error: 'Invalid or missing username' });
     }
+    // Enforce that the request user matches the authenticated session
+    try {
+      const reqUser = sanitizePrefix(userEmail);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
 
     const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
 
@@ -966,10 +1126,17 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
 });
 
 // List evaluations for a user. Uses server token when available; falls back to local storage.
-app.get('/api/evaluations/list', async (req, res) => {
+app.get('/api/evaluations/list', requireAuth, async (req, res) => {
   try {
     const username = String((req.query.username || req.query.email || '')).trim();
     if (!username) return res.status(400).json({ error: 'Missing username query param' });
+    try {
+      const reqUser = sanitizePrefix(username);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
 
     const fitrepToken = process.env.FITREP_DATA || '';
     const prefix = sanitizePrefix(username);
@@ -1077,10 +1244,17 @@ app.get('/api/evaluations/list', async (req, res) => {
 });
 
 // Load user data via server using FITREP_DATA
-app.get('/api/user/load', async (req, res) => {
+app.get('/api/user/load', requireAuth, async (req, res) => {
   try {
     const username = String((req.query.username || req.query.email || '')).trim();
     if (!username) return res.status(400).json({ error: 'Missing username query param' });
+    try {
+      const reqUser = sanitizePrefix(username);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
     const token = process.env.FITREP_DATA;
     if (!token) return res.status(500).json({ error: 'Server missing FITREP_DATA' });
 
