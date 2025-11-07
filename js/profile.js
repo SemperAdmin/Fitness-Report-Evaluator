@@ -223,6 +223,13 @@ async function accountLogin() {
         // Hide animation before transitioning to dashboard
         if (typewriter) typewriter.style.display = 'none';
         showProfileDashboard();
+
+        // Auto-sync any locally pending evaluations after successful login
+        try {
+            if (typeof hasPendingSyncs === 'function' && hasPendingSyncs()) {
+                await syncAllEvaluations();
+            }
+        } catch (_) { /* ignore */ }
     } catch (err) {
         console.error('accountLogin error:', err);
         // Restore UI on network error
@@ -450,7 +457,7 @@ function renderProfileHeader() {
         totalEl.textContent = String(profileEvaluations.length);
     }
 
-    const pending = profileEvaluations.filter(e => e.syncStatus !== 'synced').length;
+    const pending = profileEvaluations.filter(e => e.syncStatus === 'pending').length;
     if (pendingEl) {
         pendingEl.textContent = String(pending);
     }
@@ -1048,7 +1055,7 @@ async function confirmSaveToProfile() {
         sectionIComments: evaluationMeta.sectionIComments || '',
         directedComments: evaluationMeta.directedComments || '',
         savedToProfile: true,
-        syncStatus: shouldSyncToGitHub ? 'pending' : 'local-only'
+        syncStatus: 'pending'
     };
 
     // Save to localStorage
@@ -1083,8 +1090,8 @@ async function confirmSaveToProfile() {
         }
     } catch (_) { /* ignore */ }
 
-    // Optional: sync to GitHub when online and logged in
-    if (shouldSyncToGitHub && navigator.onLine) {
+    // Optional: try to sync immediately if online
+    if (navigator.onLine) {
         const synced = await syncEvaluationToGitHub(evaluation);
         if (synced) {
             evaluation.syncStatus = 'synced';
@@ -1097,6 +1104,13 @@ async function confirmSaveToProfile() {
         modal.classList.remove('active');
     }
     alert('Evaluation saved to your profile!');
+
+    // Attempt to sync any pending evaluations in the background
+    try {
+        if (hasPendingSyncs()) {
+            await syncAllEvaluations();
+        }
+    } catch (_) { /* ignore */ }
 }
 
 function skipSaveToProfile() {
@@ -1119,7 +1133,7 @@ async function syncAllEvaluations() {
         return;
     }
 
-    const pending = profileEvaluations.filter(e => e.syncStatus !== 'synced');
+    const pending = profileEvaluations.filter(e => e.syncStatus === 'pending');
 
     if (pending.length === 0) {
         alert('All evaluations already synced!');
@@ -1151,7 +1165,7 @@ async function syncAllEvaluations() {
 // Pending sync guard helpers
 function hasPendingSyncs() {
     try {
-        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => e.syncStatus !== 'synced');
+        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => e.syncStatus === 'pending');
     } catch (_) {
         return false;
     }
@@ -1162,7 +1176,7 @@ function openPendingSyncModal(nextAction) {
     const countEl = document.getElementById('pendingSyncCount');
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (!modal) return;
-    const count = (window.profileEvaluations || []).filter(e => e.syncStatus !== 'synced').length;
+    const count = (window.profileEvaluations || []).filter(e => e.syncStatus === 'pending').length;
     if (countEl) countEl.textContent = String(count);
     if (nextEl) nextEl.value = nextAction || '';
     modal.style.display = 'block';
@@ -1623,7 +1637,7 @@ function importEvaluationsFromRows(headers, rows) {
             sectionIComments: '',
             directedComments: '',
             savedToProfile: true,
-            syncStatus: 'local-only'
+            syncStatus: 'pending'
         };
 
         profileEvaluations.push(evaluation);

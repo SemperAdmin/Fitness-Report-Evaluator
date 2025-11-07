@@ -19,13 +19,19 @@ function initializeAutoSave() {
         }
     }, 30000);
     
-    // Save on page unload
+    // Save and warn on page unload when there are unsaved changes or pending syncs
     window.addEventListener('beforeunload', function(e) {
-        if (hasUnsavedChanges) {
-            saveProgressToStorage();
-            // Show warning if there are unsaved changes
+        // Evaluate pending syncs from profile context if available
+        let hasPendingSyncs = false;
+        try {
+            const evals = (window.profileEvaluations || []);
+            hasPendingSyncs = Array.isArray(evals) && evals.some(ev => ev && ev.syncStatus === 'pending');
+        } catch (_) { /* ignore */ }
+
+        if (hasUnsavedChanges || hasPendingSyncs) {
+            try { saveProgressToStorage(); } catch (_) {}
             e.preventDefault();
-            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            e.returnValue = 'You have unsaved changes or pending syncs. Sync/export first?';
             return e.returnValue;
         }
     });
@@ -375,7 +381,7 @@ function loadProgress() {
 
 // Clear all data
 function clearAllData() {
-    if (confirm('This will permanently delete all saved data. This cannot be undone. Continue?')) {
+    if (confirm('This clears local data. Sync/export first? Continue?')) {
         Object.values(STORAGE_KEYS).forEach(key => {
             localStorage.removeItem(key);
         });
