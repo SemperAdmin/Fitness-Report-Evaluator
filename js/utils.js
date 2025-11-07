@@ -187,12 +187,20 @@ try {
                 // Minimal inline styles to avoid CSS dependency
                 container.style.position = 'fixed';
                 container.style.right = '16px';
-                container.style.bottom = '16px';
+                // Position at top-right (instead of bottom-right)
+                container.style.top = '16px';
                 container.style.display = 'flex';
                 container.style.flexDirection = 'column';
                 container.style.gap = '8px';
                 container.style.zIndex = '9999';
                 document.body.appendChild(container);
+            } else {
+                // Ensure existing container is anchored top-right if previously bottom-right
+                try {
+                    container.style.top = '16px';
+                    container.style.bottom = '';
+                    container.style.right = '16px';
+                } catch (_) { /* ignore */ }
             }
 
             const el = document.createElement('div');
