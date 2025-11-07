@@ -201,15 +201,42 @@ body {
 }
 
 .auto-save-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 12px;
-    color: #4CAF50;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.auto-save-indicator.active {
+    color: #1e3c72;
     opacity: 1;
+    transition: color 0.2s ease, opacity 0.2s ease;
 }
+.auto-save-indicator .icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #cbd5e1; /* slate-300 */
+    border-top-color: #2563eb; /* blue-600 */
+    display: none;
+}
+.auto-save-indicator.saving .icon {
+    display: inline-block;
+    animation: spin 0.8s linear infinite;
+}
+.auto-save-indicator .text { color: inherit; }
+.auto-save-indicator.saved { color: #4CAF50; }
+.auto-save-indicator.unsaved { color: #d97706; }
+.auto-save-indicator.error { color: #dc2626; }
+.auto-save-indicator .retry-btn {
+    background: none;
+    border: none;
+    color: #2563eb;
+    cursor: pointer;
+    font-size: 12px;
+    text-decoration: underline;
+    display: none;
+}
+.auto-save-indicator.error .retry-btn { display: inline; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------------------------------------------
    Feedback Widget Styles (light + dark-friendly)

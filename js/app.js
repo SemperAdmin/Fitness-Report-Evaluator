@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Replace login-first boot with mode selection boot
     initializeVoiceRecognition();
 
+    // Initialize persistence and enhanced auto-save
+    try { if (typeof initializePersistence === 'function') initializePersistence(); } catch (_) {}
+
     const mode = document.getElementById('modeSelectionCard');
     const login = document.getElementById('profileLoginCard');
     const dashboard = document.getElementById('profileDashboardCard');
