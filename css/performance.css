@@ -1,0 +1,156 @@
+/**
+ * Performance Optimization Styles
+ * Supports virtual scrolling and optimized rendering
+ */
+
+/* Virtual Scroller */
+.virtual-scroll-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.virtual-scroll-viewport {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    will-change: transform;
+}
+
+/* Optimize table rendering */
+#profileGrid {
+    contain: layout style paint;
+}
+
+#profileGrid tbody tr {
+    contain: layout style;
+}
+
+/* Incremental render progress indicator */
+.render-progress {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 1000;
+    display: none;
+}
+
+.render-progress.active {
+    display: block;
+}
+
+.render-progress-bar {
+    width: 200px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.render-progress-fill {
+    height: 100%;
+    background: #4caf50;
+    transition: width 0.1s linear;
+}
+
+/* Performance optimized animations */
+.rank-summary-card {
+    will-change: transform;
+    transition: transform 0.2s ease;
+}
+
+.rank-summary-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Reduce layout thrashing */
+.profile-grid tbody tr {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Smooth scroll */
+#evaluationsList,
+#profileGrid {
+    scroll-behavior: smooth;
+}
+
+/* Loading skeleton for incremental rendering */
+.skeleton-row {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    gap: 12px;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(
+        90deg,
+        #f0f0f0 25%,
+        #e0e0e0 50%,
+        #f0f0f0 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-content {
+    flex: 1;
+}
+
+.skeleton-line {
+    height: 16px;
+    background: linear-gradient(
+        90deg,
+        #f0f0f0 25%,
+        #e0e0e0 50%,
+        #f0f0f0 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+    margin: 8px 0;
+}
+
+@keyframes skeleton-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* GPU acceleration hints */
+.optimized-render {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Contain layout calculations */
+.evaluation-item,
+.rank-summary-card,
+.profile-grid tr {
+    contain: layout style;
+}
