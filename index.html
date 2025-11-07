@@ -752,15 +752,51 @@
     <!-- Define trusted API origins and an optional override BEFORE loading config.js -->
     <script>
         // Runtime API config
-        // Trusted origins: generally leave empty; base origin is always allowed
-        window.TRUSTED_API_ORIGINS = [];
-        // Use Render backend only when running on GitHub Pages; otherwise use local server
-        if (window.location.origin.includes('semperadmin.github.io')) {
-          window.API_BASE_URL_OVERRIDE = 'https://fitness-report-evaluator.onrender.com';
-        } else {
-          // Use same-origin backend when served by Express locally
-          window.API_BASE_URL_OVERRIDE = window.location.origin;
-        }
+        // Trusted origins: include Render so cross-origin calls are allowed when overridden
+        window.TRUSTED_API_ORIGINS = [
+          'https://fitness-report-evaluator.onrender.com'
+        ];
+        // Allow runtime override via query param: ?api=render | local | http://host:port
+        (function() {
+          const params = new URLSearchParams(window.location.search);
+          const apiParam = (params.get('api') || '').trim().toLowerCase();
+          const RENDER_URL = 'https://fitness-report-evaluator.onrender.com';
+
+          // Default selection based on hosting environment
+          const isGhPages = window.location.origin.includes('semperadmin.github.io');
+          const isStaticDev = window.location.port === '5500';
+          let override = '';
+
+          if (apiParam) {
+            if (apiParam === 'render') {
+              override = RENDER_URL;
+            } else if (apiParam === 'local') {
+              override = window.location.origin;
+            } else if (apiParam.startsWith('http')) {
+              override = apiParam;
+            } else if (apiParam === 'none') {
+              override = '';
+            }
+          }
+
+          // If no explicit query param override, choose sensible default
+          if (!override) {
+            if (isGhPages || isStaticDev) {
+              override = RENDER_URL;
+            } else {
+              override = window.location.origin;
+            }
+          }
+
+          // Apply and trust override origin
+          window.API_BASE_URL_OVERRIDE = override;
+          try {
+            const origin = new URL(override).origin;
+            window.TRUSTED_API_ORIGINS = Array.from(new Set([origin, ...window.TRUSTED_API_ORIGINS]));
+          } catch (_) {
+            // ignore invalid URLs (e.g., when override is empty)
+          }
+        })();
         // Disable client-side token assembly; backend should manage auth/secrets
         window.USE_ASSEMBLED_TOKEN = false;
     </script>
