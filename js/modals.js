@@ -186,10 +186,47 @@
     _applyBodyLock(){
       if (this._bodyClassApplied) return;
       document.body.classList.add('sa-modal-open');
+      // Preserve current scroll position and prevent jitter, especially on mobile
+      try {
+        this._scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+        // Use fixed positioning to lock background while keeping visual position
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${this._scrollY}px`;
+        document.body.style.width = '100%';
+      } catch (_) {}
+      // Prevent touchmove/scroll bubbling on mobile when a modal is open
+      try {
+        this._touchBlock = (e) => {
+          // Allow scrolling inside active modal content if it is scrollable
+          const target = e.target;
+          const activeModal = document.querySelector('.save-profile-modal.active');
+          if (activeModal && activeModal.contains(target)) {
+            return; // do not block inside modal content
+          }
+          e.preventDefault();
+        };
+        document.addEventListener('touchmove', this._touchBlock, { passive: false });
+      } catch (_) {}
       this._bodyClassApplied = true;
     }
     _removeBodyLock(){
       document.body.classList.remove('sa-modal-open');
+      try {
+        // Restore body positioning and scroll position
+        const y = this._scrollY || 0;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+          window.scrollTo(0, y);
+        }
+      } catch (_) {}
+      try {
+        if (this._touchBlock) {
+          document.removeEventListener('touchmove', this._touchBlock);
+          this._touchBlock = null;
+        }
+      } catch (_) {}
       this._bodyClassApplied = false;
     }
   }
@@ -200,4 +237,3 @@
     module.exports = { ModalController, ModalStack };
   }
 })();
-

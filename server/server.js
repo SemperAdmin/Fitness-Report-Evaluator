@@ -297,6 +297,23 @@ function parseEvaluationYamlMinimal(yamlStr) {
   const rsEmail = get(/\brs:[\s\S]*?\n\s{2}email:\s*"([^"]+)"/);
   const rsRank = get(/\brs:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
 
+  // Trait evaluations block (minimal YAML parser via regex)
+  const traitBlockMatch = yamlStr.match(/\btraitEvaluations:\s*([\s\S]*?)(?:\n\w|\n[a-zA-Z_]+:|$)/);
+  const traitBlock = traitBlockMatch ? traitBlockMatch[1] : '';
+  const traits = [];
+  if (traitBlock) {
+    const re = /-\s*[\r\n]+\s{2,}section:\s*"([^\"]+)"[\s\S]*?\n\s{2,}trait:\s*"([^\"]+)"[\s\S]*?\n\s{2,}grade:\s*"([^\"]+)"[\s\S]*?\n\s{2,}gradeNumber:\s*([0-9]+)/g;
+    let m;
+    while ((m = re.exec(traitBlock)) !== null) {
+      traits.push({
+        section: m[1],
+        trait: m[2],
+        grade: m[3],
+        gradeNumber: Number(m[4])
+      });
+    }
+  }
+
   return {
     evaluationId: id || `eval-${Date.now()}`,
     occasion: occasion || null,
@@ -309,7 +326,7 @@ function parseEvaluationYamlMinimal(yamlStr) {
     },
     rsInfo: { name: rsName || '', email: rsEmail || '', rank: rsRank || '' },
     sectionIComments: sectionIComments || '',
-    traitEvaluations: [],
+    traitEvaluations: traits,
     syncStatus: 'synced'
   };
 }

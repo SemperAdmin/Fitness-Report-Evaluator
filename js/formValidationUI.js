@@ -2,6 +2,13 @@
 // Depends on window.FormValidationCore
 
 (function(){
+  function debounce(fn, wait){
+    let t = null;
+    return function(...args){
+      if (t) clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), wait);
+    };
+  }
   function ensureMessageEl(field){
     const group = field.closest('.form-group') || field.parentElement;
     if (!group) return null;
@@ -67,19 +74,42 @@
     return res;
   }
 
-  function attachFieldListeners(field){
-    field.addEventListener('blur', () => {
+  async function tryServerValidate(field, res, serverValidators){
+    try {
+      const id = field.id || field.name || '';
+      const sv = serverValidators && serverValidators[id];
+      if (!sv || !res.valid) return res;
+      const svr = await Promise.resolve(sv(String(field.value)));
+      const merged = {
+        valid: !!svr?.valid,
+        message: String(svr?.message || (svr?.valid ? '' : res.message || 'Invalid.'))
+      };
+      updateFieldUI(field, merged);
+      return merged;
+    } catch (_) {
+      // On network or server errors, preserve client result
+      return res;
+    }
+  }
+
+  function attachFieldListeners(field, opts){
+    const wait = Number(opts?.debounceMs || 300);
+    const onInputDebounced = debounce(async () => {
+      const res = validateField(field);
+      const finalRes = await tryServerValidate(field, res, opts?.serverValidators);
+      updateFieldUI(field, finalRes);
+      if (opts?.onFieldValidated) opts.onFieldValidated(field, finalRes);
+    }, wait);
+    field.addEventListener('blur', async () => {
       field.dataset.touched = 'true';
-      validateField(field);
+      const res = validateField(field);
+      const finalRes = await tryServerValidate(field, res, opts?.serverValidators);
+      updateFieldUI(field, finalRes);
+      if (opts?.onFieldValidated) opts.onFieldValidated(field, finalRes);
     });
     field.addEventListener('input', () => {
-      if (field.dataset.touched === 'true') validateField(field);
-      // live keystroke validation
-      const res = validateField(field);
-      if (res.valid) {
-        // hide message right away and show success icon
-        updateFieldUI(field, res);
-      }
+      if (field.dataset.touched !== 'true') return; // only after user interacts
+      onInputDebounced();
     });
   }
 
@@ -95,19 +125,29 @@
 
   function attachToContainer(container, options = {}){
     const fields = container.querySelectorAll('input.form-input, textarea.form-input, select.form-input');
-    fields.forEach(f => attachFieldListeners(f));
+    fields.forEach(f => attachFieldListeners(f, options));
 
-    if (options.submitButtonSelector) {
-      const btn = container.querySelector(options.submitButtonSelector);
+    const btn = options.submitButtonSelector ? container.querySelector(options.submitButtonSelector) : null;
+    const updateSubmitState = () => {
+      const ok = validateForm(container);
       if (btn) {
-        btn.addEventListener('click', (e) => {
-          const ok = validateForm(container);
-          if (!ok) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        });
+        btn.disabled = !ok;
+        btn.setAttribute('aria-disabled', String(!ok));
       }
+    };
+    // Initial state
+    updateSubmitState();
+    // Recompute on blur events to keep submit accurate
+    fields.forEach(f => f.addEventListener('blur', updateSubmitState));
+
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        const ok = validateForm(container);
+        if (!ok) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
     }
   }
 

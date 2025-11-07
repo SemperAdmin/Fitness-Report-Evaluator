@@ -39,6 +39,19 @@ function run() {
   vf = core.validateField({ value: 'valid.user-01', label: 'Username', dataRules: core.parseRules('username') });
   assert.strictEqual(vf.valid, true, 'username pattern passes');
 
+  // pattern rule
+  vf = core.validateField({ value: 'ABC-123', label: 'Patterned', dataRules: core.parseRules('pattern:^[A-Z]{3}-\\d{3}$') });
+  assert.strictEqual(vf.valid, true, 'pattern passes when format matches');
+  vf = core.validateField({ value: 'abc-1234', label: 'Patterned', dataRules: core.parseRules('pattern:^[A-Z]{3}-\\d{3}$') });
+  assert.strictEqual(vf.valid, false, 'pattern fails when format mismatches');
+
+  // maxLength rule
+  const maxRules = core.parseRules('required|maxLength:4');
+  vf = core.validateField({ value: 'abcd', label: 'Max', dataRules: maxRules });
+  assert.strictEqual(vf.valid, true, 'maxLength boundary ok');
+  vf = core.validateField({ value: 'abcde', label: 'Max', dataRules: maxRules });
+  assert.strictEqual(vf.valid, false, 'exceeds maxLength invalid');
+
   // form payload aggregate
   const payload = {
     name: { value: 'John Doe', label: 'Name', dataRules: core.parseRules('required|nameLabel') },
@@ -53,4 +66,3 @@ function run() {
 }
 
 run();
-
