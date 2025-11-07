@@ -1846,6 +1846,22 @@ function logoutProfile() {
 
 function continueLogoutProfile() {
     if (confirm('Log out? Unsaved changes will remain in local storage.')) {
+        // Ensure any open modals/overlays are closed so interactions aren't blocked
+        try {
+            if (window.ModalController && typeof window.ModalController.closeAll === 'function') {
+                window.ModalController.closeAll();
+            } else {
+                document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch(_) {} });
+                document.body.classList.remove('sa-modal-open');
+                document.body.style.position = '';
+                document.body.style.top = '';
+                document.body.style.width = '';
+            }
+            const navOverlay = document.getElementById('navMenuOverlay');
+            if (navOverlay) navOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        } catch (_) { /* ignore cleanup errors */ }
+
         // Attempt to clear server-side session cookies
         try {
             const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : window.location.origin;

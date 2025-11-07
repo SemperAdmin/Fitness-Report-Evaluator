@@ -11,18 +11,22 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" onerror="this.style.display='none'">
-            <h1>USMC FITNESS REPORT EVALUATOR</h1>
-            <p>Unbiased FITREP marking assistance tool</p>
-            <div class="tool-credit">by Semper Admin</div>
-            <!-- Header links: remove backticks -->
-            <a href="https://youtu.be/EzhEMDJ6ez0" target="_blank" style="color: #1e40af; text-decoration: underline;">FITREPS: Marking Philosophy Video</a>
-            <div class="progress-section">
-                <div class="progress-details">
-                    <span id="progressText">Setup - Determine Role</span>
-                    <div class="auto-save-indicator managed saved" id="autoSaveIndicator" aria-live="polite">
-                        <span class="icon" aria-hidden="true"></span>
+    <div class="header">
+        <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" onerror="this.style.display='none'">
+        <h1>USMC FITNESS REPORT EVALUATOR</h1>
+        <p>Unbiased FITREP marking assistance tool</p>
+        <div class="tool-credit">by Semper Admin</div>
+        <!-- Header links: remove backticks -->
+        <a href="https://youtu.be/EzhEMDJ6ez0" target="_blank" style="color: #1e40af; text-decoration: underline;">FITREPS: Marking Philosophy Video</a>
+        <!-- Global navigation controls -->
+        <div class="header-nav" style="display:flex;align-items:center;justify-content:flex-end;margin-top:10px;">
+            <nav id="breadcrumbs" aria-label="Breadcrumb" class="breadcrumbs"></nav>
+        </div>
+        <div class="progress-section">
+            <div class="progress-details">
+                <span id="progressText">Setup - Determine Role</span>
+                <div class="auto-save-indicator managed saved" id="autoSaveIndicator" aria-live="polite">
+                    <span class="icon" aria-hidden="true"></span>
                         <span class="text">Saved</span>
                         <button type="button" class="retry-btn" id="retrySaveBtn" onclick="window.autoSave && window.autoSave.retryNow()" style="display:none">Retry</button>
                     </div>
@@ -44,14 +48,14 @@
             <div class="setup-title">Evaluation Setup</div>
             
             <div class="form-group">
-                <label class="form-label">Marine Being Evaluated:</label>
-                <input type="text" class="form-input" id="marineNameInput" placeholder="Last Name, First Name MI">
+                <label class="form-label" for="marineNameInput">Marine Being Evaluated:</label>
+                <input type="text" class="form-input" id="marineNameInput" placeholder="Last Name, First Name MI" required aria-required="true">
             </div>
             
             <!-- New: Marine Rank dropdown -->
             <div class="form-group">
-                <label class="form-label">Marine Rank:</label>
-                <select class="setup-select" id="marineRankSelect">
+                <label class="form-label" for="marineRankSelect">Marine Rank:</label>
+                <select class="setup-select" id="marineRankSelect" required aria-required="true">
                     <option value="">Select Rank...</option>
                     <option value="Sgt">Sgt</option>
                     <option value="SSgt">SSgt</option>
@@ -77,8 +81,8 @@
             <div class="form-group">
                 <label class="form-label">Evaluation Period:</label>
                 <div class="date-inputs">
-                    <input type="date" class="form-input" id="fromDateInput">
-                    <input type="date" class="form-input" id="toDateInput">
+                    <input type="date" class="form-input" id="fromDateInput" required aria-required="true">
+                    <input type="date" class="form-input" id="toDateInput" required aria-required="true">
                 </div>
             </div>
 
@@ -88,7 +92,7 @@
                     Occasion Type:
                     <button type="button" class="info-icon" onclick="showTooltip(event, 'occasion-setup-tooltip')" title="What does Occasion mean?">ℹ️</button>
                 </label>
-                <select class="setup-select" id="evaluationOccasionSetup">
+                <select class="setup-select" id="evaluationOccasionSetup" required aria-required="true">
                     <option value="">Select Occasion Type...</option>
                     <option value="GC">Grade Change - GC</option>
                     <option value="DC">CMC Directed - DC</option>
@@ -121,8 +125,8 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Is the person being evaluated a Reporting Senior?</label>
-                <select class="setup-select" id="reportingSeniorSelect">
+                <label class="form-label" for="reportingSeniorSelect">Is the person being evaluated a Reporting Senior?</label>
+                <select class="setup-select" id="reportingSeniorSelect" required aria-required="true">
                     <option value="">Select...</option>
                     <option value="yes">Yes - Include Section H (Evaluation Responsibilities)</option>
                     <option value="no">No - Standard Evaluation (Sections D-G only)</option>
@@ -130,14 +134,14 @@
             </div>
             
             <div class="form-group" id="rsInfoGroup">
-                <label class="form-label">Reporting Senior Information:</label>
+                <label class="form-label" for="evaluatorNameInput">Reporting Senior Information:</label>
                 <!-- Inline RS name + Return button when launched from RS Dashboard -->
                 <div class="rs-inline" style="display: flex; align-items: center; gap: 10px; justify-content: space-between;">
                     <div id="rsProfileDisplay" class="form-static" style="display: none;"></div>
                     <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="display: none; white-space: nowrap;">← Return to RS Dashboard</button>
                 </div>
                 <!-- Input shown when not launched from a profile -->
-                <input type="text" class="form-input" id="evaluatorNameInput" placeholder="Reporting Senior Name">
+                <input type="text" class="form-input" id="evaluatorNameInput" placeholder="Reporting Senior Name" required aria-required="true">
             </div>
             
             <button class="btn btn-meets" onclick="startEvaluation()" style="margin-top: 20px; width: 100%;">Begin Evaluation</button>
@@ -824,6 +828,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js" integrity="sha384-9crLjtL468FQqFa24VM0ldxiM0tbREUHExinok4MhgLH2s+0FRgU2Qs6PACeFB43" crossorigin="anonymous"></script>
     <script src="js/ui-states.js"></script>
+    <script src="js/accessibility.js"></script>
     <script src="js/tooltips.js"></script>
     <script src="js/modals.js"></script>
     <script src="js/formValidationCore.js"></script>

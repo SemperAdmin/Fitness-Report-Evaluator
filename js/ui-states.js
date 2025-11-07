@@ -29,7 +29,40 @@
     }
   }
 
-  // Expose globally
-  window.UIStates = { setLoading, setDisabled, withLoading };
-})();
+  // Unsaved changes tracking (lightweight fallback if FormStore/FormCore are absent)
+  let dirty = false;
+  function markDirty() { dirty = true; document.body.classList.add('has-unsaved'); }
+  function clearDirty() { dirty = false; document.body.classList.remove('has-unsaved'); }
+  function hasUnsavedChanges() {
+    try {
+      if (window.FormStore && window.FormCore) {
+        const state = window.FormStore.store.getState();
+        return window.FormCore.selectors.isDirty(state);
+      }
+    } catch (_) {}
+    return dirty;
+  }
 
+  function initDirtyTracking(root = document) {
+    const fields = root.querySelectorAll('input, textarea, select');
+    fields.forEach(el => {
+      el.addEventListener('input', markDirty, { passive: true });
+      el.addEventListener('change', markDirty, { passive: true });
+    });
+  }
+
+  function guardNavigation() {
+    try {
+      if (window.FormNav && typeof window.FormNav.confirmLeave === 'function') {
+        return window.FormNav.confirmLeave();
+      }
+    } catch (_) {}
+    if (hasUnsavedChanges()) {
+      return window.confirm('You have unsaved changes. Navigate anyway?');
+    }
+    return true;
+  }
+
+  // Expose globally
+  window.UIStates = { setLoading, setDisabled, withLoading, initDirtyTracking, markDirty, clearDirty, hasUnsavedChanges, guardNavigation };
+})();

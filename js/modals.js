@@ -163,6 +163,22 @@
       return top.id;
     }
 
+    // Close all open modals and ensure no orphan backdrops/body locks remain
+    closeAll(){
+      try {
+        while (this.stack.depth() > 0) {
+          this.closeTop();
+        }
+      } catch (_) {}
+      // Defensive cleanup of any orphaned backdrops
+      try {
+        const leftovers = document.querySelectorAll('.sa-modal-backdrop');
+        leftovers.forEach(el => { if (el && el.parentNode) el.parentNode.removeChild(el); });
+      } catch (_) {}
+      // Ensure body lock is removed
+      try { this._removeBodyLock(); } catch (_) {}
+    }
+
     isAnyOpen(){ return this.stack.depth() > 0; }
 
     _refreshLayering(){
