@@ -367,6 +367,40 @@ function rateLimit({ windowMs, limit }) {
 const authRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
 const saveRateLimit = rateLimit({ windowMs: 60_000, limit: 60 });
 const feedbackRateLimit = rateLimit({ windowMs: 60_000, limit: 20 });
+const validationRateLimit = rateLimit({ windowMs: 60_000, limit: 120 });
+
+// Lightweight in-memory LRU cache for validation responses
+class ValidationCache {
+  constructor(maxEntries = 512, ttlMs = 60_000) {
+    this.max = maxEntries;
+    this.ttl = ttlMs;
+    this.map = new Map(); // key -> { value, expires }
+  }
+  _now() { return Date.now(); }
+  get(key) {
+    const ent = this.map.get(key);
+    if (!ent) return null;
+    if (ent.expires < this._now()) { this.map.delete(key); return null; }
+    // touch for LRU
+    this.map.delete(key);
+    this.map.set(key, ent);
+    return ent.value;
+  }
+  set(key, value) {
+    const expires = this._now() + this.ttl;
+    if (this.map.has(key)) this.map.delete(key);
+    this.map.set(key, { value, expires });
+    if (this.map.size > this.max) {
+      // Evict oldest
+      const firstKey = this.map.keys().next().value;
+      if (firstKey) this.map.delete(firstKey);
+    }
+  }
+}
+const validationCache = new ValidationCache(512, 90_000);
+
+// Reserved labels that should not be used by users
+const RESERVED_LABELS = new Set(['admin','system','null','undefined','root','owner','support','staff']);
 
 app.post('/api/account/create', authRateLimit, async (req, res) => {
   try {
@@ -1394,6 +1428,101 @@ app.post('/api/feedback', feedbackRateLimit, async (req, res) => {
   } catch (err) {
     console.error('feedback error:', err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Server-side validation fallback endpoint
+// POST body: { field: string, value: string }
+// Response: { valid: boolean, message: string, suggestions?: string[] }
+app.post('/api/validate/field', validationRateLimit, async (req, res) => {
+  try {
+    const { field, value } = req.body || {};
+    const f = String(field || '').trim();
+    const vRaw = String(value ?? '').trim();
+    const v = sanitizeString(vRaw);
+    if (!f) {
+      return res.status(400).json({ valid: false, message: 'Missing field' });
+    }
+    if (v.length === 0) {
+      return res.status(400).json({ valid: false, message: 'Missing value' });
+    }
+
+    // Authentication for sensitive fields
+    const sensitive = new Set(['username']);
+    if (sensitive.has(f) && !req.sessionUser) {
+      return res.status(401).json({ valid: false, message: 'Not authenticated' });
+    }
+
+    const cacheKey = `${f}:${v.toLowerCase()}`;
+    const cached = validationCache.get(cacheKey);
+    if (cached) {
+      console.log(`[validate] cache hit ${f}=${v} ->`, cached.valid);
+      return res.json(cached);
+    }
+
+    let result = { valid: true, message: 'OK' };
+    const suggestions = [];
+
+    if (f === 'username') {
+      // Format check
+      if (!isValidUsername(v)) {
+        result = { valid: false, message: 'Invalid username format' };
+      } else {
+        const prefix = sanitizePrefix(v);
+        const token = process.env.FITREP_DATA || DISPATCH_TOKEN || '';
+        let taken = false;
+        if (token) {
+          try {
+            const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+            const resp = await fetch(apiUrl, {
+              headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+            });
+            taken = resp.status === 200;
+          } catch (e) {
+            console.warn('validate username: github read failed:', e?.message || e);
+          }
+        }
+        if (!taken) {
+          try {
+            const existing = await readLocalUser(prefix);
+            taken = Boolean(existing);
+          } catch (_) { /* assume not taken on local read error */ }
+        }
+        if (taken) {
+          result = { valid: false, message: 'Username is already taken' };
+          // Suggest alternatives
+          const base = prefix.replace(/_+/g, '-');
+          suggestions.push(`${base}-${Math.floor(Math.random() * 1000)}`);
+          suggestions.push(`${base}.1`);
+        }
+      }
+    } else if (f === 'rankLabel' || f === 'label') {
+      const lower = v.toLowerCase();
+      if (RESERVED_LABELS.has(lower)) {
+        result = { valid: false, message: 'Label is reserved' };
+        suggestions.push(`${lower}-custom`);
+        suggestions.push(`${lower}-user`);
+      } else if (!isValidRank(v)) {
+        result = { valid: false, message: 'Invalid label format' };
+      }
+    } else if (f === 'email') {
+      if (!isValidEmail(v)) {
+        result = { valid: false, message: 'Invalid email address' };
+      }
+    } else {
+      // Unknown field: basic sanitation only
+      if (v.length > 200) {
+        result = { valid: false, message: 'Value too long' };
+      }
+    }
+
+    const payload = suggestions.length ? { ...result, suggestions } : result;
+    validationCache.set(cacheKey, payload);
+    console.log(`[validate] ${f}=${v} ->`, payload.valid ? 'valid' : 'invalid');
+    return res.json(payload);
+  } catch (err) {
+    console.error('validate/field error:', err);
+    return res.status(500).json({ valid: false, message: 'Internal server error' });
   }
 });
 
