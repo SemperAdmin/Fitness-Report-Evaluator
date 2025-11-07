@@ -766,7 +766,10 @@ app.post('/api/user/save', saveRateLimit, requireAuth, async (req, res) => {
     try {
       const reqUser = sanitizePrefix(userData.rsEmail);
       const sessUser = sanitizePrefix(req.sessionUser || '');
-      if (!sessUser || reqUser !== sessUser) {
+      const prevUser = userData.previousEmail ? sanitizePrefix(userData.previousEmail) : null;
+      // Allow save when session matches either current email or previousEmail (for migrations)
+      const sessionMatches = !!sessUser && (reqUser === sessUser || (prevUser && prevUser === sessUser));
+      if (!sessionMatches) {
         return res.status(403).json({ error: 'Forbidden: user mismatch' });
       }
     } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }

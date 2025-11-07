@@ -535,6 +535,14 @@ function openEditProfile() {
                 modal.classList.add('active');
             }
             console.info('[Modal] opened');
+            // Attach real-time validation to modal fields
+            try {
+                if (window.FormValidationUI) {
+                    window.FormValidationUI.attachToContainer(modal, { submitButtonSelector: '#saveProfileBtn' });
+                }
+            } catch (e) {
+                console.warn('FormValidationUI attach failed:', e);
+            }
         } catch (e) {
             console.warn('ModalController.openById failed, falling back:', e);
             modal.style.display = 'block';
@@ -667,11 +675,23 @@ async function saveProfileUpdates() {
         const newRank = (rankInput?.value || '').trim();
         console.info('[Start] Inputs', { newName, newEmail, newRank });
 
-        if (!newName || !newEmail || !newRank) {
-            console.warn('[Abort] Validation failed: missing fields');
-            alert('Please enter Name, Email, and Rank.');
-            console.groupEnd('ProfileEdit: saveProfileUpdates');
-            return;
+        // Final validation gate before submission
+        try {
+            const container = document.getElementById('editProfileModal');
+            let validAll = true;
+            if (window.FormValidationUI && container) {
+                validAll = window.FormValidationUI.validateForm(container);
+            } else {
+                validAll = !!(newName && newEmail && newRank);
+            }
+            if (!validAll) {
+                console.warn('[Abort] Validation failed: fields invalid');
+                alert('Please correct the highlighted fields.');
+                console.groupEnd('ProfileEdit: saveProfileUpdates');
+                return;
+            }
+        } catch (e) {
+            console.warn('Validation check failed, proceeding cautiously:', e);
         }
 
         if (!currentProfile) {
@@ -785,12 +805,20 @@ async function saveProfileUpdates() {
                     });
                     if (result?.success) {
                         statusMsg = result?.message || '';
+                        try { window.__forceFreshEvaluationsOnce = true; } catch (_) {}
                         console.info('[Backend] saveUserData fallback success', result);
+                        try { showToast('Profile saved to server', 'success'); } catch (_) {}
                     } else {
                         console.warn('[Backend] saveUserData fallback failed', result);
+                        const reason = (result && (result.message || result.error)) || 'Unknown error';
+                        const msg = (result && result.status === 403)
+                            ? 'Not authorized. Please log in again.'
+                            : `Save failed: ${reason}`;
+                        try { showToast(msg, 'error'); } catch (_) {}
                     }
                 } catch (e) {
                     console.warn('Backend fallback save error:', e);
+                    try { showToast('Save failed due to a network error.', 'error'); } catch (_) {}
                 }
             }
         } else {
@@ -815,7 +843,16 @@ async function saveProfileUpdates() {
             console.info('[UI] Status set', { synced, statusMsg });
         }
 
-        alert('Profile updated successfully.');
+        try {
+            const container = document.getElementById('editProfileModal');
+            if (window.FormValidationUI && typeof window.FormValidationUI.showSuccessBanner === 'function') {
+                window.FormValidationUI.showSuccessBanner(container, (container && container.dataset && container.dataset.successMessage) || 'Profile updated successfully');
+            } else {
+                showToast('Profile updated successfully.', 'success');
+            }
+        } catch (_) {
+            showToast('Profile updated successfully.', 'success');
+        }
         console.groupEnd('ProfileEdit: saveProfileUpdates');
     } catch (error) {
         console.error('saveProfileUpdates error:', error);

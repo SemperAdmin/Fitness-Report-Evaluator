@@ -826,6 +826,8 @@
     <script src="js/ui-states.js"></script>
     <script src="js/tooltips.js"></script>
     <script src="js/modals.js"></script>
+    <script src="js/formValidationCore.js"></script>
+    <script src="js/formValidationUI.js"></script>
     <script src="js/profile.js"></script>
     <!-- Persistence and enhanced auto-save system -->
     <script src="js/persistence.js"></script>
@@ -865,14 +867,14 @@
   </div>
 
   <!-- Edit Profile Modal -->
-  <div class="save-profile-modal" id="editProfileModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="editProfileTitle">
+  <div class="save-profile-modal" id="editProfileModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="editProfileTitle" data-success-message="Profile updated successfully">
         <div class="save-profile-content">
             <h3 id="editProfileTitle">Edit Profile</h3>
             <p>Update your Reporting Senior profile information.</p>
 
             <div class="form-group">
                 <label class="form-label" for="editRsNameInput">Name</label>
-                <input type="text" class="form-input" id="editRsNameInput" placeholder="Last, First M">
+                <input type="text" class="form-input" id="editRsNameInput" placeholder="Last, First M" aria-label="Name" data-rules="required|nameLabel">
   </div>
 
   <!-- Pending Sync Confirmation Modal -->
@@ -891,13 +893,13 @@
 
             <div class="form-group">
                 <label class="form-label" for="editRsEmailInput">Username</label>
-                <input type="text" class="form-input" id="editRsEmailInput" placeholder="your-username" disabled>
+                <input type="text" class="form-input" id="editRsEmailInput" placeholder="your-username" aria-label="Username" data-rules="username" disabled>
                 <small style="display:block; color:#666; margin-top:4px;">Username is permanent and cannot be changed.</small>
             </div>
 
             <div class="form-group">
                 <label class="form-label" for="editRsRankInput">Rank</label>
-                <input type="text" class="form-input" id="editRsRankInput" placeholder="e.g., Capt, Maj">
+                <input type="text" class="form-input" id="editRsRankInput" placeholder="e.g., Capt, Maj" aria-label="Rank" data-rules="required|rankLabel">
             </div>
 
             <div class="modal-actions">

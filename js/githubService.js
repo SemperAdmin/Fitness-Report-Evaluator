@@ -1067,12 +1067,25 @@ class GitHubDataService {
                     ? { userData: normalized, token: assembledToken }
                     : { userData: normalized };
 
-                const resp = await fetch(endpoint.url, {
-                    method: 'POST',
-                    headers,
-                    credentials: 'include',
-                    body: JSON.stringify(payload)
-                });
+                // Simple retry/backoff for transient failures
+                const shouldRetryStatus = (s) => [429, 502, 503, 504].includes(Number(s));
+                const doRequest = async () => {
+                    return fetch(endpoint.url, {
+                        method: 'POST',
+                        headers,
+                        credentials: 'include',
+                        body: JSON.stringify(payload)
+                    });
+                };
+                let resp = await doRequest();
+                if (!resp.ok && shouldRetryStatus(resp.status)) {
+                    await new Promise(r => setTimeout(r, 500));
+                    resp = await doRequest();
+                    if (!resp.ok && shouldRetryStatus(resp.status)) {
+                        await new Promise(r => setTimeout(r, 1000));
+                        resp = await doRequest();
+                    }
+                }
                 if (resp.ok) {
                     const data = await resp.json();
                     let msg = 'Profile saved via server';
@@ -1081,6 +1094,7 @@ class GitHubDataService {
                         else if (data.method === 'dispatch') msg = 'Profile dispatched to workflow';
                         else if (data.method === 'local') msg = 'Profile saved locally on server (temporary)';
                     }
+                    try { if (typeof window !== 'undefined') window.__forceFreshEvaluationsOnce = true; } catch (_) {}
                     return {
                         success: true,
                         filePath: data.path || null,
@@ -1089,8 +1103,14 @@ class GitHubDataService {
                         serverMethod: data.method || null
                     };
                 }
-                const text = await resp.text();
-                return { success: false, error: text, message: `Backend save failed (${resp.status})` };
+                let text = '';
+                try { text = await resp.text(); } catch (_) { text = ''; }
+                return {
+                    success: false,
+                    error: text || resp.statusText,
+                    status: resp.status,
+                    message: `Backend save failed (${resp.status})`
+                };
             } catch (err) {
                 return { success: false, error: err.message, message: 'Backend save error' };
             }
