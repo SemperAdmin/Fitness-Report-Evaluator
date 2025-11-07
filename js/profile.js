@@ -527,9 +527,19 @@ function openEditProfile() {
             rank: currentProfile?.rsRank
         });
 
-        modal.style.display = 'block';
-        modal.classList.add('active');
-        console.info('[Modal] opened');
+        try {
+            if (window.ModalController && typeof window.ModalController.openById === 'function') {
+                window.ModalController.openById('editProfileModal', { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
+            } else {
+                modal.style.display = 'block';
+                modal.classList.add('active');
+            }
+            console.info('[Modal] opened');
+        } catch (e) {
+            console.warn('ModalController.openById failed, falling back:', e);
+            modal.style.display = 'block';
+            modal.classList.add('active');
+        }
         console.groupEnd('ProfileEdit: openEditProfile');
     } catch (err) {
         console.error('openEditProfile error:', err);
@@ -546,9 +556,19 @@ function closeEditProfileModal() {
             console.groupEnd('ProfileEdit: closeEditProfileModal');
             return;
         }
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-        console.info('[Modal] closed');
+        try {
+            if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+                window.ModalController.closeById('editProfileModal');
+            } else {
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            }
+            console.info('[Modal] closed');
+        } catch (e) {
+            console.warn('ModalController.closeById failed, falling back:', e);
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
         console.groupEnd('ProfileEdit: closeEditProfileModal');
     } catch (err) {
         console.error('closeEditProfileModal error:', err);
@@ -569,59 +589,68 @@ try {
     console.warn('profile.js: failed to bind handlers to window', e);
 }
 
-// Fallback: bind click listeners after DOM ready, in case inline handlers fail
+// Bind click listeners after DOM ready; prefer direct IDs and avoid duplicates when inline handlers exist
 document.addEventListener('DOMContentLoaded', () => {
     try {
-        console.debug('profile.js: DOMContentLoaded');
-        // Robust selector: the Edit button sits in .profile-name-row with class .editBtn
-        const editBtn = document.querySelector('.profile-name-row .editBtn')
-            || document.querySelector('button.editBtn[onclick="openEditProfile()"]')
-            || document.querySelector('button[onclick="openEditProfile()"]');
-        if (editBtn) {
+        // Edit Profile
+        const editBtn = document.getElementById('editProfileBtn')
+            || document.querySelector('.profile-name-row .editBtn');
+        if (editBtn && !editBtn.getAttribute('onclick')) {
             editBtn.addEventListener('click', (evt) => {
-                console.debug('ProfileEdit: fallback click handler triggered');
-                try { openEditProfile(); } catch (err) { console.error('fallback openEditProfile error:', err); }
+                try { openEditProfile(); } catch (err) { console.error('openEditProfile error:', err); }
                 evt.preventDefault();
-            }, { once: false });
-            console.info('profile.js: fallback click binding attached to Edit Profile button');
-        } else {
-            console.debug('profile.js: Edit Profile button not found for fallback binding');
+            });
         }
 
-        // Fallback for Logout button in breadcrumb nav
-        const logoutBtn = document.querySelector('.breadcrumb-nav button[onclick="logoutProfile()"]');
-        if (logoutBtn) {
+        // Logout
+        const logoutBtn = document.getElementById('logoutBtn')
+            || document.querySelector('.breadcrumb-nav .Btn');
+        if (logoutBtn && !logoutBtn.getAttribute('onclick')) {
             logoutBtn.addEventListener('click', (evt) => {
-                console.debug('Logout: fallback click handler triggered');
-                try { logoutProfile(); } catch (err) { console.error('fallback logoutProfile error:', err); }
+                try {
+                    const btn = evt.currentTarget || logoutBtn;
+                    if (window.UIStates && typeof window.UIStates.withLoading === 'function') {
+                        window.UIStates.withLoading(btn, async () => {
+                            logoutProfile();
+                        });
+                    } else {
+                        logoutProfile();
+                    }
+                } catch (err) { console.error('logoutProfile error:', err); }
                 evt.preventDefault();
-            }, { once: false });
-            console.info('profile.js: fallback click binding attached to Logout button');
-        } else {
-            console.warn('profile.js: Logout button not found for fallback binding');
+            });
         }
 
-        const saveBtn = document.querySelector('#editProfileModal button[onclick="saveProfileUpdates()"]');
-        if (saveBtn) {
+        // Save Changes
+        const saveBtn = document.getElementById('saveProfileBtn')
+            || document.querySelector('#editProfileModal .btn.btn-meets');
+        if (saveBtn && !saveBtn.getAttribute('onclick')) {
             saveBtn.addEventListener('click', (evt) => {
-                console.debug('ProfileEdit: fallback save handler triggered');
-                try { saveProfileUpdates(); } catch (err) { console.error('fallback saveProfileUpdates error:', err); }
+                try {
+                    const btn = evt.currentTarget || saveBtn;
+                    if (window.UIStates && typeof window.UIStates.withLoading === 'function') {
+                        window.UIStates.withLoading(btn, async () => {
+                            await saveProfileUpdates();
+                        });
+                    } else {
+                        saveProfileUpdates();
+                    }
+                } catch (err) { console.error('saveProfileUpdates error:', err); }
                 evt.preventDefault();
-            }, { once: false });
-            console.info('profile.js: fallback click binding attached to Save Changes');
+            });
         }
 
-        const cancelBtn = document.querySelector('#editProfileModal button[onclick="closeEditProfileModal()"]');
-        if (cancelBtn) {
+        // Cancel
+        const cancelBtn = document.getElementById('cancelProfileBtn')
+            || document.querySelector('#editProfileModal .btn.btn-secondary');
+        if (cancelBtn && !cancelBtn.getAttribute('onclick')) {
             cancelBtn.addEventListener('click', (evt) => {
-                console.debug('ProfileEdit: fallback cancel handler triggered');
-                try { closeEditProfileModal(); } catch (err) { console.error('fallback closeEditProfileModal error:', err); }
+                try { closeEditProfileModal(); } catch (err) { console.error('closeEditProfileModal error:', err); }
                 evt.preventDefault();
-            }, { once: false });
-            console.info('profile.js: fallback click binding attached to Cancel');
+            });
         }
     } catch (bindErr) {
-        console.error('profile.js: error during fallback bindings', bindErr);
+        console.error('profile.js: error during direct bindings', bindErr);
     }
 });
 
@@ -1156,7 +1185,17 @@ async function confirmSaveToProfile() {
     // Hide modal safely
     const modal = document.getElementById('saveProfileModal');
     if (modal) {
-        modal.classList.remove('active');
+        try {
+            if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+                window.ModalController.closeById('saveProfileModal');
+            } else {
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            }
+        } catch (_) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
     }
     alert('Evaluation saved to your profile!');
 
@@ -1169,7 +1208,19 @@ async function confirmSaveToProfile() {
 }
 
 function skipSaveToProfile() {
-    document.getElementById('saveProfileModal').classList.remove('active');
+    const modal = document.getElementById('saveProfileModal');
+    if (!modal) return;
+    try {
+        if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+            window.ModalController.closeById('saveProfileModal');
+        } else {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    } catch (_) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
 }
 
 // New: Save and immediately return to RS Dashboard
@@ -1255,15 +1306,33 @@ function openPendingSyncModal(nextAction) {
     const count = (window.profileEvaluations || []).filter(e => e.syncStatus === 'pending').length;
     if (countEl) countEl.textContent = String(count);
     if (nextEl) nextEl.value = nextAction || '';
-    modal.style.display = 'block';
-    modal.classList.add('active');
+    try {
+        if (window.ModalController && typeof window.ModalController.openById === 'function') {
+            window.ModalController.openById('pendingSyncModal', { labelledBy: 'pendingSyncTitle' });
+        } else {
+            modal.style.display = 'block';
+            modal.classList.add('active');
+        }
+    } catch (_) {
+        modal.style.display = 'block';
+        modal.classList.add('active');
+    }
 }
 
 function closePendingSyncModal() {
     const modal = document.getElementById('pendingSyncModal');
     if (!modal) return;
-    modal.classList.remove('active');
-    modal.style.display = 'none';
+    try {
+        if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+            window.ModalController.closeById('pendingSyncModal');
+        } else {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    } catch (_) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (nextEl) nextEl.value = '';
 }

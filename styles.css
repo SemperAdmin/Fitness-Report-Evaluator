@@ -3437,3 +3437,90 @@ body {
 .strength-weak { color: #b23b3b; }
 .strength-medium { color: #b26b00; }
 .strength-strong { color: #2e7d32; }
+
+/* Accessible button state hooks */
+.btn.is-loading,
+.Btn.is-loading,
+.editBtn.is-loading {
+  position: relative;
+  pointer-events: none;
+}
+.btn.is-loading::after,
+.Btn.is-loading::after,
+.editBtn.is-loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  margin-left: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.6);
+  border-top-color: rgba(255,255,255,0.1);
+  animation: sa-spin 0.8s linear infinite;
+}
+@keyframes sa-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.btn.is-disabled,
+.Btn.is-disabled,
+.editBtn.is-disabled,
+.btn[aria-disabled="true"],
+.Btn[aria-disabled="true"],
+.editBtn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Tooltip styling */
+.sa-tooltip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translate(-9999px, -9999px) scale(0.98);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.sa-tooltip.show {
+  opacity: 1;
+  transform: translate(var(--x, -9999px), var(--y, -9999px)) scale(1);
+}
+.sa-tooltip.hide {
+  opacity: 0;
+}
+.sa-tooltip-inner {
+  max-width: 280px;
+  background: #1f2937;
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  font-size: 12px;
+  line-height: 1.4;
+}
+/* ===== Modal Stacking & Backdrop ===== */
+body.sa-modal-open {
+  overflow: hidden !important;
+}
+
+.sa-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: saturate(1.2) blur(1px);
+  transition: opacity 120ms ease;
+  opacity: 1;
+}
+
+.save-profile-modal {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.save-profile-modal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+.save-profile-modal.sa-modal-background .save-profile-content {
+  opacity: 0.65;
+  pointer-events: none;
+}

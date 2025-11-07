@@ -16,8 +16,15 @@ function runNodeTest(file) {
 
 (async () => {
   try {
-    const core = await runNodeTest(require('path').join(__dirname, 'formCore.test.js'));
-    console.log(core);
+    const fs = require('fs');
+    const path = require('path');
+    const files = fs.readdirSync(__dirname)
+      .filter(f => f.endsWith('.test.js'))
+      .map(f => path.join(__dirname, f));
+    for (const file of files) {
+      const out = await runNodeTest(file);
+      if (out) console.log(out);
+    }
     console.log('All tests completed successfully.');
     process.exit(0);
   } catch (e) {
