@@ -640,7 +640,9 @@ class GitHubDataService {
                 if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
                     return [];
                 }
-                const fetchOpts = forceFresh ? { method: 'GET', cache: 'no-store' } : { method: 'GET' };
+                const fetchOpts = forceFresh
+                    ? { method: 'GET', cache: 'no-store', credentials: 'include' }
+                    : { method: 'GET', credentials: 'include' };
                 const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {
                     // Treat non-OK as no evaluations available
