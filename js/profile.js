@@ -5,6 +5,10 @@ let syncQueue = [];
 // In-memory cache for expanded evaluation details
 const evaluationDetailsCache = new Map();
 
+// Performance optimization instances
+let tableRenderer = null; // OptimizedTableRenderer instance
+let rafQueue = new RAFQueue(); // Request Animation Frame queue for smooth updates
+
 // Profile Authentication
 async function profileLogin() {
     const rank = document.getElementById('rsRankInput').value.trim();
@@ -881,17 +885,20 @@ function setRankSummarySort(key) {
 
 function renderEvaluationsList() {
     const container = document.getElementById('evaluationsList');
-    container.innerHTML = '';
 
     if (profileEvaluations.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <p>No evaluations saved yet.</p>
-                <button class="btn btn-meets" onclick="startNewEvaluation()">
-                    Create Your First Evaluation
-                </button>
-            </div>
-        `;
+        // Only update if content is different
+        const currentContent = container.querySelector('.empty-state');
+        if (!currentContent) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>No evaluations saved yet.</p>
+                    <button class="btn btn-meets" onclick="startNewEvaluation()">
+                        Create Your First Evaluation
+                    </button>
+                </div>
+            `;
+        }
         return;
     }
 
@@ -952,22 +959,32 @@ function renderEvaluationsList() {
         rows.sort((a, b) => b.count - a.count || a.rank.localeCompare(b.rank));
     }
 
-    // Toolbar
-    const toolbarHtml = `
-        <div class="summary-toolbar" role="toolbar" aria-label="Rank Summary controls">
-            <span class="summary-title">Rank Summary</span>
-            <div class="toolbar-spacer"></div>
-            <span class="sort-label">Sort:</span>
-            <button class="btn btn-secondary sort-btn ${key === 'reports' ? 'active' : ''}" onclick="setRankSummarySort('reports')">Reports</button>
-            <button class="btn btn-secondary sort-btn ${key === 'avg' ? 'active' : ''}" onclick="setRankSummarySort('avg')">Average</button>
-        </div>
-    `;
+    // Use RAF queue for smooth rendering
+    rafQueue.add(() => {
+        // Build toolbar
+        const toolbarHtml = `
+            <div class="summary-toolbar" role="toolbar" aria-label="Rank Summary controls">
+                <span class="summary-title">Rank Summary</span>
+                <div class="toolbar-spacer"></div>
+                <span class="sort-label">Sort:</span>
+                <button class="btn btn-secondary sort-btn ${key === 'reports' ? 'active' : ''}" onclick="setRankSummarySort('reports')">Reports</button>
+                <button class="btn btn-secondary sort-btn ${key === 'avg' ? 'active' : ''}" onclick="setRankSummarySort('avg')">Average</button>
+            </div>
+        `;
 
-    // Cards
-    const cardsHtml = rows.map(r => {
-        const pct = Math.round(((r.avg - globalLow) / spread) * 100);
-        return `
-            <button class="rank-summary-card" onclick="applyRankFromSummary('${r.rank}')" title="Open ${r.rank} grid">
+        // Build cards using DocumentFragment for better performance
+        const cardsContainer = document.createElement('div');
+        cardsContainer.className = 'rank-summary-grid';
+
+        rows.forEach(r => {
+            const pct = Math.round(((r.avg - globalLow) / spread) * 100);
+
+            const card = document.createElement('button');
+            card.className = 'rank-summary-card';
+            card.onclick = () => applyRankFromSummary(r.rank);
+            card.title = `Open ${r.rank} grid`;
+
+            card.innerHTML = `
                 <div class="rank-chip">${r.rank}</div>
                 <div class="metric-group">
                     <div class="metric">
@@ -983,11 +1000,18 @@ function renderEvaluationsList() {
                         <span class="pill">Low ${r.low.toFixed(2)}</span>
                     </div>
                 </div>
-            </button>
-        `;
-    }).join('');
+            `;
 
-    container.innerHTML = toolbarHtml + `<div class="rank-summary-grid">${cardsHtml}</div>`;
+            cardsContainer.appendChild(card);
+        });
+
+        // Only update DOM if content changed (simple check)
+        const existingGrid = container.querySelector('.rank-summary-grid');
+        if (!existingGrid || existingGrid.children.length !== rows.length) {
+            container.innerHTML = toolbarHtml;
+            container.appendChild(cardsContainer);
+        }
+    });
 }
 
 function createEvaluationListItem(evaluation) {
@@ -2576,7 +2600,11 @@ function getFilteredEvaluations() {
 function renderProfileGrid() {
     const tbody = document.querySelector('#profileGrid tbody');
     if (!tbody) return;
-    tbody.innerHTML = '';
+
+    // Initialize table renderer if not exists
+    if (!tableRenderer) {
+        tableRenderer = new OptimizedTableRenderer(tbody);
+    }
 
     // Define evals, apply filters by current rank, then compute RVs within this subset
     const evals = [...getFilteredEvaluations()];
@@ -2599,75 +2627,136 @@ function renderProfileGrid() {
             default: return dateB - dateA;
         }
     });
-    
+
     // Precompute Cum RV list for rank calculation (Excel-style)
     const cumValuesById = new Map(
         evals.map(e => [e.evaluationId, (cumRvMap.get(e.evaluationId) ?? (rvMap.get(e.evaluationId) ?? 0))])
     );
     const cumList = Array.from(cumValuesById.values());
-    
+
     // Compute column count for details row spanning
     const headerRow = document.querySelector('#profileGrid thead tr');
     const colCount = headerRow ? headerRow.children.length : 20;
 
-    evals.forEach((evaluation, idx) => {
-        const row = document.createElement('tr');
+    // Prepare evaluation data with computed values
+    const evaluationsWithData = evals.map((evaluation, idx) => {
         const traitGrades = getTraitGrades(evaluation);
         const rv = rvMap.get(evaluation.evaluationId) ?? 0;
         const cumRv = cumValuesById.get(evaluation.evaluationId) ?? rv;
         const avg = parseFloat(evaluation.fitrepAverage || '0').toFixed(2);
-        
-        // Excel-style rank by Cum RV
         const rankPos = 1 + cumList.filter(v => v > cumRv).length;
-        
+
+        return {
+            ...evaluation,
+            rank: rankPos,
+            marineName: evaluation.marineInfo?.name || '-',
+            occasion: capitalize(evaluation.occasion || '-'),
+            endDate: (evaluation.marineInfo?.evaluationPeriod?.to || '').slice(0, 10) || '-',
+            grades: traitGrades,
+            average: avg,
+            rv,
+            cumRv
+        };
+    });
+
+    // Render row function for OptimizedTableRenderer
+    const renderRow = (evaluation, index) => {
+        const row = document.createElement('tr');
         row.setAttribute('data-eval-id', evaluation.evaluationId);
-        row.innerHTML = `
-            <td>${rankPos}</td>
-            <td style="text-align: left;">${escapeHtml(evaluation.marineInfo?.name || '-')}</td>
-            <td>${escapeHtml(capitalize(evaluation.occasion || '-'))}</td>
-            <td>${escapeHtml((evaluation.marineInfo?.evaluationPeriod?.to || '').slice(0, 10) || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Performance'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Proficiency'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Courage'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Stress Tolerance'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Initiative'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Leading'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Developing Others'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Setting the Example'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Well-Being/Health'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Communication Skills'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Professional Military Education'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Decision Making'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Judgement'] || '-')}</td>
-            <td class="grade-cell">${escapeHtml(traitGrades['Evals'])}</td>
-            <td class="avg-cell">${escapeHtml(avg)}</td>
-            <td>${badgeForRv(rv)}</td>
-            <td>${badgeForRv(cumRv)}</td>
-            <td class="actions-cell" style="text-align:right;">
-                <span class="sync-status ${escapeHtml(evaluation.syncStatus || 'pending')}">
-                    ${evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending'}
-                </span>
-                <button class="icon-btn" onclick="deleteEvaluation('${escapeHtml(evaluation.evaluationId)}')">🗑️</button>
-                <span class="expand-icon" onclick="toggleGridDetails(this)">▼</span>
-            </td>
-        `;
-        tbody.appendChild(row);
-        
-        // Details row (hidden by default, reused content from list view)
+
+        // Build row cells using DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
+
+        // Create cells efficiently
+        const cells = [
+            { text: evaluation.rank, className: '' },
+            { text: evaluation.marineName, className: '', style: 'text-align: left;' },
+            { text: evaluation.occasion, className: '' },
+            { text: evaluation.endDate, className: '' },
+            { text: evaluation.grades['Performance'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Proficiency'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Courage'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Stress Tolerance'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Initiative'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Leading'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Developing Others'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Setting the Example'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Well-Being/Health'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Communication Skills'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Professional Military Education'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Decision Making'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Judgement'] || '-', className: 'grade-cell' },
+            { text: evaluation.grades['Evals'], className: 'grade-cell' },
+            { text: evaluation.average, className: 'avg-cell' }
+        ];
+
+        cells.forEach(cellData => {
+            const td = document.createElement('td');
+            td.textContent = cellData.text;
+            if (cellData.className) td.className = cellData.className;
+            if (cellData.style) td.setAttribute('style', cellData.style);
+            fragment.appendChild(td);
+        });
+
+        // RV badge cell
+        const rvCell = document.createElement('td');
+        rvCell.innerHTML = badgeForRv(evaluation.rv);
+        fragment.appendChild(rvCell);
+
+        // Cumulative RV badge cell
+        const cumRvCell = document.createElement('td');
+        cumRvCell.innerHTML = badgeForRv(evaluation.cumRv);
+        fragment.appendChild(cumRvCell);
+
+        // Actions cell
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'actions-cell';
+        actionsCell.style.textAlign = 'right';
+
+        const syncStatus = document.createElement('span');
+        syncStatus.className = `sync-status ${evaluation.syncStatus || 'pending'}`;
+        syncStatus.textContent = evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'icon-btn';
+        deleteBtn.textContent = '🗑️';
+        deleteBtn.onclick = () => deleteEvaluation(evaluation.evaluationId);
+
+        const expandIcon = document.createElement('span');
+        expandIcon.className = 'expand-icon';
+        expandIcon.textContent = '▼';
+        expandIcon.onclick = function() { toggleGridDetails(this); };
+
+        actionsCell.appendChild(syncStatus);
+        actionsCell.appendChild(deleteBtn);
+        actionsCell.appendChild(expandIcon);
+        fragment.appendChild(actionsCell);
+
+        row.appendChild(fragment);
+
+        // Details row (hidden by default)
         const detailsRow = document.createElement('tr');
         detailsRow.className = 'grid-details-row';
         detailsRow.style.display = 'none';
         detailsRow.setAttribute('data-eval-id', evaluation.evaluationId);
-        detailsRow.innerHTML = `
-            <td colspan="${colCount}">
-                ${renderEvaluationDetails(evaluation)}
-            </td>
-        `;
-        tbody.appendChild(detailsRow);
+
+        const detailsCell = document.createElement('td');
+        detailsCell.setAttribute('colspan', colCount);
+        detailsCell.innerHTML = renderEvaluationDetails(evaluation);
+        detailsRow.appendChild(detailsCell);
+
+        return { dataRow: row, detailsRow };
+    };
+
+    // Use RAF queue for smooth rendering
+    rafQueue.add(() => {
+        // Use optimized renderer - only updates changed rows
+        tableRenderer.updateTable(evaluationsWithData, renderRow);
+
+        // Update summary from the Avg column cells that were just rendered
+        renderRankSummaryFromDom();
     });
-    
-    // Update summary from the Avg column cells that were just rendered
-    renderRankSummaryFromDom();}
+}
 
 // Helpers for grid view
 function getTraitGrades(evaluation) {
