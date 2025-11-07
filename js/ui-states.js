@@ -2,6 +2,7 @@
 // Provides loading/disabled state management with visual hooks
 
 (function () {
+  // Button state helpers
   function setLoading(btn, loading) {
     if (!btn) return;
     const isLoading = Boolean(loading);
@@ -28,6 +29,8 @@
       setLoading(btn, false);
     }
   }
+
+  // (Removed global overlay and skeleton helpers to revert to original minimal utilities)
 
   // Unsaved changes tracking (lightweight fallback if FormStore/FormCore are absent)
   let dirty = false;
@@ -64,5 +67,8 @@
   }
 
   // Expose globally
-  window.UIStates = { setLoading, setDisabled, withLoading, initDirtyTracking, markDirty, clearDirty, hasUnsavedChanges, guardNavigation };
+  window.UIStates = {
+    setLoading, setDisabled, withLoading,
+    initDirtyTracking, markDirty, clearDirty, hasUnsavedChanges, guardNavigation
+  };
 })();

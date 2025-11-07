@@ -533,6 +533,11 @@ function openEditProfile() {
             } else {
                 modal.style.display = 'block';
                 modal.classList.add('active');
+                try {
+                    if (window.A11y && typeof window.A11y.openDialog === 'function') {
+                        window.A11y.openDialog(modal, { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
+                    }
+                } catch (_) {}
             }
             console.info('[Modal] opened');
             // Attach real-time validation to modal fields
@@ -547,6 +552,11 @@ function openEditProfile() {
             console.warn('ModalController.openById failed, falling back:', e);
             modal.style.display = 'block';
             modal.classList.add('active');
+            try {
+                if (window.A11y && typeof window.A11y.openDialog === 'function') {
+                    window.A11y.openDialog(modal, { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
+                }
+            } catch (_) {}
         }
         console.groupEnd('ProfileEdit: openEditProfile');
     } catch (err) {
@@ -568,12 +578,14 @@ function closeEditProfileModal() {
             if (window.ModalController && typeof window.ModalController.closeById === 'function') {
                 window.ModalController.closeById('editProfileModal');
             } else {
+                try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
                 modal.classList.remove('active');
                 modal.style.display = 'none';
             }
             console.info('[Modal] closed');
         } catch (e) {
             console.warn('ModalController.closeById failed, falling back:', e);
+            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
             modal.classList.remove('active');
             modal.style.display = 'none';
         }
@@ -1302,12 +1314,20 @@ async function syncAllEvaluations() {
         return false;
     };
 
+    // Global operation feedback with cancellable progress
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : { signal: { aborted: false }, abort(){ this.signal.aborted = true; } };
+    if (window.UIStates && typeof window.UIStates.showGlobalLoading === 'function') {
+        window.UIStates.showGlobalLoading({ text: `Syncing ${pending.length} evaluation(s)…`, determinate: true, cancellable: true, onCancel: () => controller.abort() });
+    }
     showToast(`Syncing ${pending.length} evaluation(s)...`, 'info');
     let successCount = 0;
     let failureCount = 0;
-    for (const evaluation of pending) {
+    for (let i = 0; i < pending.length; i++) {
+        if (controller.signal && controller.signal.aborted) break;
+        const evaluation = pending[i];
         const ok = await syncWithRetry(evaluation, 3);
         if (ok) successCount++; else failureCount++;
+        try { if (window.UIStates && typeof window.UIStates.updateGlobalProgress === 'function') window.UIStates.updateGlobalProgress(((i + 1) / pending.length) * 100); } catch(_){}
     }
 
     const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
@@ -1319,10 +1339,13 @@ async function syncAllEvaluations() {
     }
 
     renderEvaluationsList();
+    try { if (window.UIStates && typeof window.UIStates.hideGlobalLoading === 'function') window.UIStates.hideGlobalLoading(); } catch(_){}
     if (failureCount === 0) {
-        showToast(`Sync complete: ${successCount} succeeded.`, 'success');
+        const msg = controller.signal && controller.signal.aborted ? `Sync canceled: ${successCount} succeeded.` : `Sync complete: ${successCount} succeeded.`;
+        showToast(msg, 'success');
     } else {
-        showToast(`Sync complete: ${successCount} succeeded, ${failureCount} failed.`, 'warning');
+        const msg = controller.signal && controller.signal.aborted ? `Sync canceled: ${successCount} succeeded, ${failureCount} failed.` : `Sync complete: ${successCount} succeeded, ${failureCount} failed.`;
+        showToast(msg, 'warning');
     }
 }
 
@@ -1349,6 +1372,7 @@ function openPendingSyncModal(nextAction) {
         } else {
             modal.style.display = 'block';
             modal.classList.add('active');
+            try { if (window.A11y && typeof window.A11y.openDialog === 'function') window.A11y.openDialog(modal, { labelledBy: 'pendingSyncTitle' }); } catch(_){}
         }
     } catch (_) {
         modal.style.display = 'block';
@@ -1363,6 +1387,7 @@ function closePendingSyncModal() {
         if (window.ModalController && typeof window.ModalController.closeById === 'function') {
             window.ModalController.closeById('pendingSyncModal');
         } else {
+            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
             modal.classList.remove('active');
             modal.style.display = 'none';
         }

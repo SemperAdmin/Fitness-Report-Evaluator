@@ -7,6 +7,9 @@ let activityEvents = [];
 let lastSavedSnapshot = null;
 let saveQueue = [];
 
+// Ensure global currentStep exists even if navigation system is not loaded yet
+try { if (typeof window.currentStep === 'undefined') { window.currentStep = 'setup'; } } catch (_) { /* noop */ }
+
 const BASE_INTERVAL_MS = 10000; // default 10s
 const MIN_INTERVAL_MS = 3000;   // adaptive lower bound
 const MAX_INTERVAL_MS = 15000;  // adaptive upper bound
@@ -141,7 +144,7 @@ function saveProgressToStorage() {
     // Build session payload; support compact mode to reduce size on quota errors
     const buildSessionData = (compact = false) => ({
         timestamp: new Date().toISOString(),
-        currentStep: currentStep,
+        currentStep: ((typeof window !== 'undefined' && typeof window.currentStep !== 'undefined') ? window.currentStep : 'setup'),
         currentTraitIndex: currentTraitIndex,
         currentEvaluationLevel: currentEvaluationLevel,
         evaluationResults: evaluationResults,
@@ -258,8 +261,29 @@ function restoreSession(sessionData) {
             }
         }
         
-        // Navigate to current step
-        jumpToStep(currentStep);
+        // Navigate to current step (guard if navigation system is not loaded)
+        if (typeof jumpToStep === 'function') {
+            jumpToStep(currentStep);
+        } else {
+            try {
+                // Fallback: show the appropriate card by id if available
+                const map = {
+                    setup: 'setupCard',
+                    evaluation: 'evaluationContainer',
+                    comments: 'directedCommentsCard',
+                    sectionI: 'sectionIGenerationCard',
+                    summary: 'summaryCard'
+                };
+                const targetId = map[currentStep] || 'setupCard';
+                const cards = [
+                    'setupCard','howItWorksCard','evaluationContainer',
+                    'directedCommentsCard','sectionIGenerationCard','summaryCard'
+                ];
+                cards.forEach(id => { const el = document.getElementById(id); if (el) { el.classList.remove('active'); el.style.display = 'none'; } });
+                const tgt = document.getElementById(targetId);
+                if (tgt) { tgt.classList.add('active'); tgt.style.display = 'block'; }
+            } catch (_) {}
+        }
         
         // Update validation
         updateFormValidation();

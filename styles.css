@@ -134,7 +134,7 @@ body {
 .container {
     max-width: 900px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 20px 20px 10px 20px;
 }
 
 /* Header Styles */
@@ -243,9 +243,9 @@ body {
 ---------------------------------------------- */
 .feedback-floating-btn {
     position: fixed;
-    left: 50%;
+    left: 0;
     bottom: 20px;
-    transform: translateX(-50%);
+    transform: none;
     z-index: 1000;
     padding: 10px 14px;
     border-radius: 999px;
@@ -2204,10 +2204,10 @@ body {
         right: 15px;
     }
     .feedback-floating-btn {
-        left: 50%;
+        left: 0;
         right: auto;
         bottom: 15px;
-        transform: translateX(-50%);
+        transform: none;
     }
     
     .directed-comments-grid {
@@ -2334,6 +2334,88 @@ body {
     max-width: 300px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     pointer-events: auto;
+}
+
+/* Responsive Tables */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+.table-responsive table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.profile-grid thead th,
+.table.sticky thead th {
+  position: sticky;
+  top: 0;
+  background: #0f172a; /* dark header for contrast */
+  color: #fff;
+  z-index: 2;
+}
+.profile-grid th, .profile-grid td,
+.table th, .table td {
+  padding: 12px 10px;
+}
+
+/* Touch target and feedback */
+.btn,
+.help-button,
+.info-icon {
+  min-height: 48px;
+  min-width: 48px;
+}
+.btn {
+  padding: 12px 16px;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:focus-visible,
+.help-button:focus-visible,
+.info-icon:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Mobile-first breakpoints */
+/* Small phones */
+@media (max-width: 480px) {
+  .container { padding: 12px 12px 6px 12px; }
+  .form-group { margin-bottom: 14px; }
+  .setup-select, .form-input { width: 100%; }
+  .evaluation-filters { grid-template-columns: 1fr; gap: 12px; }
+  .profile-grid-wrapper { padding: 8px; }
+}
+
+/* ===== Mobile Navigation ===== */
+
+
+/* Phones/portrait tablets */
+@media (max-width: 640px) {
+  .eval-details-grid { grid-template-columns: 1fr; }
+  .profile-header-section { flex-direction: column; gap: 10px; }
+  .profile-grid { font-size: 14px; }
+  .profile-grid-wrapper { overflow-x: auto; }
+}
+
+/* Tablets */
+@media (max-width: 768px) {
+  .evaluation-filters { grid-template-columns: 1fr; }
+  .setup-card { padding: 12px; }
+}
+
+/* Small laptops */
+@media (max-width: 1024px) {
+  .eval-meta { flex-direction: column; gap: 6px; }
+}
+
+/* Larger screens */
+@media (min-width: 1280px) {
+  .container { max-width: 1100px; margin: 0 auto; }
 }
 
 .tooltip-content::before {
@@ -3020,20 +3102,6 @@ body {
     vertical-align: middle; /* center header text vertically */
 }
 
-/* Sticky first two columns for horizontal scroll context */
-.profile-grid thead th:nth-child(1),
-.profile-grid thead th:nth-child(2) {
-    position: sticky;
-    left: 0;
-    z-index: 3; /* Above regular headers */
-    background: #1e3c72;
-    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
-}
-
-.profile-grid thead th:nth-child(2) {
-    left: 40px; /* Offset by width of first column */
-}
-
 .profile-grid tbody td {
     border-top: 1px solid #eee;
     padding: 6px;
@@ -3042,31 +3110,15 @@ body {
     vertical-align: middle; /* center cell content vertically */
 }
 
-/* Sticky first two columns in body */
-.profile-grid tbody td:nth-child(1),
-.profile-grid tbody td:nth-child(2) {
-    position: sticky;
-    background: white;
-    z-index: 2; /* Above regular cells */
-    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
-}
-
+/* Keep simple styling for the first two columns without stickiness */
 .profile-grid tbody td:nth-child(1) {
-    left: 0;
     font-weight: 600;
 }
 
 .profile-grid tbody td:nth-child(2) {
-    left: 40px; /* Offset by width of first column */
     text-align: left;
     font-weight: 500;
     color: #1e3c72;
-}
-
-/* Ensure row hover doesn't break sticky columns */
-.profile-grid tbody tr:hover td:nth-child(1),
-.profile-grid tbody tr:hover td:nth-child(2) {
-    background: #f8f9fa;
 }
 
 .profile-grid tbody tr:hover {
@@ -3622,3 +3674,19 @@ body.sa-modal-open {
 }
 /* Mobile-friendly touch targets */
 .form-input, .btn { min-height: 40px; }
+
+/* Force-left placement override for floating feedback button */
+#feedbackFloatingBtn {
+  position: fixed !important;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+}
+
+@media (max-width: 480px) {
+  #feedbackFloatingBtn {
+    left: 0 !important;
+    right: auto !important;
+    transform: none !important;
+  }
+}
