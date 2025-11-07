@@ -177,4 +177,50 @@ function nl2br(str) {
 try {
     window.escapeHtml = escapeHtml;
     window.nl2br = nl2br;
-} catch (_) { /* ignore if window is not available */ }
+    // Global toast helper for user-facing messages across the app
+    window.showToast = window.showToast || function(message, type) {
+        try {
+            let container = document.getElementById('toastContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toastContainer';
+                // Minimal inline styles to avoid CSS dependency
+                container.style.position = 'fixed';
+                container.style.right = '16px';
+                container.style.bottom = '16px';
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.gap = '8px';
+                container.style.zIndex = '9999';
+                document.body.appendChild(container);
+            }
+
+            const el = document.createElement('div');
+            // Basic styling; match dark theme softly
+            el.style.background = '#10141b';
+            el.style.color = '#e5e7eb';
+            el.style.border = '1px solid #2b3440';
+            el.style.borderLeft = '4px solid ' + (type === 'success' ? '#16a34a' : (type === 'error' ? '#dc2626' : (type === 'warning' ? '#f59e0b' : '#3b82f6')));
+            el.style.borderRadius = '6px';
+            el.style.padding = '10px 12px';
+            el.style.minWidth = '240px';
+            el.style.boxShadow = '0 6px 14px rgba(0,0,0,0.3)';
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(10px)';
+            el.style.transition = 'opacity 150ms ease, transform 150ms ease';
+            el.textContent = String(message || '');
+
+            container.appendChild(el);
+            // Force paint then show for transition
+            requestAnimationFrame(() => {
+                el.style.opacity = '1';
+                el.style.transform = 'translateY(0)';
+            });
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(10px)';
+                setTimeout(() => { try { el.remove(); } catch (_) {} }, 200);
+            }, 4000);
+        } catch (_) { /* ignore */ }
+    };
+ } catch (_) { /* ignore if window is not available */ }

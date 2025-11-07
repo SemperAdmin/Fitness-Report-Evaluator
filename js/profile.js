@@ -176,13 +176,19 @@ async function accountLogin() {
             // Restore UI when login fails
             if (typewriter) typewriter.style.display = 'none';
             if (loginFieldsEl) loginFieldsEl.style.display = 'block';
-            let msg = res && res.error
-                ? res.error
-                : 'Login failed. Password validation failed or service unavailable.';
+            const status = res && typeof res.status === 'number' ? res.status : 0;
+            let msg = res && res.error ? res.error : '';
             if (typeof msg === 'string' && msg.includes('Invalid username format')) {
                 msg = 'Invalid username format. Use 3–50 chars: letters, numbers, ., _, -';
             }
-            alert(msg);
+            if (!msg) {
+                if (status === 401) msg = 'Invalid username or password.';
+                else if (status === 403) msg = 'Access denied. Try same-origin login or clear cookies.';
+                else if (status === 429) msg = 'Too many attempts. Please wait and retry.';
+                else if (status >= 500) msg = 'Service unavailable. Please try again shortly.';
+                else msg = 'Login failed. Check credentials or network.';
+            }
+            showToast(msg, 'error');
             return;
         }
 
@@ -235,7 +241,9 @@ async function accountLogin() {
         // Restore UI on network error
         if (typewriter) typewriter.style.display = 'none';
         if (loginFieldsEl) loginFieldsEl.style.display = 'block';
-        alert('Login failed due to a network error.');
+        const offline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
+        const msg = offline ? 'Offline: connect to login.' : 'Network error during login. Please retry.';
+        showToast(msg, 'error');
     }
 }
 
@@ -262,7 +270,7 @@ function isValidRankClient(rank) {
     return r.length >= 2 && r.length <= 20;
 }
 
-// Small helper for backend POST
+// Small helper for backend POST with offline detection and retry
 async function postJson(url, body) {
     const base = (typeof window !== 'undefined' && window.API_BASE_URL)
         ? window.API_BASE_URL
@@ -307,23 +315,51 @@ async function postJson(url, body) {
         ? { ...body, token: assembledToken }
         : body;
 
-    const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify(payload)
-    });
-    if (!resp.ok) {
-        let error = `Request failed (${resp.status})`;
-        try { const data = await resp.json(); error = data.error || error; } catch (_) {}
-        return { ok: false, error, status: resp.status };
+    // Offline fast-fail
+    if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) {
+        return { ok: false, error: 'Offline: no network connection', status: 0 };
     }
-    try {
-        const data = await resp.json();
-        return { ok: true, ...data };
-    } catch (_) {
-        return { ok: true };
+
+    const shouldRetryStatus = (s) => [429, 502, 503, 504].includes(s);
+    const maxAttempts = 3;
+    let attempt = 0;
+    let lastError = null;
+    while (attempt < maxAttempts) {
+        try {
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers,
+                credentials: 'include',
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                let error = `Request failed (${resp.status})`;
+                try { const data = await resp.json(); error = data.error || error; } catch (_) {}
+                if (attempt < maxAttempts - 1 && shouldRetryStatus(resp.status)) {
+                    const backoffMs = 250 * Math.pow(2, attempt); // 250ms, 500ms, 1000ms
+                    await new Promise(r => setTimeout(r, backoffMs));
+                    attempt++;
+                    continue;
+                }
+                return { ok: false, error, status: resp.status };
+            }
+            try {
+                const data = await resp.json();
+                return { ok: true, ...data };
+            } catch (_) {
+                return { ok: true };
+            }
+        } catch (e) {
+            lastError = e;
+            const msg = String(e?.message || '').toLowerCase();
+            const retryable = /network|timeout|fetch|connection|reset/.test(msg);
+            if (attempt >= maxAttempts - 1 || !retryable) break;
+            const backoffMs = 250 * Math.pow(2, attempt);
+            await new Promise(r => setTimeout(r, backoffMs));
+            attempt++;
+        }
     }
+    return { ok: false, error: lastError?.message || 'Network error', status: 0 };
 }
 
 // UI toggles for Create Account
@@ -1129,14 +1165,14 @@ async function confirmSaveToProfileAndReturn() {
 // Sync Operations
 async function syncAllEvaluations() {
     if (!navigator.onLine) {
-        alert('You are offline. Connect to the internet to sync evaluations.');
+        showToast('Offline: connect to the internet to sync.', 'warning');
         return;
     }
 
     const pending = profileEvaluations.filter(e => e.syncStatus === 'pending');
 
     if (pending.length === 0) {
-        alert('All evaluations already synced!');
+        showToast('All evaluations already synced.', 'info');
         return;
     }
 
@@ -1146,8 +1182,25 @@ async function syncAllEvaluations() {
         btn.textContent = '⏳ Syncing...';
     }
 
+    // Helper: retry a single evaluation sync with backoff
+    const syncWithRetry = async (evaluation, maxAttempts = 3) => {
+        let attempt = 0;
+        while (attempt < maxAttempts) {
+            const ok = await syncEvaluationToGitHub(evaluation);
+            if (ok) return true;
+            const backoffMs = 300 * Math.pow(2, attempt); // 300ms, 600ms, 1200ms
+            await new Promise(r => setTimeout(r, backoffMs));
+            attempt++;
+        }
+        return false;
+    };
+
+    showToast(`Syncing ${pending.length} evaluation(s)...`, 'info');
+    let successCount = 0;
+    let failureCount = 0;
     for (const evaluation of pending) {
-        await syncEvaluationToGitHub(evaluation);
+        const ok = await syncWithRetry(evaluation, 3);
+        if (ok) successCount++; else failureCount++;
     }
 
     const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
@@ -1159,7 +1212,11 @@ async function syncAllEvaluations() {
     }
 
     renderEvaluationsList();
-    alert('Sync complete!');
+    if (failureCount === 0) {
+        showToast(`Sync complete: ${successCount} succeeded.`, 'success');
+    } else {
+        showToast(`Sync complete: ${successCount} succeeded, ${failureCount} failed.`, 'warning');
+    }
 }
 
 // Pending sync guard helpers
