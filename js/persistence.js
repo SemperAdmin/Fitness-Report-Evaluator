@@ -2,6 +2,15 @@
 let autoSaveInterval;
 let lastSaveTime = null;
 let hasUnsavedChanges = false;
+let debouncedSaveTimer = null;
+let activityEvents = [];
+let lastSavedSnapshot = null;
+let saveQueue = [];
+
+const BASE_INTERVAL_MS = 10000; // default 10s
+const MIN_INTERVAL_MS = 3000;   // adaptive lower bound
+const MAX_INTERVAL_MS = 15000;  // adaptive upper bound
+const DEBOUNCE_MS = 1200;       // immediate save when idle
 
 const STORAGE_KEYS = {
     currentSession: 'fitrep_current_session',
@@ -12,12 +21,16 @@ const STORAGE_KEYS = {
 
 // Auto-save functionality
 function initializeAutoSave() {
-    // Auto-save every 30 seconds
-    autoSaveInterval = setInterval(() => {
-        if (hasUnsavedChanges) {
-            saveProgressToStorage();
-        }
-    }, 30000);
+    // Auto-save baseline every 10 seconds, adapt to activity
+    const startInterval = (ms) => {
+        if (autoSaveInterval) clearInterval(autoSaveInterval);
+        autoSaveInterval = setInterval(() => {
+            if (hasUnsavedChanges) {
+                performSaveWithRetry();
+            }
+        }, ms);
+    };
+    startInterval(BASE_INTERVAL_MS);
     
     // Save and warn on page unload when there are unsaved changes or pending syncs
     window.addEventListener('beforeunload', function(e) {
@@ -39,11 +52,39 @@ function initializeAutoSave() {
     // Mark changes when user interacts with form
     document.addEventListener('input', markUnsavedChanges);
     document.addEventListener('change', markUnsavedChanges);
+
+    // Flush queued saves when connection is restored
+    window.addEventListener('online', flushSaveQueue);
+
+    // Adaptive timer recalibration every 5 seconds based on recent activity
+    setInterval(() => {
+        const now = Date.now();
+        activityEvents = activityEvents.filter(t => now - t < 20000); // keep last 20s
+        const activityRate = activityEvents.length; // events in 20s
+        let next = BASE_INTERVAL_MS;
+        if (activityRate >= 12) next = MIN_INTERVAL_MS; // very high activity
+        else if (activityRate >= 6) next = 5000;        // moderate activity
+        else next = BASE_INTERVAL_MS;
+        const currentMs = (autoSaveInterval && autoSaveInterval._ms) || null;
+        if (currentMs !== next) {
+            startInterval(next);
+            // attach ms for introspection
+            if (autoSaveInterval) autoSaveInterval._ms = next;
+        }
+    }, 5000);
 }
 
 function markUnsavedChanges() {
     hasUnsavedChanges = true;
+    activityEvents.push(Date.now());
     updateAutoSaveIndicator('unsaved');
+    // Debounce immediate save after user pauses typing
+    clearTimeout(debouncedSaveTimer);
+    debouncedSaveTimer = setTimeout(() => {
+        if (hasUnsavedChanges) {
+            performSaveWithRetry();
+        }
+    }, DEBOUNCE_MS);
 }
 
 function markChangesSaved() {
@@ -53,44 +94,34 @@ function markChangesSaved() {
 }
 
 function updateAutoSaveIndicator(status) {
-    const indicator = document.getElementById('autoSaveStatus');
-    const icon = indicator.querySelector('.auto-save-icon');
-    const text = indicator.querySelector('.auto-save-text');
-    
+    const indicator = document.getElementById('autoSaveIndicator');
     if (!indicator) return;
-    
+    const icon = indicator.querySelector('.icon');
+    const text = indicator.querySelector('.text');
+    const retryBtn = document.getElementById('retrySaveBtn');
+
     indicator.classList.remove('saved', 'unsaved', 'saving', 'error');
-    
-    switch(status) {
-        case 'saved':
-            indicator.classList.add('saved');
-            icon.textContent = '✅';
-            text.textContent = `Saved ${formatTime(lastSaveTime)}`;
-            break;
-        case 'unsaved':
-            indicator.classList.add('unsaved');
-            icon.textContent = '⚠️';
-            text.textContent = 'Unsaved changes';
-            break;
-        case 'saving':
-            indicator.classList.add('saving');
-            icon.textContent = '⏳';
-            text.textContent = 'Saving...';
-            break;
-        case 'error':
-            indicator.classList.add('error');
-            icon.textContent = '❌';
-            text.textContent = 'Save failed';
-            break;
+    indicator.classList.add(status);
+    if (retryBtn) retryBtn.style.display = status === 'error' ? 'inline' : 'none';
+
+    if (status === 'saved') {
+        const when = lastSaveTime ? formatTime(lastSaveTime) : formatTime(new Date());
+        if (text) text.textContent = `Saved ${when}`;
+        if (icon) icon.style.display = 'none';
+        // Show success briefly; keep visible but green
+        setTimeout(() => {
+            // No-op: keep indicator visible for continuity
+        }, 2000);
+    } else if (status === 'saving') {
+        if (text) text.textContent = 'Saving…';
+        if (icon) icon.style.display = 'inline-block';
+    } else if (status === 'unsaved') {
+        if (text) text.textContent = 'Unsaved changes';
+        if (icon) icon.style.display = 'none';
+    } else if (status === 'error') {
+        if (text) text.textContent = 'Save failed';
+        if (icon) icon.style.display = 'none';
     }
-    
-    // Show indicator briefly
-    indicator.style.display = 'flex';
-    setTimeout(() => {
-        if (status === 'saved') {
-            indicator.style.display = 'none';
-        }
-    }, 3000);
 }
 
 function formatTime(date) {
@@ -121,8 +152,7 @@ function saveProgressToStorage() {
         generatedSectionI: compact ? '' : generatedSectionI,
         navigationHistory: navigationHistory,
         isReportingSenior: isReportingSenior,
-        allTraits: allTraits,
-        validationState: validationState
+        allTraits: allTraits
     });
 
     try {
@@ -131,6 +161,7 @@ function saveProgressToStorage() {
         // Also save to session history
         saveToSessionHistory(sessionData);
         markChangesSaved();
+        lastSavedSnapshot = sessionData;
         return true;
     } catch (error) {
         // Detect quota exceeded and attempt compact fallback
@@ -158,6 +189,9 @@ function saveProgressToStorage() {
             }
         }
         console.error('Failed to save progress:', error);
+        // Cache for recovery and queue if offline
+        try { saveQueue.push({ ts: Date.now(), data: buildSessionData(true) }); } catch(_){}
+        persistQueue();
         updateAutoSaveIndicator('error');
         showToast('Save failed. Try clearing old sessions or exporting.', 'error');
         return false;
@@ -390,7 +424,7 @@ function importFromJSON(file) {
 
 // Manual save/load functions
 function saveProgress() {
-    return saveProgressToStorage();
+    return performSaveWithRetry();
 }
 
 function loadProgress() {
@@ -422,8 +456,70 @@ function initializePersistence() {
     // Check for previous session on load
     setTimeout(() => {
         if (!checkForPreviousSession()) {
-            // No previous session, hide loading overlay
-            hideLoadingOverlay();
+            // No previous session, hide loading overlay if present
+            try {
+                if (typeof hideLoadingOverlay === 'function') {
+                    hideLoadingOverlay();
+                } else {
+                    const el = document.getElementById('loadingOverlay');
+                    if (el) el.style.display = 'none';
+                }
+            } catch (_) {}
         }
     }, 1000);
+}
+
+// Expose manual retry/force save API
+window.autoSave = {
+    retryNow: () => performSaveWithRetry(),
+    forceSave: () => { hasUnsavedChanges = true; return performSaveWithRetry(); }
+};
+function diffSession(prev, next) {
+    const changed = {};
+    Object.keys(next || {}).forEach(k => {
+        const a = prev ? prev[k] : undefined;
+        const b = next[k];
+        const same = (() => {
+            try { return JSON.stringify(a) === JSON.stringify(b); } catch(_) { return a === b; }
+        })();
+        if (!same) changed[k] = b;
+    });
+    return changed;
+}
+
+function persistQueue() {
+    try { localStorage.setItem('fitrep_save_queue', JSON.stringify(saveQueue)); } catch(_){}
+}
+
+function loadQueue() {
+    try { saveQueue = JSON.parse(localStorage.getItem('fitrep_save_queue')||'[]'); } catch(_) { saveQueue = []; }
+}
+
+async function flushSaveQueue() {
+    loadQueue();
+    if (!navigator.onLine || !saveQueue.length) return;
+    const pending = [...saveQueue];
+    saveQueue = [];
+    for (const item of pending) {
+        try {
+            localStorage.setItem(STORAGE_KEYS.currentSession, JSON.stringify(item.data));
+        } catch (e) {
+            console.warn('Queue flush failed; requeue', e);
+            saveQueue.push(item);
+        }
+    }
+    persistQueue();
+}
+
+async function performSaveWithRetry(attempts = 3, baseDelayMs = 400) {
+    let tryCount = 0;
+    updateAutoSaveIndicator('saving');
+    while (tryCount < attempts) {
+        tryCount++;
+        const ok = saveProgressToStorage();
+        if (ok) return true;
+        await new Promise(res => setTimeout(res, baseDelayMs * Math.pow(2, tryCount-1)));
+    }
+    updateAutoSaveIndicator('error');
+    return false;
 }

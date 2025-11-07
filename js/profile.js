@@ -573,7 +573,10 @@ try {
 document.addEventListener('DOMContentLoaded', () => {
     try {
         console.debug('profile.js: DOMContentLoaded');
-        const editBtn = document.querySelector('.profile-actions-bar button[onclick="openEditProfile()"]');
+        // Robust selector: the Edit button sits in .profile-name-row with class .editBtn
+        const editBtn = document.querySelector('.profile-name-row .editBtn')
+            || document.querySelector('button.editBtn[onclick="openEditProfile()"]')
+            || document.querySelector('button[onclick="openEditProfile()"]');
         if (editBtn) {
             editBtn.addEventListener('click', (evt) => {
                 console.debug('ProfileEdit: fallback click handler triggered');
@@ -582,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, { once: false });
             console.info('profile.js: fallback click binding attached to Edit Profile button');
         } else {
-            console.warn('profile.js: Edit Profile button not found for fallback binding');
+            console.debug('profile.js: Edit Profile button not found for fallback binding');
         }
 
         // Fallback for Logout button in breadcrumb nav

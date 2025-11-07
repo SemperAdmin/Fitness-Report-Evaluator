@@ -18,8 +18,21 @@
       progressText.textContent = label + ' - ' + percent + '%';
     }
     if (autoSaveIndicator) {
-      autoSaveIndicator.style.visibility = state.lastSavedAt ? 'visible' : 'hidden';
-      autoSaveIndicator.textContent = state.lastSavedAt ? '✓ Auto-saved' : 'Saving…';
+      // If persistence manages indicator, only update last saved text subtly
+      if (autoSaveIndicator.classList && autoSaveIndicator.classList.contains('managed')) {
+        const textEl = autoSaveIndicator.querySelector('.text');
+        if (textEl && state.lastSavedAt) {
+          try {
+            const when = new Date(state.lastSavedAt);
+            textEl.textContent = 'Saved ' + when.toLocaleTimeString();
+            autoSaveIndicator.classList.remove('unsaved', 'saving', 'error');
+            autoSaveIndicator.classList.add('saved');
+          } catch (_) {}
+        }
+      } else {
+        autoSaveIndicator.style.visibility = state.lastSavedAt ? 'visible' : 'hidden';
+        autoSaveIndicator.textContent = state.lastSavedAt ? '✓ Auto-saved' : 'Saving…';
+      }
     }
   }
 

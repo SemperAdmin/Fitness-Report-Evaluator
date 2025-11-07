@@ -21,7 +21,11 @@
             <div class="progress-section">
                 <div class="progress-details">
                     <span id="progressText">Setup - Determine Role</span>
-                    <span class="auto-save-indicator" id="autoSaveIndicator">✓ Auto-saved</span>
+                    <div class="auto-save-indicator managed saved" id="autoSaveIndicator" aria-live="polite">
+                        <span class="icon" aria-hidden="true"></span>
+                        <span class="text">Saved</span>
+                        <button type="button" class="retry-btn" id="retrySaveBtn" onclick="window.autoSave && window.autoSave.retryNow()" style="display:none">Retry</button>
+                    </div>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
@@ -819,6 +823,8 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js" integrity="sha384-9crLjtL468FQqFa24VM0ldxiM0tbREUHExinok4MhgLH2s+0FRgU2Qs6PACeFB43" crossorigin="anonymous"></script>
     <script src="js/profile.js"></script>
+    <!-- Persistence and enhanced auto-save system -->
+    <script src="js/persistence.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/evaluation.js"></script>
     <script src="js/app.js"></script>
