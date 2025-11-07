@@ -24,21 +24,45 @@ const STORAGE_KEYS = {
     sessionHistory: 'fitrep_session_history'
 };
 
-// Auto-save functionality
+// Auto-save functionality with lifecycle management
 function initializeAutoSave() {
+    // Helper to manage intervals/listeners with lifecycle manager
+    const managedSetInterval = (callback, ms) => {
+        if (typeof globalLifecycle !== 'undefined') {
+            return globalLifecycle.setInterval(callback, ms);
+        }
+        return setInterval(callback, ms);
+    };
+
+    const managedAddEventListener = (target, event, handler, options) => {
+        if (typeof globalLifecycle !== 'undefined') {
+            globalLifecycle.addEventListener(target, event, handler, options);
+        } else {
+            target.addEventListener(event, handler, options);
+        }
+    };
+
     // Auto-save baseline every 10 seconds, adapt to activity
     const startInterval = (ms) => {
-        if (autoSaveInterval) clearInterval(autoSaveInterval);
-        autoSaveInterval = setInterval(() => {
+        if (autoSaveInterval) {
+            if (typeof globalLifecycle !== 'undefined') {
+                globalLifecycle.clearInterval(autoSaveInterval);
+            } else {
+                clearInterval(autoSaveInterval);
+            }
+        }
+        autoSaveInterval = managedSetInterval(() => {
             if (hasUnsavedChanges) {
                 performSaveWithRetry();
             }
         }, ms);
+        // attach ms for introspection
+        if (autoSaveInterval) autoSaveInterval._ms = ms;
     };
     startInterval(BASE_INTERVAL_MS);
-    
+
     // Save and warn on page unload when there are unsaved changes or pending syncs
-    window.addEventListener('beforeunload', function(e) {
+    managedAddEventListener(window, 'beforeunload', function(e) {
         // Evaluate pending syncs from profile context if available
         let hasPendingSyncs = false;
         try {
@@ -53,16 +77,16 @@ function initializeAutoSave() {
             return e.returnValue;
         }
     });
-    
+
     // Mark changes when user interacts with form
-    document.addEventListener('input', markUnsavedChanges);
-    document.addEventListener('change', markUnsavedChanges);
+    managedAddEventListener(document, 'input', markUnsavedChanges);
+    managedAddEventListener(document, 'change', markUnsavedChanges);
 
     // Flush queued saves when connection is restored
-    window.addEventListener('online', flushSaveQueue);
+    managedAddEventListener(window, 'online', flushSaveQueue);
 
     // Adaptive timer recalibration every 5 seconds based on recent activity
-    setInterval(() => {
+    managedSetInterval(() => {
         const now = Date.now();
         activityEvents = activityEvents.filter(t => now - t < 20000); // keep last 20s
         const activityRate = activityEvents.length; // events in 20s
@@ -73,8 +97,6 @@ function initializeAutoSave() {
         const currentMs = (autoSaveInterval && autoSaveInterval._ms) || null;
         if (currentMs !== next) {
             startInterval(next);
-            // attach ms for introspection
-            if (autoSaveInterval) autoSaveInterval._ms = next;
         }
     }, 5000);
 }

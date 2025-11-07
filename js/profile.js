@@ -2,8 +2,10 @@
 let currentProfile = null;
 let profileEvaluations = [];
 let syncQueue = [];
-// In-memory cache for expanded evaluation details
-const evaluationDetailsCache = new Map();
+// In-memory cache for expanded evaluation details (with automatic size management)
+const evaluationDetailsCache = typeof ManagedCache !== 'undefined'
+    ? new ManagedCache(100)
+    : new Map();
 
 // Performance optimization instances
 let tableRenderer = null; // OptimizedTableRenderer instance
@@ -616,11 +618,20 @@ try {
 // Bind click listeners after DOM ready; prefer direct IDs and avoid duplicates when inline handlers exist
 document.addEventListener('DOMContentLoaded', () => {
     try {
+        // Helper to add event listeners with lifecycle management
+        const addManagedListener = (element, event, handler, options) => {
+            if (typeof globalLifecycle !== 'undefined') {
+                globalLifecycle.addEventListener(element, event, handler, options);
+            } else {
+                element.addEventListener(event, handler, options);
+            }
+        };
+
         // Edit Profile
         const editBtn = document.getElementById('editProfileBtn')
             || document.querySelector('.profile-name-row .editBtn');
         if (editBtn && !editBtn.getAttribute('onclick')) {
-            editBtn.addEventListener('click', (evt) => {
+            addManagedListener(editBtn, 'click', (evt) => {
                 try { openEditProfile(); } catch (err) { console.error('openEditProfile error:', err); }
                 evt.preventDefault();
             });
@@ -630,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const logoutBtn = document.getElementById('logoutBtn')
             || document.querySelector('.breadcrumb-nav .Btn');
         if (logoutBtn && !logoutBtn.getAttribute('onclick')) {
-            logoutBtn.addEventListener('click', (evt) => {
+            addManagedListener(logoutBtn, 'click', (evt) => {
                 try {
                     const btn = evt.currentTarget || logoutBtn;
                     if (window.UIStates && typeof window.UIStates.withLoading === 'function') {
@@ -649,7 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const saveBtn = document.getElementById('saveProfileBtn')
             || document.querySelector('#editProfileModal .btn.btn-meets');
         if (saveBtn && !saveBtn.getAttribute('onclick')) {
-            saveBtn.addEventListener('click', (evt) => {
+            addManagedListener(saveBtn, 'click', (evt) => {
                 try {
                     const btn = evt.currentTarget || saveBtn;
                     if (window.UIStates && typeof window.UIStates.withLoading === 'function') {
@@ -668,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelBtn = document.getElementById('cancelProfileBtn')
             || document.querySelector('#editProfileModal .btn.btn-secondary');
         if (cancelBtn && !cancelBtn.getAttribute('onclick')) {
-            cancelBtn.addEventListener('click', (evt) => {
+            addManagedListener(cancelBtn, 'click', (evt) => {
                 try { closeEditProfileModal(); } catch (err) { console.error('closeEditProfileModal error:', err); }
                 evt.preventDefault();
             });
@@ -1992,9 +2003,16 @@ function updateConnectionStatus() {
     }
 }
 
-window.addEventListener('online', updateConnectionStatus);
-window.addEventListener('offline', updateConnectionStatus);
-window.addEventListener('load', updateConnectionStatus);
+// Connection status event listeners with lifecycle management
+if (typeof globalLifecycle !== 'undefined') {
+    globalLifecycle.addEventListener(window, 'online', updateConnectionStatus);
+    globalLifecycle.addEventListener(window, 'offline', updateConnectionStatus);
+    globalLifecycle.addEventListener(window, 'load', updateConnectionStatus);
+} else {
+    window.addEventListener('online', updateConnectionStatus);
+    window.addEventListener('offline', updateConnectionStatus);
+    window.addEventListener('load', updateConnectionStatus);
+}
 
 // Helper stubs for functions referenced from evaluation.js
 function calculateFitrepAverage() {
