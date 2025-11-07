@@ -106,35 +106,60 @@ function formatTime(date) {
 // Enhanced save/load functions
 function saveProgressToStorage() {
     updateAutoSaveIndicator('saving');
-    
+
+    // Build session payload; support compact mode to reduce size on quota errors
+    const buildSessionData = (compact = false) => ({
+        timestamp: new Date().toISOString(),
+        currentStep: currentStep,
+        currentTraitIndex: currentTraitIndex,
+        currentEvaluationLevel: currentEvaluationLevel,
+        evaluationResults: evaluationResults,
+        evaluationMeta: evaluationMeta,
+        selectedDirectedComments: selectedDirectedComments,
+        // Omit large blobs when compacting to fit quota
+        directedCommentsData: compact ? {} : directedCommentsData,
+        generatedSectionI: compact ? '' : generatedSectionI,
+        navigationHistory: navigationHistory,
+        isReportingSenior: isReportingSenior,
+        allTraits: allTraits,
+        validationState: validationState
+    });
+
     try {
-        const sessionData = {
-            timestamp: new Date().toISOString(),
-            currentStep: currentStep,
-            currentTraitIndex: currentTraitIndex,
-            currentEvaluationLevel: currentEvaluationLevel,
-            evaluationResults: evaluationResults,
-            evaluationMeta: evaluationMeta,
-            selectedDirectedComments: selectedDirectedComments,
-            directedCommentsData: directedCommentsData,
-            generatedSectionI: generatedSectionI,
-            navigationHistory: navigationHistory,
-            isReportingSenior: isReportingSenior,
-            allTraits: allTraits,
-            validationState: validationState
-        };
-        
+        const sessionData = buildSessionData(false);
         localStorage.setItem(STORAGE_KEYS.currentSession, JSON.stringify(sessionData));
-        
         // Also save to session history
         saveToSessionHistory(sessionData);
-        
         markChangesSaved();
         return true;
     } catch (error) {
+        // Detect quota exceeded and attempt compact fallback
+        const isQuota = (() => {
+            try {
+                return (
+                    error && (
+                        error.name === 'QuotaExceededError' ||
+                        error.code === 22 ||
+                        /quota/i.test(String(error.message || ''))
+                    )
+                );
+            } catch (_) { return false; }
+        })();
+        if (isQuota) {
+            try {
+                const compact = buildSessionData(true);
+                localStorage.setItem(STORAGE_KEYS.currentSession, JSON.stringify(compact));
+                // Do not store full history when compacting
+                markChangesSaved();
+                showToast('Storage is full. Saved a compact snapshot; export recommended.', 'warning');
+                return true;
+            } catch (e2) {
+                console.error('Compact save failed:', e2);
+            }
+        }
         console.error('Failed to save progress:', error);
         updateAutoSaveIndicator('error');
-        showToast('Failed to save progress. Please try again.', 'error');
+        showToast('Save failed. Try clearing old sessions or exporting.', 'error');
         return false;
     }
 }
