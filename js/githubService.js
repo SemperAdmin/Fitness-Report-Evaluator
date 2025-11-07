@@ -638,14 +638,25 @@ class GitHubDataService {
 
                 const endpoint = this.resolveBackendEndpoint(`/api/evaluations/list?email=${encodeURIComponent(userEmail)}${forceFresh ? `&t=${Date.now()}` : ''}`);
                 if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
+                    console.warn('Backend endpoint blocked or unavailable for evaluation list');
                     return [];
                 }
+
+                // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
+                const epOrigin = (() => { try { return new URL(endpoint.url).origin; } catch (_) { return ''; } })();
+                const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+                const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
+
+                // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
                 const fetchOpts = forceFresh
-                    ? { method: 'GET', cache: 'no-store', credentials: 'include' }
-                    : { method: 'GET', credentials: 'include' };
+                    ? { method: 'GET', cache: 'no-store', credentials: sameOrigin ? 'include' : 'omit' }
+                    : { method: 'GET', credentials: sameOrigin ? 'include' : 'omit' };
+
                 const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {
-                    // Treat non-OK as no evaluations available
+                    // Log detailed error for debugging (especially CORS failures on mobile)
+                    console.error(`Failed to fetch evaluations: ${resp.status} ${resp.statusText} from ${endpoint.url}`);
+                    console.error(`Origin: page=${pageOrigin}, endpoint=${epOrigin}, sameOrigin=${sameOrigin}`);
                     return [];
                 }
                 const data = await resp.json().catch(() => ({}));
@@ -654,7 +665,11 @@ class GitHubDataService {
                 try { if (forceFresh && typeof window !== 'undefined') window.__forceFreshEvaluationsOnce = false; } catch (_) {}
                 return list.map(ev => ({ ...ev, syncStatus: 'synced' }));
             } catch (err) {
-                console.warn('Backend evaluation list failed:', err);
+                console.error('Backend evaluation list failed:', err);
+                // Provide more context for mobile debugging
+                if (err.message && err.message.includes('CORS')) {
+                    console.error('CORS error detected - this commonly happens on mobile when credentials are sent cross-origin');
+                }
                 return [];
             }
         }
@@ -1067,13 +1082,18 @@ class GitHubDataService {
                     ? { userData: normalized, token: assembledToken }
                     : { userData: normalized };
 
+                // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
+                const epOrigin = (() => { try { return new URL(endpoint.url).origin; } catch (_) { return ''; } })();
+                const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+                const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
+
                 // Simple retry/backoff for transient failures
                 const shouldRetryStatus = (s) => [429, 502, 503, 504].includes(Number(s));
                 const doRequest = async () => {
                     return fetch(endpoint.url, {
                         method: 'POST',
                         headers,
-                        credentials: 'include',
+                        credentials: sameOrigin ? 'include' : 'omit',
                         body: JSON.stringify(payload)
                     });
                 };
@@ -1211,18 +1231,26 @@ class GitHubDataService {
                 const endpoint = this.resolveBackendEndpoint('/api/user/load');
                 if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
                     // API base URL is not configured or origin blocked; cannot load user data.
+                    console.warn('Backend endpoint blocked or unavailable for user data load');
                     return null;
                 }
                 const urlObj = new URL(endpoint.url);
                 urlObj.searchParams.set('email', userEmail);
 
-                const resp = await fetch(urlObj.toString(), { credentials: 'include' });
+                // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
+                const epOrigin = urlObj.origin;
+                const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+                const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
+
+                const resp = await fetch(urlObj.toString(), { credentials: sameOrigin ? 'include' : 'omit' });
                 if (resp.ok) {
                     const data = await resp.json();
                     return data.data || null;
                 }
+                console.error(`Failed to load user data: ${resp.status} ${resp.statusText}`);
                 return null;
-            } catch (_) {
+            } catch (err) {
+                console.error('Backend user data load failed:', err);
                 return null;
             }
         }
@@ -1356,10 +1384,15 @@ class GitHubDataService {
                 headers['X-GitHub-Token'] = assembledToken;
             }
 
+            // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
+            const epOrigin = (() => { try { return new URL(ep.url).origin; } catch (_) { return ''; } })();
+            const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+            const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
+
             const resp = await fetch(ep.url, {
                 method: 'POST',
                 headers,
-                credentials: 'include',
+                credentials: sameOrigin ? 'include' : 'omit',
                 body: JSON.stringify({ evaluation, userEmail })
             });
             const data = await resp.json().catch(() => { throw new Error('Backend returned an invalid JSON response'); });

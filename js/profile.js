@@ -207,6 +207,7 @@ async function accountLogin() {
         // Fetch per-user evaluation files to populate events list
         // Always attempt to load evaluations; githubService will use backend fallback when no token
         let evaluations = [];
+        let evaluationLoadError = null;
         try {
             const token = await githubService.getTokenFromEnvironment?.();
             if (token) {
@@ -217,9 +218,25 @@ async function accountLogin() {
                 }
             }
             evaluations = await githubService.loadUserEvaluations(email);
+
+            // If we got an empty array, check if it was due to an error (CORS, network, etc.)
+            if (evaluations.length === 0) {
+                // Check console for recent errors that might indicate why
+                console.info('No evaluations loaded - this may be normal for new profiles or could indicate a network/CORS issue');
+            }
         } catch (e) {
-            console.warn('Evaluations fetch failed during login; defaulting to empty list:', e);
+            console.error('Evaluations fetch failed during login:', e);
+            evaluationLoadError = e;
             evaluations = [];
+
+            // Show user-friendly error message
+            if (typeof showToast === 'function') {
+                const isCorsError = e.message && (e.message.includes('CORS') || e.message.includes('fetch'));
+                const errorMsg = isCorsError
+                    ? 'Unable to load evaluations. This may be a temporary network issue. Please try again.'
+                    : 'Failed to load evaluations. Your profile has been created but evaluations could not be retrieved.';
+                showToast(errorMsg, 'warning');
+            }
         }
         const profile = { ...baseProfile, totalEvaluations: Array.isArray(evaluations) ? evaluations.length : 0 };
 
@@ -2473,8 +2490,17 @@ async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile,
         // Fallback: build index from individual files if index.json missing
         if (!Array.isArray(remoteIndex)) {
             let remoteEvaluations = [];
-            try { remoteEvaluations = await githubService.loadUserEvaluations(email); } catch (e) {
-                console.warn('Failed to load remote evaluations:', e);
+            try {
+                remoteEvaluations = await githubService.loadUserEvaluations(email);
+                if (remoteEvaluations.length === 0) {
+                    console.info('No remote evaluations found - this may be normal for new profiles');
+                }
+            } catch (e) {
+                console.error('Failed to load remote evaluations during sync:', e);
+                // Show user-friendly message if this is a CORS/network error
+                if (e.message && (e.message.includes('CORS') || e.message.includes('fetch')) && typeof showToast === 'function') {
+                    showToast('Unable to sync evaluations due to network issue. Local data preserved.', 'warning');
+                }
                 remoteEvaluations = [];
             }
             try {
