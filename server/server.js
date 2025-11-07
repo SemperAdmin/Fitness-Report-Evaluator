@@ -17,9 +17,12 @@ app.use(express.json());
 // Hardened CORS: allow only configured origins (or default server origin)
 // If CORS_ORIGINS is unset or empty, default to allowing all origins ('*')
 const CORS_ORIGINS_RAW = (process.env.CORS_ORIGINS || '');
+// Sanitize configured origins: remove surrounding quotes/backticks and trailing slashes
 const CORS_ORIGINS = CORS_ORIGINS_RAW
   .split(',')
   .map(s => s.trim())
+  .map(s => s.replace(/^['"`]+|['"`]+$/g, ''))
+  .map(s => s.replace(/\/$/, ''))
   .filter(Boolean);
 // Allow all origins when '*' specified OR when no origins configured
 const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*') || CORS_ORIGINS.length === 0;
@@ -234,7 +237,7 @@ console.log('[env] DATA_REPO:', DATA_REPO);
 console.log('[env] DISPATCH_TOKEN set:', Boolean(DISPATCH_TOKEN));
 console.log('[env] FITREP_DATA set:', Boolean(process.env.FITREP_DATA));
 console.log('[env] ALLOW_DEV_TOKEN:', process.env.ALLOW_DEV_TOKEN === 'true');
-console.log('[env] CORS_ORIGINS:', (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+console.log('[env] CORS_ORIGINS:', CORS_ORIGINS);
 
 function emailPrefix(email) {
   return String(email || '').trim().toLowerCase().split('@')[0];
