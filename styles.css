@@ -3373,3 +3373,17 @@ body {
 .Btn:active {
   transform: translate(2px ,2px);
 }
+
+/* Inline input validation hints */
+.input-hint {
+  font-size: 12px;
+  margin-top: 4px;
+  line-height: 1.2;
+  opacity: 0.9;
+}
+.hint-ok { color: #2e7d32; }
+.hint-warn { color: #b23b3b; }
+.hint-info { color: #1565c0; }
+.strength-weak { color: #b23b3b; }
+.strength-medium { color: #b26b00; }
+.strength-strong { color: #2e7d32; }

@@ -482,11 +482,13 @@
         <div id="loginFields">
             <div class="form-group">
                 <label class="form-label">Username</label>
-                <input type="text" class="form-input" id="loginEmailInput" placeholder="your-username">
+                <input type="text" class="form-input" id="loginEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore">
+                <div class="input-hint" id="loginEmailHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-input" id="loginPasswordInput" placeholder="Enter your password">
+                <input type="password" class="form-input" id="loginPasswordInput" placeholder="Enter your password" minlength="8">
+                <div class="input-hint" id="loginPasswordHint" aria-live="polite"></div>
             </div>
             <div class="profile-actions">
                 <button class="btn btn-meets" onclick="accountLogin()">Login</button>
@@ -501,24 +503,29 @@
             <p class="profile-description">Create a secure profile. Your password will be stored hashed.</p>
             <div class="form-group">
                 <label class="form-label">Rank</label>
-                <input type="text" class="form-input" id="caRankInput" placeholder="e.g., Capt">
+                <input type="text" class="form-input" id="caRankInput" placeholder="e.g., Capt" minlength="2" maxlength="20">
+                <div class="input-hint" id="caRankHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Name</label>
-                <input type="text" class="form-input" id="caNameInput" placeholder="Last, First MI">
+                <input type="text" class="form-input" id="caNameInput" placeholder="Last, First MI" minlength="2" maxlength="100">
+                <div class="input-hint" id="caNameHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Username</label>
-                <input type="text" class="form-input" id="caEmailInput" placeholder="your-username">
+                <input type="text" class="form-input" id="caEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore">
+                <div class="input-hint" id="caEmailHint" aria-live="polite"></div>
                 <!-- Availability UI removed; rely on server checks at create time -->
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-input" id="caPasswordInput" placeholder="Choose a strong password">
+                <input type="password" class="form-input" id="caPasswordInput" placeholder="Choose a strong password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}">
+                <div class="input-hint" id="caPasswordHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Confirm Password</label>
-                <input type="password" class="form-input" id="caPasswordConfirmInput" placeholder="Re-enter your password to confirm">
+                <input type="password" class="form-input" id="caPasswordConfirmInput" placeholder="Re-enter your password to confirm" minlength="8">
+                <div class="input-hint" id="caPasswordConfirmHint" aria-live="polite"></div>
             </div>
             <div class="profile-actions">
                 <button class="btn btn-meets" onclick="createAccount()">Create Account</button>

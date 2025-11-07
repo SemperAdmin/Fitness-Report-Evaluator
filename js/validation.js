@@ -329,8 +329,8 @@ function displayValidationWarnings() {
             group.items.forEach(item => {
                 html += `
                     <div class="validation-item ${item.type}">
-                        <div class="validation-message">${item.message}</div>
-                        <div class="validation-recommendation">${item.recommendation}</div>
+                        <div class="validation-message">${nl2br(escapeHtml(String(item.message || '')))}</div>
+                        <div class="validation-recommendation">${nl2br(escapeHtml(String(item.recommendation || '')))}</div>
                     </div>
                 `;
             });

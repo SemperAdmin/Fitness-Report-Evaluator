@@ -80,10 +80,25 @@ async function createAccount() {
         return;
     }
 
-    // Client-side username format validation (aligns with server rules)
-    const usernamePattern = /^[a-zA-Z0-9._-]{3,50}$/;
-    if (!usernamePattern.test(email)) {
+    // Client-side username format validation (align with server rules)
+    if (!isValidUsernameClient(email)) {
         alert('Invalid username format. Use 3–50 chars: letters, numbers, ., _, -');
+        return;
+    }
+
+    // Client-side rank and name validation (align with server rules)
+    if (!isValidRankClient(rank)) {
+        alert('Invalid rank. Use 2–20 characters.');
+        return;
+    }
+    if (!isValidNameClient(name)) {
+        alert('Invalid name. Use 2–100 characters.');
+        return;
+    }
+
+    // Client-side password strength validation (align with server rules)
+    if (!isStrongPasswordClient(password)) {
+        alert('Password must be 8+ chars with upper, lower, and a number.');
         return;
     }
 
@@ -142,8 +157,7 @@ async function accountLogin() {
     }
 
     // Client-side username validation to reduce server round-trips
-    const usernamePattern = /^[a-zA-Z0-9._-]{3,50}$/;
-    if (!usernamePattern.test(email)) {
+    if (!isValidUsernameClient(email)) {
         alert('Invalid username format. Use 3–50 chars: letters, numbers, ., _, -');
         return;
     }
@@ -218,6 +232,29 @@ async function accountLogin() {
     }
 }
 
+// Client-side validators mirroring server-side rules
+function isValidUsernameClient(username) {
+    const u = String(username || '').trim();
+    if (u.length < 3 || u.length > 50) return false;
+    return /^[a-zA-Z0-9._-]+$/.test(u);
+}
+function isStrongPasswordClient(pw) {
+    const p = String(pw || '');
+    if (p.length < 8) return false;
+    const hasLower = /[a-z]/.test(p);
+    const hasUpper = /[A-Z]/.test(p);
+    const hasDigit = /\d/.test(p);
+    return hasLower && hasUpper && hasDigit;
+}
+function isValidNameClient(name) {
+    const n = String(name || '').trim();
+    return n.length >= 2 && n.length <= 100;
+}
+function isValidRankClient(rank) {
+    const r = String(rank || '').trim();
+    return r.length >= 2 && r.length <= 20;
+}
+
 // Small helper for backend POST
 async function postJson(url, body) {
     const base = (typeof window !== 'undefined' && window.API_BASE_URL)
@@ -237,6 +274,12 @@ async function postJson(url, body) {
 
     // Build headers; include token when enabled
     const headers = { 'Content-Type': 'application/json' };
+    // Include CSRF token from cookie when available
+    try {
+        const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
+        const csrf = m ? decodeURIComponent(m[1]) : '';
+        if (csrf) headers['X-CSRF-Token'] = csrf;
+    } catch (_) { /* ignore */ }
     let assembledToken = null;
     try {
         let token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
@@ -260,6 +303,7 @@ async function postJson(url, body) {
     const resp = await fetch(endpoint, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify(payload)
     });
     if (!resp.ok) {
@@ -816,20 +860,20 @@ function createEvaluationListItem(evaluation) {
         <div class="eval-header" onclick="toggleEvaluation(this)">
             <div class="eval-summary">
                 <div class="eval-marine-info">
-                    <span class="marine-rank">${(evaluation.marineInfo || evaluation.marine || {}).rank || ''}</span>
-                    <span class="marine-name">${(evaluation.marineInfo || evaluation.marine || {}).name || ''}</span>
+                    <span class="marine-rank">${escapeHtml((evaluation.marineInfo || evaluation.marine || {}).rank || '')}</span>
+                    <span class="marine-name">${escapeHtml((evaluation.marineInfo || evaluation.marine || {}).name || '')}</span>
                 </div>
                 <div class="eval-meta">
-                    <span class="eval-occasion">${evaluation.occasion}</span>
-                    <span class="eval-dates">${((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).from || ''} to ${((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).to || ''}</span>
-                    <span class="eval-average">Avg: ${evaluation.fitrepAverage}</span>
+                    <span class="eval-occasion">${escapeHtml(evaluation.occasion || '')}</span>
+                    <span class="eval-dates">${escapeHtml((((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).from || ''))} to ${escapeHtml((((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).to || ''))}</span>
+                    <span class="eval-average">Avg: ${escapeHtml(String(evaluation.fitrepAverage || ''))}</span>
                 </div>
             </div>
             <div class="eval-actions">
-                <span class="sync-status ${evaluation.syncStatus || 'pending'}">
+                <span class="sync-status ${escapeHtml(evaluation.syncStatus || 'pending')}">
                     ${evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending'}
                 </span>
-                <button class="icon-btn" onclick="event.stopPropagation(); deleteEvaluation('${evalId}')">
+                <button class="icon-btn" onclick="event.stopPropagation(); deleteEvaluation('${escapeHtml(evalId)}')">
                     🗑️
                 </button>
                 <span class="expand-icon">▼</span>
@@ -848,8 +892,8 @@ function renderEvaluationDetails(evaluation) {
     Object.values(evaluation.traitEvaluations).forEach(trait => {
         justificationsHTML += `
             <div class="justification-item">
-                <strong>${trait.trait} (${trait.grade}):</strong>
-                <p>${trait.justification}</p>
+                <strong>${escapeHtml(trait.trait)} (${escapeHtml(String(trait.grade))}):</strong>
+                <p>${trait.justification ? nl2br(escapeHtml(trait.justification)) : '<em>No justification provided</em>'}</p>
             </div>
         `;
     });
@@ -858,7 +902,7 @@ function renderEvaluationDetails(evaluation) {
         <div class="eval-details-grid">
             <div class="detail-section">
                 <h4>Section I Comments</h4>
-                <div class="comments-text">${evaluation.sectionIComments || 'No comments provided'}</div>
+                <div class="comments-text">${evaluation.sectionIComments ? nl2br(escapeHtml(evaluation.sectionIComments)) : 'No comments provided'}</div>
             </div>
             <div class="detail-section full-width">
                 <h4>Justifications</h4>
@@ -866,7 +910,7 @@ function renderEvaluationDetails(evaluation) {
             </div>
         </div>
         <div class="eval-detail-actions">
-            <button class="btn btn-secondary" onclick="exportEvaluation('${evaluation.evaluationId}')">
+            <button class="btn btn-secondary" onclick="exportEvaluation('${escapeHtml(evaluation.evaluationId)}')">
                 Export This Evaluation
             </button>
         </div>
@@ -1598,6 +1642,12 @@ function logoutProfile() {
 
 function continueLogoutProfile() {
     if (confirm('Log out? Unsaved changes will remain in local storage.')) {
+        // Attempt to clear server-side session cookies
+        try {
+            const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : window.location.origin;
+            const endpoint = new URL('/api/account/logout', base).toString();
+            fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+        } catch (_) { /* ignore */ }
         currentProfile = null;
         profileEvaluations = [];
         
@@ -2328,31 +2378,31 @@ function renderProfileGrid() {
         row.setAttribute('data-eval-id', evaluation.evaluationId);
         row.innerHTML = `
             <td>${rankPos}</td>
-            <td style="text-align: left;">${evaluation.marineInfo?.name || '-'}</td>
-            <td>${capitalize(evaluation.occasion || '-')}</td>
-            <td>${(evaluation.marineInfo?.evaluationPeriod?.to || '').slice(0, 10) || '-'}</td>
-            <td class="grade-cell">${traitGrades['Performance'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Proficiency'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Courage'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Stress Tolerance'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Initiative'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Leading'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Developing Others'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Setting the Example'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Well-Being/Health'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Communication Skills'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Professional Military Education'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Decision Making'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Judgement'] || '-'}</td>
-            <td class="grade-cell">${traitGrades['Evals']}</td>
-            <td class="avg-cell">${avg}</td>
+            <td style="text-align: left;">${escapeHtml(evaluation.marineInfo?.name || '-')}</td>
+            <td>${escapeHtml(capitalize(evaluation.occasion || '-'))}</td>
+            <td>${escapeHtml((evaluation.marineInfo?.evaluationPeriod?.to || '').slice(0, 10) || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Performance'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Proficiency'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Courage'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Stress Tolerance'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Initiative'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Leading'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Developing Others'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Setting the Example'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Well-Being/Health'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Communication Skills'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Professional Military Education'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Decision Making'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Judgement'] || '-')}</td>
+            <td class="grade-cell">${escapeHtml(traitGrades['Evals'])}</td>
+            <td class="avg-cell">${escapeHtml(avg)}</td>
             <td>${badgeForRv(rv)}</td>
             <td>${badgeForRv(cumRv)}</td>
             <td class="actions-cell" style="text-align:right;">
-                <span class="sync-status ${evaluation.syncStatus || 'pending'}">
+                <span class="sync-status ${escapeHtml(evaluation.syncStatus || 'pending')}">
                     ${evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending'}
                 </span>
-                <button class="icon-btn" onclick="deleteEvaluation('${evaluation.evaluationId}')">🗑️</button>
+                <button class="icon-btn" onclick="deleteEvaluation('${escapeHtml(evaluation.evaluationId)}')">🗑️</button>
                 <span class="expand-icon" onclick="toggleGridDetails(this)">▼</span>
             </td>
         `;
@@ -2819,4 +2869,123 @@ async function syncEvaluationToGitHub(evaluation) {
 // Inline availability feedback for Create Account username input
 function initUsernameAvailabilityWatcher() {
     // No-op: availability UI removed; server will enforce uniqueness on create
+}
+
+// Live validation hint binding (username, password strength, name, rank)
+function bindValidationHints() {
+    const doc = document;
+    const byId = (id) => doc.getElementById(id);
+    const setHint = (el, text, className) => {
+        if (!el) return;
+        el.textContent = text || '';
+        el.className = 'input-hint' + (className ? ' ' + className : '');
+    };
+
+    // Username hints (login & create)
+    const loginUserInput = byId('loginEmailInput');
+    const loginUserHint = byId('loginEmailHint');
+    const caUserInput = byId('caEmailInput');
+    const caUserHint = byId('caEmailHint');
+    const updateUsername = (val, hintEl) => {
+        if (!hintEl) return;
+        if (isValidUsernameClient(val)) {
+            setHint(hintEl, 'Valid username.', 'hint-ok');
+        } else {
+            setHint(hintEl, '3–50 chars; letters, numbers, . _ - only.', 'hint-warn');
+        }
+    };
+    if (loginUserInput) {
+        loginUserInput.addEventListener('input', () => updateUsername(loginUserInput.value.trim(), loginUserHint));
+        updateUsername(loginUserInput.value.trim(), loginUserHint);
+    }
+    if (caUserInput) {
+        caUserInput.addEventListener('input', () => updateUsername(caUserInput.value.trim(), caUserHint));
+        updateUsername(caUserInput.value.trim(), caUserHint);
+    }
+
+    // Name and Rank hints (create)
+    const caNameInput = byId('caNameInput');
+    const caNameHint = byId('caNameHint');
+    const caRankInput = byId('caRankInput');
+    const caRankHint = byId('caRankHint');
+    const updateName = (val) => {
+        if (!caNameHint) return;
+        const len = String(val || '').trim().length;
+        if (len === 0) setHint(caNameHint, '2–100 characters.', 'hint-info');
+        else if (isValidNameClient(val)) setHint(caNameHint, 'Looks good.', 'hint-ok');
+        else setHint(caNameHint, '2–100 characters required.', 'hint-warn');
+    };
+    const updateRank = (val) => {
+        if (!caRankHint) return;
+        const len = String(val || '').trim().length;
+        if (len === 0) setHint(caRankHint, '2–20 characters.', 'hint-info');
+        else if (isValidRankClient(val)) setHint(caRankHint, 'Looks good.', 'hint-ok');
+        else setHint(caRankHint, '2–20 characters required.', 'hint-warn');
+    };
+    if (caNameInput) {
+        caNameInput.addEventListener('input', () => updateName(caNameInput.value));
+        updateName(caNameInput.value);
+    }
+    if (caRankInput) {
+        caRankInput.addEventListener('input', () => updateRank(caRankInput.value));
+        updateRank(caRankInput.value);
+    }
+
+    // Password hints (login & create)
+    const loginPwInput = byId('loginPasswordInput');
+    const loginPwHint = byId('loginPasswordHint');
+    const caPwInput = byId('caPasswordInput');
+    const caPwHint = byId('caPasswordHint');
+    const caPwConfirmInput = byId('caPasswordConfirmInput');
+    const caPwConfirmHint = byId('caPasswordConfirmHint');
+
+    const pwCriteria = (p) => ({
+        length8: String(p || '').length >= 8,
+        lower: /[a-z]/.test(String(p || '')),
+        upper: /[A-Z]/.test(String(p || '')),
+        digit: /\d/.test(String(p || '')),
+        length12: String(p || '').length >= 12
+    });
+    const strengthLabel = (c) => {
+        const meetsServer = c.length8 && c.lower && c.upper && c.digit;
+        if (!c.length8) return { text: 'Strength: very weak', cls: 'strength-weak' };
+        if (!meetsServer) return { text: 'Strength: weak', cls: 'strength-weak' };
+        if (c.length12) return { text: 'Strength: strong', cls: 'strength-strong' };
+        return { text: 'Strength: medium', cls: 'strength-medium' };
+    };
+    const updateCreatePw = (val) => {
+        if (!caPwHint) return;
+        const c = pwCriteria(val);
+        const s = strengthLabel(c);
+        const req = 'Must be 8+ chars with upper, lower, and a number.';
+        setHint(caPwHint, `${s.text} • ${req}`, s.cls);
+    };
+    const updateLoginPw = (val) => {
+        if (!loginPwHint) return;
+        const c = pwCriteria(val);
+        const s = strengthLabel(c);
+        setHint(loginPwHint, `${s.text}`, s.cls);
+    };
+    if (caPwInput) {
+        caPwInput.addEventListener('input', () => updateCreatePw(caPwInput.value));
+        updateCreatePw(caPwInput.value);
+    }
+    if (loginPwInput) {
+        loginPwInput.addEventListener('input', () => updateLoginPw(loginPwInput.value));
+        updateLoginPw(loginPwInput.value);
+    }
+
+    const updateConfirmPw = () => {
+        if (!caPwConfirmHint) return;
+        const p = caPwInput ? caPwInput.value : '';
+        const c = caPwConfirmInput ? caPwConfirmInput.value : '';
+        if (!c) { setHint(caPwConfirmHint, 'Re-enter your password to confirm.', 'hint-info'); return; }
+        if (p && c && p === c) setHint(caPwConfirmHint, 'Passwords match.', 'hint-ok');
+        else setHint(caPwConfirmHint, 'Passwords do not match.', 'hint-warn');
+    };
+    if (caPwConfirmInput) {
+        caPwConfirmInput.addEventListener('input', updateConfirmPw);
+        if (caPwInput) caPwInput.addEventListener('input', updateConfirmPw);
+        updateConfirmPw();
+    }
 }
