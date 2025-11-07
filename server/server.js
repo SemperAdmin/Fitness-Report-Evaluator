@@ -35,7 +35,9 @@ app.use((req, res, next) => {
     ? ['*']
     : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, pagesOrigin])) : [defaultOrigin, pagesOrigin]);
 
-  const isAllowed = !CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin));
+  // Treat GitHub Pages as explicitly allowed for credentialed requests
+  const originIsGhPages = Boolean(origin && origin.replace(/\/$/, '') === pagesOrigin);
+  const isAllowed = (!CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin))) || originIsGhPages;
 
   // Always set standard CORS method allowances
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -55,13 +57,14 @@ app.use((req, res, next) => {
 
   // Prefer explicit allowlist, but ensure preflight never fails due to missing ACAO
   if (origin) {
-    if (CORS_ALLOW_ALL) {
-      // Explicitly allow all origins when no CORS_ORIGINS configured or '*' provided
-      res.header('Access-Control-Allow-Origin', '*');
-      // Do NOT set credentials with '*' (browser blocks it); rely on explicit allowlist when needed
-    } else if (isAllowed) {
+    if (isAllowed) {
+      // When origin is explicitly allowed (incl. GitHub Pages), echo origin and allow credentials
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Access-Control-Allow-Credentials', 'true');
+    } else if (CORS_ALLOW_ALL) {
+      // Allow all origins for non-credentialed requests
+      res.header('Access-Control-Allow-Origin', '*');
+      // Do NOT set credentials with '*'
     } else if (req.method === 'OPTIONS') {
       // Be permissive for preflight so the browser proceeds to the actual request,
       // where origin enforcement will apply via missing ACAO on non-allowed origins.
@@ -107,9 +110,15 @@ function serializeCookie(name, value, opts = {}) {
 }
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
-const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
-// Dynamic SameSite: use 'None' only when Secure cookies are enabled (prod HTTPS);
-// fall back to 'Lax' in local/dev http to avoid browsers dropping the cookie.
+// Prefer secure cookies in hosted environments; allow explicit override via env.
+const inferredHostedSecure = (
+  process.env.COOKIE_SECURE === 'true' ||
+  process.env.NODE_ENV === 'production' ||
+  (process.env.RENDER_EXTERNAL_URL && String(process.env.RENDER_EXTERNAL_URL).startsWith('https')) ||
+  (process.env.VERCEL && process.env.VERCEL === '1')
+);
+const COOKIE_SECURE = inferredHostedSecure;
+// Dynamic SameSite: use 'None' with Secure cookies (cross-site), otherwise 'Lax' for local/dev.
 const COOKIE_SAMESITE = COOKIE_SECURE ? 'None' : 'Lax';
 function signSessionPayload(payload) {
   const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
