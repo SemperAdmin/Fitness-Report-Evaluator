@@ -43,3 +43,6 @@ Desktop.ini
 # Backup files
 *.bak
 *.backup
+
+# Project-specific files to avoid accidental commits
+Fitness-Report-Evaluator-Updates.txt

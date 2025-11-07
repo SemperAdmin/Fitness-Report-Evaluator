@@ -13,6 +13,69 @@ const crypto = require('crypto');
 const app = express();
 app.use(express.json());
 
+// Basic CORS support to allow cross-origin usage when hosted on static origins
+// Hardened CORS: allow only configured origins (or default server origin)
+// If CORS_ORIGINS is unset or empty, default to allowing all origins ('*')
+const CORS_ORIGINS_RAW = (process.env.CORS_ORIGINS || '');
+const CORS_ORIGINS = CORS_ORIGINS_RAW
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+// Allow all origins when '*' specified OR when no origins configured
+const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*') || CORS_ORIGINS.length === 0;
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const defaultOrigin = `http://localhost:${process.env.PORT || 5173}`;
+  // Include GitHub Pages origin by default to support static hosting
+  const pagesOrigin = 'https://semperadmin.github.io';
+  const allowedOrigins = CORS_ALLOW_ALL
+    ? ['*']
+    : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, pagesOrigin])) : [defaultOrigin, pagesOrigin]);
+
+  const isAllowed = !CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin));
+
+  // Always set standard CORS method allowances
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+
+  // Build allowed headers dynamically, echoing requested headers when present
+  const requestedHeaders = req.headers['access-control-request-headers'];
+  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token', 'Authorization', 'X-CSRF-Token'];
+  const allowHeaderValue = requestedHeaders
+    ? Array.from(new Set([...baseAllowed, ...requestedHeaders.split(',').map(h => h.trim()).filter(Boolean)])).join(', ')
+    : baseAllowed.join(', ');
+  res.header('Access-Control-Allow-Headers', allowHeaderValue);
+
+  // Include Vary: Origin so caches consider origin differences
+  if (origin) {
+    res.header('Vary', 'Origin');
+  }
+
+  // Prefer explicit allowlist, but ensure preflight never fails due to missing ACAO
+  if (origin) {
+    if (CORS_ALLOW_ALL) {
+      // Explicitly allow all origins when no CORS_ORIGINS configured or '*' provided
+      res.header('Access-Control-Allow-Origin', '*');
+      // Do NOT set credentials with '*' (browser blocks it); rely on explicit allowlist when needed
+    } else if (isAllowed) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    } else if (req.method === 'OPTIONS') {
+      // Be permissive for preflight so the browser proceeds to the actual request,
+      // where origin enforcement will apply via missing ACAO on non-allowed origins.
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
+  } else if (CORS_ALLOW_ALL) {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+
+  // Improve UX: provide a small max-age for preflight caching
+  res.header('Access-Control-Max-Age', '600');
+
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // --- Minimal cookie/session helpers ---
 function parseCookies(cookieHeader) {
   const out = {};
@@ -135,65 +198,6 @@ app.use((req, res, next) => {
   try {
     console.log(`[req] ${req.method} ${req.url}`);
   } catch (_) { /* no-op */ }
-  next();
-});
-
-// Basic CORS support to allow cross-origin usage when hosted on static origins
-// Hardened CORS: allow only configured origins (or default server origin)
-// If CORS_ORIGINS is unset or empty, default to allowing all origins ('*')
-const CORS_ORIGINS_RAW = (process.env.CORS_ORIGINS || '');
-const CORS_ORIGINS = CORS_ORIGINS_RAW
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
-// Allow all origins when '*' specified OR when no origins configured
-const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*') || CORS_ORIGINS.length === 0;
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  const defaultOrigin = `http://localhost:${process.env.PORT || 5173}`;
-  // Include GitHub Pages origin by default to support static hosting
-  const pagesOrigin = 'https://semperadmin.github.io';
-  const allowedOrigins = CORS_ALLOW_ALL
-    ? ['*']
-    : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, pagesOrigin])) : [defaultOrigin, pagesOrigin]);
-
-  const isAllowed = !CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin));
-
-  // Always set standard CORS method allowances
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-
-  // Build allowed headers dynamically, echoing requested headers when present
-  const requestedHeaders = req.headers['access-control-request-headers'];
-  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token', 'Authorization', 'X-CSRF-Token'];
-  const allowHeaderValue = requestedHeaders
-    ? Array.from(new Set([...baseAllowed, ...requestedHeaders.split(',').map(h => h.trim()).filter(Boolean)])).join(', ')
-    : baseAllowed.join(', ');
-  res.header('Access-Control-Allow-Headers', allowHeaderValue);
-
-  // Prefer explicit allowlist, but ensure preflight never fails due to missing ACAO
-  if (origin) {
-    if (CORS_ALLOW_ALL) {
-      // Explicitly allow all origins when no CORS_ORIGINS configured or '*' provided
-      res.header('Access-Control-Allow-Origin', '*');
-    } else if (isAllowed) {
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Vary', 'Origin');
-    } else if (req.method === 'OPTIONS') {
-      // Be permissive for preflight so the browser proceeds to the actual request,
-      // where origin enforcement will apply via missing ACAO on non-allowed origins.
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Vary', 'Origin');
-    }
-  } else if (CORS_ALLOW_ALL) {
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-
-  // Improve UX: provide a small max-age for preflight caching
-  res.header('Access-Control-Max-Age', '600');
-
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
