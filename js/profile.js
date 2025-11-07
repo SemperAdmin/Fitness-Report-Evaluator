@@ -561,6 +561,9 @@ try {
     window.openEditProfile = openEditProfile;
     window.closeEditProfileModal = closeEditProfileModal;
     window.saveProfileUpdates = saveProfileUpdates;
+    // Logout handlers for breadcrumb button
+    window.logoutProfile = logoutProfile;
+    window.continueLogoutProfile = continueLogoutProfile;
     console.info('profile.js: global handlers bound to window');
 } catch (e) {
     console.warn('profile.js: failed to bind handlers to window', e);
@@ -580,6 +583,19 @@ document.addEventListener('DOMContentLoaded', () => {
             console.info('profile.js: fallback click binding attached to Edit Profile button');
         } else {
             console.warn('profile.js: Edit Profile button not found for fallback binding');
+        }
+
+        // Fallback for Logout button in breadcrumb nav
+        const logoutBtn = document.querySelector('.breadcrumb-nav button[onclick="logoutProfile()"]');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', (evt) => {
+                console.debug('Logout: fallback click handler triggered');
+                try { logoutProfile(); } catch (err) { console.error('fallback logoutProfile error:', err); }
+                evt.preventDefault();
+            }, { once: false });
+            console.info('profile.js: fallback click binding attached to Logout button');
+        } else {
+            console.warn('profile.js: Logout button not found for fallback binding');
         }
 
         const saveBtn = document.querySelector('#editProfileModal button[onclick="saveProfileUpdates()"]');
