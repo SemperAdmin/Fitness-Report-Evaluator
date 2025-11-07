@@ -1,5 +1,9 @@
 // Navigation System with Back Buttons and Step Management
-let navigationHistory = [];
+// Share navigationHistory across modules via window to avoid undefined references
+let navigationHistory = (typeof window !== 'undefined' && Array.isArray(window.navigationHistory)) 
+    ? window.navigationHistory 
+    : [];
+try { if (typeof window !== 'undefined') { window.navigationHistory = navigationHistory; } } catch (_) {}
 let currentStep = 'setup';
 
 const STEPS = {

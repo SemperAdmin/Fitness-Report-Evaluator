@@ -9,6 +9,8 @@ let saveQueue = [];
 
 // Ensure global currentStep exists even if navigation system is not loaded yet
 try { if (typeof window.currentStep === 'undefined') { window.currentStep = 'setup'; } } catch (_) { /* noop */ }
+// Ensure navigationHistory exists and is shared via window
+try { if (!Array.isArray(window.navigationHistory)) { window.navigationHistory = []; } } catch (_) { /* noop */ }
 
 const BASE_INTERVAL_MS = 10000; // default 10s
 const MIN_INTERVAL_MS = 3000;   // adaptive lower bound
@@ -153,7 +155,7 @@ function saveProgressToStorage() {
         // Omit large blobs when compacting to fit quota
         directedCommentsData: compact ? {} : directedCommentsData,
         generatedSectionI: compact ? '' : generatedSectionI,
-        navigationHistory: navigationHistory,
+        navigationHistory: (Array.isArray(window.navigationHistory) ? window.navigationHistory : ['setup']),
         isReportingSenior: isReportingSenior,
         allTraits: allTraits
     });
@@ -231,7 +233,7 @@ function restoreSession(sessionData) {
         selectedDirectedComments = sessionData.selectedDirectedComments || [];
         directedCommentsData = sessionData.directedCommentsData || {};
         generatedSectionI = sessionData.generatedSectionI || '';
-        navigationHistory = sessionData.navigationHistory || ['setup'];
+        try { window.navigationHistory = sessionData.navigationHistory || ['setup']; } catch (_){ /* noop */ }
         isReportingSenior = sessionData.isReportingSenior || false;
         allTraits = sessionData.allTraits || [];
         validationState = sessionData.validationState || {};
