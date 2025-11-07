@@ -12,17 +12,25 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" onerror="this.style.display='none'">
-            <h1>USMC FITNESS REPORT EVALUATOR</h1>
-            <p>Unbiased FITREP marking assistance tool</p>
-            <div class="tool-credit">by Semper Admin</div>
-            <!-- Header links: remove backticks -->
-            <a href="https://youtu.be/EzhEMDJ6ez0" target="_blank" style="color: #1e40af; text-decoration: underline;">FITREPS: Marking Philosophy Video</a>
-            <div class="progress-section">
-                <div class="progress-details">
-                    <span id="progressText">Setup - Determine Role</span>
-                    <span class="auto-save-indicator" id="autoSaveIndicator">✓ Auto-saved</span>
+    <div class="header">
+        <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" onerror="this.style.display='none'">
+        <h1>USMC FITNESS REPORT EVALUATOR</h1>
+        <p>Unbiased FITREP marking assistance tool</p>
+        <div class="tool-credit">by Semper Admin</div>
+        <!-- Header links: remove backticks -->
+        <a href="https://youtu.be/EzhEMDJ6ez0" target="_blank" style="color: #1e40af; text-decoration: underline;">FITREPS: Marking Philosophy Video</a>
+        <!-- Global navigation controls -->
+        <div class="header-nav" style="display:flex;align-items:center;justify-content:flex-end;margin-top:10px;">
+            <nav id="breadcrumbs" aria-label="Breadcrumb" class="breadcrumbs"></nav>
+        </div>
+        <div class="progress-section">
+            <div class="progress-details">
+                <span id="progressText">Setup - Determine Role</span>
+                <div class="auto-save-indicator managed saved" id="autoSaveIndicator" aria-live="polite">
+                    <span class="icon" aria-hidden="true"></span>
+                        <span class="text">Saved</span>
+                        <button type="button" class="retry-btn" id="retrySaveBtn" onclick="window.autoSave && window.autoSave.retryNow()" style="display:none">Retry</button>
+                    </div>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
@@ -30,10 +38,7 @@
             </div>
         </div>
 
-        <!-- Data Warning Banner -->
-        <div class="warning-banner" id="dataWarning">
-            ⚠️ <strong>Data Privacy Notice:</strong> This tool stores data locally in your browser. Data will be lost if you clear browser storage or use incognito mode. For official evaluations, save your work frequently and export results.
-        </div>
+        
 
         <!-- Setup Card: start hidden (no 'active') -->
         <!-- Setup Card: add Occasion Type -->
@@ -41,14 +46,14 @@
             <div class="setup-title">Evaluation Setup</div>
             
             <div class="form-group">
-                <label class="form-label">Marine Being Evaluated:</label>
-                <input type="text" class="form-input" id="marineNameInput" placeholder="Last Name, First Name MI">
+                <label class="form-label" for="marineNameInput">Marine Being Evaluated:</label>
+                <input type="text" class="form-input" id="marineNameInput" placeholder="Last Name, First Name MI" required aria-required="true">
             </div>
             
             <!-- New: Marine Rank dropdown -->
             <div class="form-group">
-                <label class="form-label">Marine Rank:</label>
-                <select class="setup-select" id="marineRankSelect">
+                <label class="form-label" for="marineRankSelect">Marine Rank:</label>
+                <select class="setup-select" id="marineRankSelect" required aria-required="true">
                     <option value="">Select Rank...</option>
                     <option value="Sgt">Sgt</option>
                     <option value="SSgt">SSgt</option>
@@ -74,8 +79,8 @@
             <div class="form-group">
                 <label class="form-label">Evaluation Period:</label>
                 <div class="date-inputs">
-                    <input type="date" class="form-input" id="fromDateInput">
-                    <input type="date" class="form-input" id="toDateInput">
+                    <input type="date" class="form-input" id="fromDateInput" required aria-required="true">
+                    <input type="date" class="form-input" id="toDateInput" required aria-required="true">
                 </div>
             </div>
 
@@ -85,7 +90,7 @@
                     Occasion Type:
                     <button type="button" class="info-icon" onclick="showTooltip(event, 'occasion-setup-tooltip')" title="What does Occasion mean?">ℹ️</button>
                 </label>
-                <select class="setup-select" id="evaluationOccasionSetup">
+                <select class="setup-select" id="evaluationOccasionSetup" required aria-required="true">
                     <option value="">Select Occasion Type...</option>
                     <option value="GC">Grade Change - GC</option>
                     <option value="DC">CMC Directed - DC</option>
@@ -118,8 +123,8 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Is the person being evaluated a Reporting Senior?</label>
-                <select class="setup-select" id="reportingSeniorSelect">
+                <label class="form-label" for="reportingSeniorSelect">Is the person being evaluated a Reporting Senior?</label>
+                <select class="setup-select" id="reportingSeniorSelect" required aria-required="true">
                     <option value="">Select...</option>
                     <option value="yes">Yes - Include Section H (Evaluation Responsibilities)</option>
                     <option value="no">No - Standard Evaluation (Sections D-G only)</option>
@@ -127,14 +132,14 @@
             </div>
             
             <div class="form-group" id="rsInfoGroup">
-                <label class="form-label">Reporting Senior Information:</label>
+                <label class="form-label" for="evaluatorNameInput">Reporting Senior Information:</label>
                 <!-- Inline RS name + Return button when launched from RS Dashboard -->
                 <div class="rs-inline" style="display: flex; align-items: center; gap: 10px; justify-content: space-between;">
                     <div id="rsProfileDisplay" class="form-static" style="display: none;"></div>
                     <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="display: none; white-space: nowrap;">← Return to RS Dashboard</button>
                 </div>
                 <!-- Input shown when not launched from a profile -->
-                <input type="text" class="form-input" id="evaluatorNameInput" placeholder="Reporting Senior Name">
+                <input type="text" class="form-input" id="evaluatorNameInput" placeholder="Reporting Senior Name" required aria-required="true">
             </div>
             
             <button class="btn btn-meets" onclick="startEvaluation()" style="margin-top: 20px; width: 100%;">Begin Evaluation</button>
@@ -309,38 +314,38 @@
     </div>
 
     <!-- Justification Modal -->
-    <div class="justification-modal" id="justificationModal">
+    <div class="justification-modal" id="justificationModal" aria-labelledby="justificationTitle" aria-describedby="justificationDesc" aria-hidden="true">
         <div class="justification-content">
             <div class="justification-header">
                 <div class="justification-title" id="justificationTitle"></div>
-                <p>Please provide justification for this marking:</p>
+                <p id="justificationDesc">Please provide justification for this marking:</p>
             </div>
             
             <div class="justification-tools">
-                <button class="tool-btn" onclick="toggleVoiceInput()" id="voiceBtn">🎤 Voice Input</button>
+                <button class="tool-btn" onclick="toggleVoiceInput()" id="voiceBtn" aria-label="Toggle voice input">🎤 Voice Input</button>
             </div>
             
             <textarea class="justification-textarea" id="justificationText" 
                      placeholder="Enter specific examples and evidence to support this evaluation..."></textarea>
             
             <div class="textarea-info">
-                <span class="word-count" id="wordCount">0 words</span>
+                <span class="word-count" id="wordCount" aria-live="polite" role="status">0 words</span>
                 <span>Minimum recommended: 30 words</span>
             </div>
             
             <div class="justification-buttons">
-                <button class="btn btn-cancel" onclick="cancelJustification()">Cancel</button>
-                <button class="btn btn-save" onclick="saveJustification()">Save & Continue</button>
+                <button class="btn btn-cancel" onclick="cancelJustification()" aria-label="Cancel justification">Cancel</button>
+                <button class="btn btn-save" onclick="saveJustification()" aria-label="Save justification and continue">Save & Continue</button>
             </div>
         </div>
     </div>
 
     <!-- Re-evaluation Modal -->
-    <div class="reevaluate-modal" id="reevaluateModal">
+    <div class="reevaluate-modal" id="reevaluateModal" aria-labelledby="reevaluateTitle" aria-describedby="reevaluateDesc" aria-hidden="true">
         <div class="reevaluate-content">
             <div class="reevaluate-header">
                 <h3 id="reevaluateTitle"></h3>
-                <p>You are re-evaluating this trait. Your current evaluation is shown below.</p>
+                <p id="reevaluateDesc">You are re-evaluating this trait. Your current evaluation is shown below.</p>
             </div>
             
             <div class="reevaluate-body">
@@ -356,24 +361,25 @@
                 <h4>Choose an option:</h4>
                 <p>You can keep the current evaluation or start the trait evaluation process over.</p>
                 <div class="reevaluate-buttons">
-                    <button class="btn btn-secondary" onclick="cancelReevaluation()">Keep Current</button>
-                    <button class="btn btn-meets" onclick="startReevaluation()">Re-evaluate Trait</button>
+                    <button class="btn btn-secondary" onclick="cancelReevaluation()" aria-label="Keep current evaluation">Keep Current</button>
+                    <button class="btn btn-meets" onclick="startReevaluation()" aria-label="Start re-evaluation">Re-evaluate Trait</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Floating Help Button -->
-    <button class="help-button" onclick="openHelpModal()" title="How This Tool Works">
+    <button id="helpButton" class="help-button" onclick="openHelpModal()" title="How This Tool Works" aria-label="Open Help: How This Tool Works" aria-controls="helpModal" aria-expanded="false">
         ?
     </button>
 
     <!-- Help Modal -->
-    <div class="help-modal" id="helpModal">
+    <div class="help-modal" id="helpModal" aria-labelledby="helpModalTitle" aria-describedby="helpModalDesc" aria-hidden="true">
         <div class="help-content">
-            <button class="help-close" onclick="closeHelpModal()">&times;</button>
+            <button class="help-close" onclick="closeHelpModal()" aria-label="Close help">&times;</button>
             
-            <div class="setup-title" style="text-align: center; margin-bottom: 25px;">How This Tool Works</div>
+            <div id="helpModalTitle" class="setup-title" style="text-align: center; margin-bottom: 25px;">How This Tool Works</div>
+            <p id="helpModalDesc" class="sr-only">Information about unbiased evaluation philosophy and tool usage.</p>
             
             <div style="margin-bottom: 20px;">
                 <h3 style="color: #1e3c72; margin-bottom: 10px;">🎯 Unbiased Evaluation Philosophy</h3>
@@ -483,11 +489,13 @@
         <div id="loginFields">
             <div class="form-group">
                 <label class="form-label">Username</label>
-                <input type="text" class="form-input" id="loginEmailInput" placeholder="your-username">
+                <input type="text" class="form-input" id="loginEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore">
+                <div class="input-hint" id="loginEmailHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-input" id="loginPasswordInput" placeholder="Enter your password">
+                <input type="password" class="form-input" id="loginPasswordInput" placeholder="Enter your password" minlength="8">
+                <div class="input-hint" id="loginPasswordHint" aria-live="polite"></div>
             </div>
             <div class="profile-actions">
                 <button class="btn btn-meets" onclick="accountLogin()">Login</button>
@@ -502,24 +510,29 @@
             <p class="profile-description">Create a secure profile. Your password will be stored hashed.</p>
             <div class="form-group">
                 <label class="form-label">Rank</label>
-                <input type="text" class="form-input" id="caRankInput" placeholder="e.g., Capt">
+                <input type="text" class="form-input" id="caRankInput" placeholder="e.g., Capt" minlength="2" maxlength="20">
+                <div class="input-hint" id="caRankHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Name</label>
-                <input type="text" class="form-input" id="caNameInput" placeholder="Last, First MI">
+                <input type="text" class="form-input" id="caNameInput" placeholder="Last, First MI" minlength="2" maxlength="100">
+                <div class="input-hint" id="caNameHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Username</label>
-                <input type="text" class="form-input" id="caEmailInput" placeholder="your-username">
+                <input type="text" class="form-input" id="caEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore">
+                <div class="input-hint" id="caEmailHint" aria-live="polite"></div>
                 <!-- Availability UI removed; rely on server checks at create time -->
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-input" id="caPasswordInput" placeholder="Choose a strong password">
+                <input type="password" class="form-input" id="caPasswordInput" placeholder="Choose a strong password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}">
+                <div class="input-hint" id="caPasswordHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Confirm Password</label>
-                <input type="password" class="form-input" id="caPasswordConfirmInput" placeholder="Re-enter your password to confirm">
+                <input type="password" class="form-input" id="caPasswordConfirmInput" placeholder="Re-enter your password to confirm" minlength="8">
+                <div class="input-hint" id="caPasswordConfirmHint" aria-live="polite"></div>
             </div>
             <div class="profile-actions">
                 <button class="btn btn-meets" onclick="createAccount()">Create Account</button>
@@ -537,7 +550,7 @@
             </button>
             <span class="breadcrumb-separator" id="breadcrumbSeparator" style="display: none;">›</span>
             <span class="breadcrumb-current" id="breadcrumbCurrent" style="display: none;"></span>
-            <button class="Btn" onclick="logoutProfile()" title="Logout">
+            <button class="Btn" id="logoutBtn" data-tooltip="Logout and return to home" data-tooltip-delay="250" data-tooltip-hide-delay="100" data-tooltip-max-width="240" data-tooltip-pos="auto">
                 <div class="sign"><svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg></div>
                 <div class="text">Logout</div>
             </button>
@@ -547,7 +560,7 @@
             <div class="profile-info">
                 <div class="profile-name-row">
                     <h2 id="profileHeaderName">RS Name</h2>
-                    <button class="editBtn" onclick="openEditProfile()" title="Edit Profile">
+                    <button class="editBtn" onclick="openEditProfile()" data-tooltip="Edit profile" data-tooltip-delay="200" data-tooltip-hide-delay="100" data-tooltip-max-width="200" data-tooltip-pos="auto">
                       <svg height="1em" viewBox="0 0 512 512">
                         <path
                           d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z"
@@ -578,7 +591,7 @@
         <!-- RS Dashboard Actions -->
         <!-- Profile actions bar: add id to Grid View for visibility control -->
         <div class="profile-actions-bar">
-            <button class="btn btn-meets" onclick="startNewEvaluation()">+ New Evaluation</button>
+            <button class="btn btn-meets" onclick="startNewEvaluation()" data-tooltip="Start a new evaluation" data-tooltip-delay="200" data-tooltip-hide-delay="120" data-tooltip-pos="auto">+ New Evaluation</button>
             <!-- Manage Data dropdown replacing Export All -->
             <style>
             .sub-button{background-color:transparent;border:none;line-height:1;display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;cursor:pointer;font-weight:600;color:#fff;white-space:nowrap;border-radius:6px;border:1px solid rgba(255,255,255,0.2);transition:all .2s ease-in-out;text-shadow:0 1px 1px rgba(0,0,0,0.2)}
@@ -599,25 +612,25 @@
             .manage-button{--bg:linear-gradient(180deg,hsla(0,0%,100%,.12),hsla(0,0%,100%,0)),hsl(265,60%,52%);box-shadow:0 1px 2px #25114f66,0 0 0 1px hsla(265,60%,52%,.75);background:var(--bg)}
             </style>
             <div class="manage-data-container">
-              <button id="mainToggleButton" onclick="toggleSubMenu()" class="btn manage-button manage-toggle">
+              <button id="mainToggleButton" onclick="toggleSubMenu()" class="btn manage-button manage-toggle" aria-controls="subMenu" aria-expanded="false" aria-label="Manage data options">
                 <span class="mr-2">Manage Data</span>
-                <svg class="btn-icon-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="btn-icon-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true" focusable="false">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               <div id="subMenu" class="manage-submenu">
-                <button onclick="syncAllEvaluations()" class="sub-button sync-button w-full justify-start">
+                <button onclick="syncAllEvaluations()" class="sub-button sync-button w-full justify-start" aria-label="Sync evaluations to GitHub">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path d="M20 12a8 8 0 10-15.5 2m-.5 4v-4h4"/>
                       <path d="M4 12a8 8 0 1015.5-2m.5-4v4h-4"/>
                     </svg>
                   </span>
                   <span class="btn__text">Sync to GitHub</span>
                 </button>
-                <button onclick="initiateUpload()" class="sub-button upload-button w-full justify-start">
+                <button onclick="initiateUpload()" class="sub-button upload-button w-full justify-start" aria-label="Upload CSV data">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
                       <path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1"></path>
                       <path d="M9 15l3 -3l3 3"></path>
@@ -626,9 +639,9 @@
                   </span>
                   <span class="btn__text">Upload CSV Data</span>
                 </button>
-                <button onclick="exportAllData()" class="sub-button export-button w-full justify-start">
+                <button onclick="exportAllData()" class="sub-button export-button w-full justify-start" aria-label="Export all data">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
                       <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
                       <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
@@ -638,9 +651,9 @@
                   </span>
                   <span class="btn__text">Export All Data</span>
                 </button>
-                <button onclick="downloadTemplate()" class="sub-button template-button w-full justify-start">
+                <button onclick="downloadTemplate()" class="sub-button template-button w-full justify-start" aria-label="Download CSV template">
                   <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
                       <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
                       <path d="M7 11l5 5l5 -5"></path>
@@ -705,7 +718,8 @@
                         <span style="color:#000; font-weight:700;"># Rpts <span id="rankRptsVal">0</span></span>
                     </div>
                 </div>
-                <table class="profile-grid" id="profileGrid" role="grid" aria-label="Evaluation details grid">
+                <div class="table-responsive">
+                <table class="profile-grid sticky" id="profileGrid" role="grid" aria-label="Evaluation details grid">
                     <thead>
                         <tr>
                             <th scope="col">#</th>
@@ -734,6 +748,7 @@
                     </thead>
                     <tbody></tbody>
                 </table>
+                </div>
             </div>
         </div>
     </div>
@@ -746,15 +761,51 @@
     <!-- Define trusted API origins and an optional override BEFORE loading config.js -->
     <script>
         // Runtime API config
-        // Trusted origins: generally leave empty; base origin is always allowed
-        window.TRUSTED_API_ORIGINS = [];
-        // Use Render backend only when running on GitHub Pages; otherwise use local server
-        if (window.location.origin.includes('semperadmin.github.io')) {
-          window.API_BASE_URL_OVERRIDE = 'https://fitness-report-evaluator.onrender.com';
-        } else {
-          // Use same-origin backend when served by Express locally
-          window.API_BASE_URL_OVERRIDE = window.location.origin;
-        }
+        // Trusted origins: include Render so cross-origin calls are allowed when overridden
+        window.TRUSTED_API_ORIGINS = [
+          'https://fitness-report-evaluator.onrender.com'
+        ];
+        // Allow runtime override via query param: ?api=render | local | http://host:port
+        (function() {
+          const params = new URLSearchParams(window.location.search);
+          const apiParam = (params.get('api') || '').trim().toLowerCase();
+          const RENDER_URL = 'https://fitness-report-evaluator.onrender.com';
+
+          // Default selection based on hosting environment
+          const isGhPages = window.location.origin.includes('semperadmin.github.io');
+          const isStaticDev = window.location.port === '5500';
+          let override = '';
+
+          if (apiParam) {
+            if (apiParam === 'render') {
+              override = RENDER_URL;
+            } else if (apiParam === 'local') {
+              override = window.location.origin;
+            } else if (apiParam.startsWith('http')) {
+              override = apiParam;
+            } else if (apiParam === 'none') {
+              override = '';
+            }
+          }
+
+          // If no explicit query param override, choose sensible default
+          if (!override) {
+            if (isGhPages || isStaticDev) {
+              override = RENDER_URL;
+            } else {
+              override = window.location.origin;
+            }
+          }
+
+          // Apply and trust override origin
+          window.API_BASE_URL_OVERRIDE = override;
+          try {
+            const origin = new URL(override).origin;
+            window.TRUSTED_API_ORIGINS = Array.from(new Set([origin, ...window.TRUSTED_API_ORIGINS]));
+          } catch (_) {
+            // ignore invalid URLs (e.g., when override is empty)
+          }
+        })();
         // Disable client-side token assembly; backend should manage auth/secrets
         window.USE_ASSEMBLED_TOKEN = false;
     </script>
@@ -764,6 +815,12 @@
     <script src="js/idbStore.js"></script>
     <script src="js/voice.js"></script>
     <script src="js/utils.js"></script>
+    <!-- Redux via jsDelivr for non-React usage -->
+    <script src="https://cdn.jsdelivr.net/npm/redux@4.2.1/dist/redux.min.js" crossorigin="anonymous"></script>
+    <!-- Form state core and store wiring -->
+    <script src="js/formCore.js"></script>
+    <script src="js/formStore.js"></script>
+    <script src="js/formUI.js"></script>
     <script src="js/validation.js"></script>
     <script src="js/sectionI.js"></script>
     <script src="js/directedComments.js"></script>
@@ -774,15 +831,22 @@
     <!-- PDF libraries -->
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js" integrity="sha384-9crLjtL468FQqFa24VM0ldxiM0tbREUHExinok4MhgLH2s+0FRgU2Qs6PACeFB43" crossorigin="anonymous"></script>
+    <script src="js/ui-states.js"></script>
+    <script src="js/accessibility.js"></script>
+    <script src="js/tooltips.js"></script>
+    <script src="js/modals.js"></script>
+    <script src="js/formValidationCore.js"></script>
+    <script src="js/formValidationUI.js"></script>
     <script src="js/profile.js"></script>
-    <script src="js/navigation.js"></script>
+    <!-- Persistence and enhanced auto-save system -->
+    <script src="js/persistence.js"></script>
     <script src="js/evaluation.js"></script>
     <script src="js/app.js"></script>
     
   <!-- Save to Profile Modal: add Save & Return to Profile button -->
-  <div class="save-profile-modal" id="saveProfileModal">
+  <div class="save-profile-modal" id="saveProfileModal" role="dialog" aria-modal="true" aria-labelledby="saveProfileTitle">
         <div class="save-profile-content">
-            <h3>Save Evaluation to Profile</h3>
+            <h3 id="saveProfileTitle">Save Evaluation to Profile</h3>
             <p>Review details and choose storage options.</p>
 
             <div class="evaluation-preview">
@@ -811,14 +875,14 @@
   </div>
 
   <!-- Edit Profile Modal -->
-  <div class="save-profile-modal" id="editProfileModal" style="display:none;">
+  <div class="save-profile-modal" id="editProfileModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="editProfileTitle" data-success-message="Profile updated successfully">
         <div class="save-profile-content">
-            <h3>Edit Profile</h3>
+            <h3 id="editProfileTitle">Edit Profile</h3>
             <p>Update your Reporting Senior profile information.</p>
 
             <div class="form-group">
                 <label class="form-label" for="editRsNameInput">Name</label>
-                <input type="text" class="form-input" id="editRsNameInput" placeholder="Last, First M">
+                <input type="text" class="form-input" id="editRsNameInput" placeholder="Last, First M" aria-label="Name" data-rules="required|nameLabel">
   </div>
 
   <!-- Pending Sync Confirmation Modal -->
@@ -837,18 +901,18 @@
 
             <div class="form-group">
                 <label class="form-label" for="editRsEmailInput">Username</label>
-                <input type="text" class="form-input" id="editRsEmailInput" placeholder="your-username" disabled>
+                <input type="text" class="form-input" id="editRsEmailInput" placeholder="your-username" aria-label="Username" data-rules="username" disabled>
                 <small style="display:block; color:#666; margin-top:4px;">Username is permanent and cannot be changed.</small>
             </div>
 
             <div class="form-group">
                 <label class="form-label" for="editRsRankInput">Rank</label>
-                <input type="text" class="form-input" id="editRsRankInput" placeholder="e.g., Capt, Maj">
+                <input type="text" class="form-input" id="editRsRankInput" placeholder="e.g., Capt, Maj" aria-label="Rank" data-rules="required|rankLabel">
             </div>
 
             <div class="modal-actions">
-                <button class="btn btn-meets" onclick="saveProfileUpdates()">Save Changes</button>
-                <button class="btn btn-secondary" onclick="closeEditProfileModal()">Cancel</button>
+                <button id="saveProfileBtn" class="btn btn-meets" onclick="saveProfileUpdates()" data-tooltip="Save your profile changes" data-tooltip-delay="200" data-tooltip-hide-delay="120">Save Changes</button>
+                <button id="cancelProfileBtn" class="btn btn-secondary" onclick="closeEditProfileModal()" data-tooltip="Discard changes and close" data-tooltip-delay="200" data-tooltip-hide-delay="120">Cancel</button>
             </div>
 
             <div class="offline-indicator">

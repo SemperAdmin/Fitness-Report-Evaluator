@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Replace login-first boot with mode selection boot
     initializeVoiceRecognition();
 
+    // Initialize persistence and enhanced auto-save
+    try { if (typeof initializePersistence === 'function') initializePersistence(); } catch (_) {}
+
     const mode = document.getElementById('modeSelectionCard');
     const login = document.getElementById('profileLoginCard');
     const dashboard = document.getElementById('profileDashboardCard');
@@ -144,8 +147,9 @@ function showTooltip(event, tooltipId) {
         // Position near the triggering element
         const target = event.currentTarget || event.target;
         const rect = target.getBoundingClientRect();
-        const top = rect.bottom + window.scrollY + 8;
-        const left = rect.left + window.scrollX;
+        // Using fixed positioning; viewport-relative coords
+        const top = rect.bottom + 8;
+        const left = rect.left;
         tip.style.top = `${top}px`;
         tip.style.left = `${left}px`;
         tip.style.display = 'block';

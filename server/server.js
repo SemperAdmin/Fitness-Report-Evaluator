@@ -8,25 +8,21 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const fsp = fs.promises;
+const crypto = require('crypto');
 
 const app = express();
 app.use(express.json());
-
-// Debug request logger (temporary)
-app.use((req, res, next) => {
-  try {
-    console.log(`[req] ${req.method} ${req.url}`);
-  } catch (_) { /* no-op */ }
-  next();
-});
 
 // Basic CORS support to allow cross-origin usage when hosted on static origins
 // Hardened CORS: allow only configured origins (or default server origin)
 // If CORS_ORIGINS is unset or empty, default to allowing all origins ('*')
 const CORS_ORIGINS_RAW = (process.env.CORS_ORIGINS || '');
+// Sanitize configured origins: remove surrounding quotes/backticks and trailing slashes
 const CORS_ORIGINS = CORS_ORIGINS_RAW
   .split(',')
   .map(s => s.trim())
+  .map(s => s.replace(/^['"`]+|['"`]+$/g, ''))
+  .map(s => s.replace(/\/$/, ''))
   .filter(Boolean);
 // Allow all origins when '*' specified OR when no origins configured
 const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*') || CORS_ORIGINS.length === 0;
@@ -39,32 +35,41 @@ app.use((req, res, next) => {
     ? ['*']
     : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, pagesOrigin])) : [defaultOrigin, pagesOrigin]);
 
-  const isAllowed = !CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin));
+  // Treat GitHub Pages as explicitly allowed for credentialed requests
+  const originIsGhPages = Boolean(origin && origin.replace(/\/$/, '') === pagesOrigin);
+  const isAllowed = (!CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin))) || originIsGhPages;
 
   // Always set standard CORS method allowances
-  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
 
   // Build allowed headers dynamically, echoing requested headers when present
   const requestedHeaders = req.headers['access-control-request-headers'];
-  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token', 'Authorization'];
+  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token', 'Authorization', 'X-CSRF-Token'];
   const allowHeaderValue = requestedHeaders
     ? Array.from(new Set([...baseAllowed, ...requestedHeaders.split(',').map(h => h.trim()).filter(Boolean)])).join(', ')
     : baseAllowed.join(', ');
   res.header('Access-Control-Allow-Headers', allowHeaderValue);
 
+  // Include Vary: Origin so caches consider origin differences
+  if (origin) {
+    res.header('Vary', 'Origin');
+  }
+
   // Prefer explicit allowlist, but ensure preflight never fails due to missing ACAO
   if (origin) {
-    if (CORS_ALLOW_ALL) {
-      // Explicitly allow all origins when no CORS_ORIGINS configured or '*' provided
-      res.header('Access-Control-Allow-Origin', '*');
-    } else if (isAllowed) {
+    if (isAllowed) {
+      // When origin is explicitly allowed (incl. GitHub Pages), echo origin and allow credentials
       res.header('Access-Control-Allow-Origin', origin);
-      res.header('Vary', 'Origin');
+      res.header('Access-Control-Allow-Credentials', 'true');
+    } else if (CORS_ALLOW_ALL) {
+      // Allow all origins for non-credentialed requests
+      res.header('Access-Control-Allow-Origin', '*');
+      // Do NOT set credentials with '*'
     } else if (req.method === 'OPTIONS') {
       // Be permissive for preflight so the browser proceeds to the actual request,
       // where origin enforcement will apply via missing ACAO on non-allowed origins.
       res.header('Access-Control-Allow-Origin', origin);
-      res.header('Vary', 'Origin');
+      res.header('Access-Control-Allow-Credentials', 'true');
     }
   } else if (CORS_ALLOW_ALL) {
     res.header('Access-Control-Allow-Origin', '*');
@@ -74,6 +79,141 @@ app.use((req, res, next) => {
   res.header('Access-Control-Max-Age', '600');
 
   if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+// --- Minimal cookie/session helpers ---
+function parseCookies(cookieHeader) {
+  const out = {};
+  const str = String(cookieHeader || '');
+  if (!str) return out;
+  const parts = str.split(';');
+  for (const p of parts) {
+    const idx = p.indexOf('=');
+    if (idx === -1) continue;
+    const k = p.slice(0, idx).trim();
+    const v = p.slice(idx + 1).trim();
+    try { out[k] = decodeURIComponent(v); } catch (_) { out[k] = v; }
+  }
+  return out;
+}
+function serializeCookie(name, value, opts = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  if (opts.maxAge != null) parts.push(`Max-Age=${Math.floor(opts.maxAge)}`);
+  if (opts.expires) parts.push(`Expires=${opts.expires.toUTCString()}`);
+  parts.push(`Path=${opts.path || '/'}`);
+  const same = (opts.sameSite || 'Lax');
+  parts.push(`SameSite=${same}`);
+  if (opts.httpOnly) parts.push('HttpOnly');
+  if (opts.secure) parts.push('Secure');
+  return parts.join('; ');
+}
+const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
+// Prefer secure cookies in hosted environments; allow explicit override via env.
+const inferredHostedSecure = (
+  process.env.COOKIE_SECURE === 'true' ||
+  process.env.NODE_ENV === 'production' ||
+  (process.env.RENDER_EXTERNAL_URL && String(process.env.RENDER_EXTERNAL_URL).startsWith('https')) ||
+  (process.env.VERCEL && process.env.VERCEL === '1')
+);
+const COOKIE_SECURE = inferredHostedSecure;
+// Dynamic SameSite: use 'None' with Secure cookies (cross-site), otherwise 'Lax' for local/dev.
+const COOKIE_SAMESITE = COOKIE_SECURE ? 'None' : 'Lax';
+function signSessionPayload(payload) {
+  const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  const h = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
+  return `${data}.${h}`;
+}
+function verifySessionToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const idx = token.lastIndexOf('.');
+  if (idx === -1) return null;
+  const data = token.slice(0, idx);
+  const sig = token.slice(idx + 1);
+  const expect = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
+  try {
+    const obj = JSON.parse(Buffer.from(data, 'base64').toString('utf8'));
+    if (!obj || typeof obj !== 'object') return null;
+    if (obj.exp && Date.now() > Number(obj.exp)) return null;
+    return obj;
+  } catch (_) {
+    return null;
+  }
+}
+// Attach parsed cookies and session user (if valid)
+app.use((req, _res, next) => {
+  req.cookies = parseCookies(req.headers.cookie || '');
+  const tok = req.cookies['fitrep_session'] || '';
+  const sess = verifySessionToken(tok);
+  if (sess && sess.u) {
+    req.sessionUser = String(sess.u);
+  }
+  next();
+});
+
+// CSRF protection: double-submit cookie (skip admin API)
+app.use((req, res, next) => {
+  try {
+    const method = String(req.method || 'GET').toUpperCase();
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return next();
+    const path = String(req.path || req.url || '');
+    if (path.startsWith('/api/admin')) return next();
+    if (path === '/api/account/login') return next();
+    // Only enforce when a session exists
+    if (!req.sessionUser) return next();
+    const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'] || '';
+    const cookieToken = req.cookies['fitrep_csrf'] || '';
+    if (!headerToken || !cookieToken || String(headerToken) !== String(cookieToken)) {
+      return res.status(403).json({ error: 'CSRF token invalid' });
+    }
+    next();
+  } catch (e) {
+    return res.status(403).json({ error: 'CSRF check failed' });
+  }
+});
+
+function requireAuth(req, res, next) {
+  if (!req.sessionUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  next();
+}
+
+// Security headers middleware
+// Adds baseline protections: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+app.use((req, res, next) => {
+  try {
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      // Inline scripts/styles used by the app; consider migrating to nonce/hash in future
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline'",
+      // Allow images from self and data URLs; https for external icons if any
+      "img-src 'self' data: https:",
+      // Allow API calls to same-origin, GitHub API, and Render backend used in production
+      "connect-src 'self' https://api.github.com https://fitness-report-evaluator.onrender.com",
+      // Encourage HTTPS when available; harmless in HTTP during local dev
+      'upgrade-insecure-requests'
+    ].join('; ');
+    res.setHeader('Content-Security-Policy', csp);
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  } catch (_) { /* ignore header errors */ }
+  next();
+});
+
+// Debug request logger (temporary)
+app.use((req, res, next) => {
+  try {
+    console.log(`[req] ${req.method} ${req.url}`);
+  } catch (_) { /* no-op */ }
   next();
 });
 
@@ -110,7 +250,7 @@ console.log('[env] DATA_REPO:', DATA_REPO);
 console.log('[env] DISPATCH_TOKEN set:', Boolean(DISPATCH_TOKEN));
 console.log('[env] FITREP_DATA set:', Boolean(process.env.FITREP_DATA));
 console.log('[env] ALLOW_DEV_TOKEN:', process.env.ALLOW_DEV_TOKEN === 'true');
-console.log('[env] CORS_ORIGINS:', (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+console.log('[env] CORS_ORIGINS:', CORS_ORIGINS);
 
 function emailPrefix(email) {
   return String(email || '').trim().toLowerCase().split('@')[0];
@@ -166,6 +306,23 @@ function parseEvaluationYamlMinimal(yamlStr) {
   const rsEmail = get(/\brs:[\s\S]*?\n\s{2}email:\s*"([^"]+)"/);
   const rsRank = get(/\brs:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
 
+  // Trait evaluations block (minimal YAML parser via regex)
+  const traitBlockMatch = yamlStr.match(/\btraitEvaluations:\s*([\s\S]*?)(?:\n\w|\n[a-zA-Z_]+:|$)/);
+  const traitBlock = traitBlockMatch ? traitBlockMatch[1] : '';
+  const traits = [];
+  if (traitBlock) {
+    const re = /-\s*[\r\n]+\s{2,}section:\s*"([^\"]+)"[\s\S]*?\n\s{2,}trait:\s*"([^\"]+)"[\s\S]*?\n\s{2,}grade:\s*"([^\"]+)"[\s\S]*?\n\s{2,}gradeNumber:\s*([0-9]+)/g;
+    let m;
+    while ((m = re.exec(traitBlock)) !== null) {
+      traits.push({
+        section: m[1],
+        trait: m[2],
+        grade: m[3],
+        gradeNumber: Number(m[4])
+      });
+    }
+  }
+
   return {
     evaluationId: id || `eval-${Date.now()}`,
     occasion: occasion || null,
@@ -178,7 +335,7 @@ function parseEvaluationYamlMinimal(yamlStr) {
     },
     rsInfo: { name: rsName || '', email: rsEmail || '', rank: rsRank || '' },
     sectionIComments: sectionIComments || '',
-    traitEvaluations: [],
+    traitEvaluations: traits,
     syncStatus: 'synced'
   };
 }
@@ -219,6 +376,40 @@ function rateLimit({ windowMs, limit }) {
 const authRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
 const saveRateLimit = rateLimit({ windowMs: 60_000, limit: 60 });
 const feedbackRateLimit = rateLimit({ windowMs: 60_000, limit: 20 });
+const validationRateLimit = rateLimit({ windowMs: 60_000, limit: 120 });
+
+// Lightweight in-memory LRU cache for validation responses
+class ValidationCache {
+  constructor(maxEntries = 512, ttlMs = 60_000) {
+    this.max = maxEntries;
+    this.ttl = ttlMs;
+    this.map = new Map(); // key -> { value, expires }
+  }
+  _now() { return Date.now(); }
+  get(key) {
+    const ent = this.map.get(key);
+    if (!ent) return null;
+    if (ent.expires < this._now()) { this.map.delete(key); return null; }
+    // touch for LRU
+    this.map.delete(key);
+    this.map.set(key, ent);
+    return ent.value;
+  }
+  set(key, value) {
+    const expires = this._now() + this.ttl;
+    if (this.map.has(key)) this.map.delete(key);
+    this.map.set(key, { value, expires });
+    if (this.map.size > this.max) {
+      // Evict oldest
+      const firstKey = this.map.keys().next().value;
+      if (firstKey) this.map.delete(firstKey);
+    }
+  }
+}
+const validationCache = new ValidationCache(512, 90_000);
+
+// Reserved labels that should not be used by users
+const RESERVED_LABELS = new Set(['admin','system','null','undefined','root','owner','support','staff']);
 
 app.post('/api/account/create', authRateLimit, async (req, res) => {
   try {
@@ -425,6 +616,20 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
   if (!ok) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+    // Issue HttpOnly session cookie and CSRF cookie
+    try {
+      const now = Date.now();
+      const payload = { u: sanitizePrefix(username), iat: now, exp: now + SESSION_TTL_MS };
+      const sessionToken = signSessionPayload(payload);
+      const csrfToken = crypto.randomBytes(32).toString('hex');
+      const cookies = [
+        // SameSite dynamically chosen: 'None' in prod (Secure=true), 'Lax' in local/dev
+        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
+        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
+      ];
+      // Append cookies without clobbering existing headers
+      res.setHeader('Set-Cookie', cookies);
+    } catch (_) { /* cookie setting best-effort */ }
 
     return res.json({
       ok: true,
@@ -440,6 +645,19 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
     console.error('account login error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Logout: clear session and CSRF cookies
+app.post('/api/account/logout', (req, res) => {
+  try {
+    const expired = new Date(0);
+    const cookies = [
+      serializeCookie('fitrep_session', '', { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, expires: expired }),
+      serializeCookie('fitrep_csrf', '', { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, expires: expired })
+    ];
+    res.setHeader('Set-Cookie', cookies);
+  } catch (_) { /* ignore */ }
+  return res.json({ ok: true });
 });
 
 // Simple health endpoint for debugging env and basic readiness
@@ -595,7 +813,7 @@ function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEval
 }
 
 // Save user data: either direct write via FITREP_DATA or dispatch workflow via DISPATCH_TOKEN
-app.post('/api/user/save', saveRateLimit, async (req, res) => {
+app.post('/api/user/save', saveRateLimit, requireAuth, async (req, res) => {
   try {
     const { userData } = req.body || {};
     if (!userData || !userData.rsEmail) {
@@ -604,6 +822,17 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
     if (!isValidUsername(userData.rsEmail)) {
       return res.status(400).json({ error: 'Invalid username format' });
     }
+    // Enforce that the request user matches the authenticated session
+    try {
+      const reqUser = sanitizePrefix(userData.rsEmail);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      const prevUser = userData.previousEmail ? sanitizePrefix(userData.previousEmail) : null;
+      // Allow save when session matches either current email or previousEmail (for migrations)
+      const sessionMatches = !!sessUser && (reqUser === sessUser || (prevUser && prevUser === sessUser));
+      if (!sessionMatches) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
 
     // Optional: previousEmail used only for migrating preserved fields
     const previousEmail = userData.previousEmail || null;
@@ -814,7 +1043,7 @@ app.post('/api/user/save', saveRateLimit, async (req, res) => {
 
 // Save a single evaluation as a unique file and update aggregate user file
 // Path: users/{email_local}/evaluations/{evaluationId}.json
-app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
+app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) => {
   try {
     const { evaluation, userEmail } = req.body || {};
     if (!evaluation || !evaluation.evaluationId) {
@@ -823,6 +1052,14 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
     if (!userEmail || !isValidUsername(userEmail)) {
       return res.status(400).json({ error: 'Invalid or missing username' });
     }
+    // Enforce that the request user matches the authenticated session
+    try {
+      const reqUser = sanitizePrefix(userEmail);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
 
     const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
 
@@ -966,10 +1203,17 @@ app.post('/api/evaluation/save', saveRateLimit, async (req, res) => {
 });
 
 // List evaluations for a user. Uses server token when available; falls back to local storage.
-app.get('/api/evaluations/list', async (req, res) => {
+app.get('/api/evaluations/list', requireAuth, async (req, res) => {
   try {
     const username = String((req.query.username || req.query.email || '')).trim();
     if (!username) return res.status(400).json({ error: 'Missing username query param' });
+    try {
+      const reqUser = sanitizePrefix(username);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
 
     const fitrepToken = process.env.FITREP_DATA || '';
     const prefix = sanitizePrefix(username);
@@ -1077,10 +1321,17 @@ app.get('/api/evaluations/list', async (req, res) => {
 });
 
 // Load user data via server using FITREP_DATA
-app.get('/api/user/load', async (req, res) => {
+app.get('/api/user/load', requireAuth, async (req, res) => {
   try {
     const username = String((req.query.username || req.query.email || '')).trim();
     if (!username) return res.status(400).json({ error: 'Missing username query param' });
+    try {
+      const reqUser = sanitizePrefix(username);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
     const token = process.env.FITREP_DATA;
     if (!token) return res.status(500).json({ error: 'Server missing FITREP_DATA' });
 
@@ -1189,6 +1440,101 @@ app.post('/api/feedback', feedbackRateLimit, async (req, res) => {
   }
 });
 
+// Server-side validation fallback endpoint
+// POST body: { field: string, value: string }
+// Response: { valid: boolean, message: string, suggestions?: string[] }
+app.post('/api/validate/field', validationRateLimit, async (req, res) => {
+  try {
+    const { field, value } = req.body || {};
+    const f = String(field || '').trim();
+    const vRaw = String(value ?? '').trim();
+    const v = sanitizeString(vRaw);
+    if (!f) {
+      return res.status(400).json({ valid: false, message: 'Missing field' });
+    }
+    if (v.length === 0) {
+      return res.status(400).json({ valid: false, message: 'Missing value' });
+    }
+
+    // Authentication for sensitive fields
+    const sensitive = new Set(['username']);
+    if (sensitive.has(f) && !req.sessionUser) {
+      return res.status(401).json({ valid: false, message: 'Not authenticated' });
+    }
+
+    const cacheKey = `${f}:${v.toLowerCase()}`;
+    const cached = validationCache.get(cacheKey);
+    if (cached) {
+      console.log(`[validate] cache hit ${f}=${v} ->`, cached.valid);
+      return res.json(cached);
+    }
+
+    let result = { valid: true, message: 'OK' };
+    const suggestions = [];
+
+    if (f === 'username') {
+      // Format check
+      if (!isValidUsername(v)) {
+        result = { valid: false, message: 'Invalid username format' };
+      } else {
+        const prefix = sanitizePrefix(v);
+        const token = process.env.FITREP_DATA || DISPATCH_TOKEN || '';
+        let taken = false;
+        if (token) {
+          try {
+            const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+            const resp = await fetch(apiUrl, {
+              headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+            });
+            taken = resp.status === 200;
+          } catch (e) {
+            console.warn('validate username: github read failed:', e?.message || e);
+          }
+        }
+        if (!taken) {
+          try {
+            const existing = await readLocalUser(prefix);
+            taken = Boolean(existing);
+          } catch (_) { /* assume not taken on local read error */ }
+        }
+        if (taken) {
+          result = { valid: false, message: 'Username is already taken' };
+          // Suggest alternatives
+          const base = prefix.replace(/_+/g, '-');
+          suggestions.push(`${base}-${Math.floor(Math.random() * 1000)}`);
+          suggestions.push(`${base}.1`);
+        }
+      }
+    } else if (f === 'rankLabel' || f === 'label') {
+      const lower = v.toLowerCase();
+      if (RESERVED_LABELS.has(lower)) {
+        result = { valid: false, message: 'Label is reserved' };
+        suggestions.push(`${lower}-custom`);
+        suggestions.push(`${lower}-user`);
+      } else if (!isValidRank(v)) {
+        result = { valid: false, message: 'Invalid label format' };
+      }
+    } else if (f === 'email') {
+      if (!isValidEmail(v)) {
+        result = { valid: false, message: 'Invalid email address' };
+      }
+    } else {
+      // Unknown field: basic sanitation only
+      if (v.length > 200) {
+        result = { valid: false, message: 'Value too long' };
+      }
+    }
+
+    const payload = suggestions.length ? { ...result, suggestions } : result;
+    validationCache.set(cacheKey, payload);
+    console.log(`[validate] ${f}=${v} ->`, payload.valid ? 'valid' : 'invalid');
+    return res.json(payload);
+  } catch (err) {
+    console.error('validate/field error:', err);
+    return res.status(500).json({ valid: false, message: 'Internal server error' });
+  }
+});
+
 // Debug minimal GitHub configuration exposure (safe for dev)
 app.get('/api/debug/github', (req, res) => {
   try {
@@ -1209,7 +1555,7 @@ app.get('/api/debug/github', (req, res) => {
 
 // Start server if executed directly
 if (require.main === module) {
-  const port = process.env.PORT || 5173;
+  const port = process.env.PORT || 10000;
   // Serve static files for local preview after all API routes
   app.use(express.static('.'));
   const commitSha = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';

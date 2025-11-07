@@ -1,5 +1,9 @@
 // Navigation System with Back Buttons and Step Management
-let navigationHistory = [];
+// Share navigationHistory across modules via window to avoid undefined references
+let navigationHistory = (typeof window !== 'undefined' && Array.isArray(window.navigationHistory)) 
+    ? window.navigationHistory 
+    : [];
+try { if (typeof window !== 'undefined') { window.navigationHistory = navigationHistory; } } catch (_) {}
 let currentStep = 'setup';
 
 const STEPS = {
@@ -14,24 +18,26 @@ const STEPS = {
 function updateNavigationState(step) {
     currentStep = step;
     navigationHistory.push(step);
-    
-    // Update back button visibility
-    const backBtn = document.getElementById('backBtn');
-    if (navigationHistory.length > 1) {
-        backBtn.style.display = 'block';
-    } else {
-        backBtn.style.display = 'none';
-    }
+    try {
+        history.pushState({ step }, '', '#' + step);
+    } catch (_) {}
     
     // Update navigation menu states
     updateNavigationMenu();
     
     // Update progress bar
     updateNavigationProgress();
+
+    // Update breadcrumbs
+    renderBreadcrumbs();
 }
 
 function goBack() {
     if (navigationHistory.length <= 1) return;
+    // Guard unsaved changes
+    if (window.UIStates && typeof window.UIStates.guardNavigation === 'function') {
+        if (!window.UIStates.guardNavigation()) return;
+    }
     
     // Remove current step from history
     navigationHistory.pop();
@@ -67,6 +73,10 @@ function jumpToStep(step) {
     if (!isStepAccessible(step)) {
         showToast('Please complete previous steps first', 'warning');
         return;
+    }
+    // Guard unsaved changes
+    if (window.UIStates && typeof window.UIStates.guardNavigation === 'function') {
+        if (!window.UIStates.guardNavigation()) return;
     }
     
     // Navigate to step
@@ -175,6 +185,29 @@ function toggleMenu() {
     }
 }
 
+function renderBreadcrumbs() {
+    const el = document.getElementById('breadcrumbs');
+    if (!el) return;
+    const labels = { setup: 'Setup', evaluation: 'Evaluation', comments: 'Directed Comments', sectionI: 'Section I', summary: 'Summary' };
+    const deduped = [];
+    for (const s of navigationHistory) {
+        if (deduped.length === 0 || deduped[deduped.length - 1] !== s) deduped.push(s);
+    }
+    const accessibleTrail = deduped.filter(isStepAccessible);
+    el.innerHTML = '';
+    accessibleTrail.forEach((s, idx) => {
+        const a = document.createElement('a');
+        a.className = 'crumb' + (s === currentStep ? ' active' : '');
+        a.textContent = labels[s] || s;
+        if (s !== currentStep) a.href = '#' + s;
+        a.addEventListener('click', (e) => { e.preventDefault(); jumpToStep(s); });
+        el.appendChild(a);
+        if (idx < accessibleTrail.length - 1) {
+            const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '›'; el.appendChild(sep);
+        }
+    });
+}
+
 // Step Navigation Functions
 function showSetupCard() {
     hideAllCards();
@@ -186,6 +219,7 @@ function showSetupCard() {
         if (typeof updateRSSetupDisplay === 'function') {
             try { updateRSSetupDisplay(); } catch (_) {}
         }
+        try { setupCard.setAttribute('tabindex','-1'); setupCard.focus(); } catch (_) {}
     }
 }
 
@@ -257,6 +291,7 @@ function showEvaluationStep() {
     if (container) {
         container.style.display = 'block';
         renderCurrentTrait();
+        try { container.setAttribute('tabindex','-1'); container.focus(); } catch (_) {}
     }
 }
 
@@ -266,6 +301,7 @@ function showDirectedCommentsStep() {
     if (card) {
         card.classList.add('active');
         card.style.display = 'block';
+        try { card.setAttribute('tabindex','-1'); card.focus(); } catch (_) {}
     }
 }
 
@@ -275,6 +311,7 @@ function showSectionIStep() {
     if (card) {
         card.classList.add('active');
         card.style.display = 'block';
+        try { card.setAttribute('tabindex','-1'); card.focus(); } catch (_) {}
     }
 }
 
@@ -284,6 +321,7 @@ function showSummaryStep() {
     if (card) {
         card.classList.add('active');
         card.style.display = 'block';
+        try { card.setAttribute('tabindex','-1'); card.focus(); } catch (_) {}
     }
 }
 
@@ -504,13 +542,6 @@ function initializeKeyboardNavigation() {
             saveProgress();
             showToast('Progress saved!', 'success');
         }
-        
-        // Arrow keys for navigation (when appropriate)
-        if (currentStep === STEPS.evaluation && !document.querySelector('.justification-modal.active')) {
-            if (e.key === 'ArrowLeft' && navigationHistory.length > 1) {
-                goBack();
-            }
-        }
     });
 }
 
@@ -519,4 +550,26 @@ function initializeNavigation() {
     initializeTouchHandlers();
     initializeKeyboardNavigation();
     updateNavigationState(STEPS.setup);
+    // Browser back/forward
+    window.addEventListener('popstate', (e) => {
+        const step = (e && e.state && e.state.step) ? e.state.step : null;
+        if (!step) { goBack(); return; }
+        if (!isStepAccessible(step)) return;
+        // Guard unsaved
+        if (window.UIStates && typeof window.UIStates.guardNavigation === 'function') {
+            if (!window.UIStates.guardNavigation()) return;
+        }
+        switch(step) {
+            case STEPS.setup: showSetupCard(); break;
+            case STEPS.evaluation: showEvaluationStep(); break;
+            case STEPS.comments: showDirectedCommentsStep(); break;
+            case STEPS.sectionI: showSectionIStep(); break;
+            case STEPS.summary: showSummaryStep(); break;
+        }
+        currentStep = step;
+        navigationHistory.push(step);
+        renderBreadcrumbs();
+        updateNavigationMenu();
+        updateNavigationProgress();
+    });
 }

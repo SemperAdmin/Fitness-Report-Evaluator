@@ -252,6 +252,15 @@ class GitHubDataService {
     buildEvaluationYaml(evaluation, userEmail, createdBy = {}) {
         const prefix = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
         const now = new Date().toISOString();
+        // Normalize trait evaluations to an array; UI stores them as an object map
+        let traitList = [];
+        try {
+            if (Array.isArray(evaluation?.traitEvaluations)) {
+                traitList = evaluation.traitEvaluations;
+            } else if (evaluation?.traitEvaluations && typeof evaluation.traitEvaluations === 'object') {
+                traitList = Object.values(evaluation.traitEvaluations);
+            }
+        } catch (_) { /* ignore */ }
         const doc = {
             version: '1.0',
             id: evaluation.evaluationId,
@@ -270,7 +279,7 @@ class GitHubDataService {
             },
             sectionIComments: evaluation?.sectionIComments || null,
             directedComments: evaluation?.directedComments || null,
-            traitEvaluations: Array.isArray(evaluation?.traitEvaluations) ? evaluation.traitEvaluations : [],
+            traitEvaluations: traitList,
             createdAt: now,
             createdBy: {
                 name: createdBy.name || null,
@@ -406,6 +415,23 @@ class GitHubDataService {
         const rsEmail = get(/\brs:[\s\S]*?\n\s{2}email:\s*"([^"]+)"/);
         const rsRank = get(/\brs:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
 
+        // Parse trait evaluations (minimal, regex-based)
+        let traits = [];
+        try {
+            const afterHeader = yamlStr.split('traitEvaluations:')[1] || '';
+            const itemRe = /-\s*\r?\n(?:\s{2,}section:\s*"([^"]+)")\s*\r?\n(?:\s{2,}trait:\s*"([^"]+)")\s*\r?\n(?:\s{2,}grade:\s*"([A-G])")\s*\r?\n(?:\s{2,}gradeNumber:\s*([0-9]+))\s*\r?\n(?:\s{2,}justification:\s*"([^\"]*)")/g;
+            let m;
+            while ((m = itemRe.exec(afterHeader)) !== null) {
+                traits.push({
+                    section: m[1] || '',
+                    trait: m[2] || '',
+                    grade: m[3] || '',
+                    gradeNumber: parseInt(m[4] || '0', 10),
+                    justification: m[5] || ''
+                });
+            }
+        } catch (_) { /* ignore parse errors */ }
+
         const evaluation = {
             evaluationId: id || `eval-${Date.now()}`,
             occasion: occasion || null,
@@ -418,7 +444,7 @@ class GitHubDataService {
             },
             rsInfo: { name: rsName || '', email: rsEmail || '', rank: rsRank || '' },
             sectionIComments: sectionIComments || '',
-            traitEvaluations: [],
+            traitEvaluations: traits,
             syncStatus: 'synced'
         };
         return evaluation;
@@ -614,7 +640,9 @@ class GitHubDataService {
                 if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
                     return [];
                 }
-                const fetchOpts = forceFresh ? { method: 'GET', cache: 'no-store' } : { method: 'GET' };
+                const fetchOpts = forceFresh
+                    ? { method: 'GET', cache: 'no-store', credentials: 'include' }
+                    : { method: 'GET', credentials: 'include' };
                 const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {
                     // Treat non-OK as no evaluations available
@@ -1018,8 +1046,13 @@ class GitHubDataService {
                     return { success: false, error: 'Untrusted origin', message: 'Backend save blocked' };
                 }
 
-                // Build headers; optionally include assembled token when explicitly enabled
+                // Build headers; include CSRF token and optionally assembled token when enabled
                 const headers = { 'Content-Type': 'application/json' };
+                try {
+                    const m = (typeof document !== 'undefined') ? document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/) : null;
+                    const csrf = m ? decodeURIComponent(m[1]) : '';
+                    if (csrf) headers['X-CSRF-Token'] = csrf;
+                } catch (_) {}
                 let assembledToken = null;
                 try {
                     if (typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
@@ -1034,11 +1067,25 @@ class GitHubDataService {
                     ? { userData: normalized, token: assembledToken }
                     : { userData: normalized };
 
-                const resp = await fetch(endpoint.url, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify(payload)
-                });
+                // Simple retry/backoff for transient failures
+                const shouldRetryStatus = (s) => [429, 502, 503, 504].includes(Number(s));
+                const doRequest = async () => {
+                    return fetch(endpoint.url, {
+                        method: 'POST',
+                        headers,
+                        credentials: 'include',
+                        body: JSON.stringify(payload)
+                    });
+                };
+                let resp = await doRequest();
+                if (!resp.ok && shouldRetryStatus(resp.status)) {
+                    await new Promise(r => setTimeout(r, 500));
+                    resp = await doRequest();
+                    if (!resp.ok && shouldRetryStatus(resp.status)) {
+                        await new Promise(r => setTimeout(r, 1000));
+                        resp = await doRequest();
+                    }
+                }
                 if (resp.ok) {
                     const data = await resp.json();
                     let msg = 'Profile saved via server';
@@ -1047,6 +1094,7 @@ class GitHubDataService {
                         else if (data.method === 'dispatch') msg = 'Profile dispatched to workflow';
                         else if (data.method === 'local') msg = 'Profile saved locally on server (temporary)';
                     }
+                    try { if (typeof window !== 'undefined') window.__forceFreshEvaluationsOnce = true; } catch (_) {}
                     return {
                         success: true,
                         filePath: data.path || null,
@@ -1055,8 +1103,14 @@ class GitHubDataService {
                         serverMethod: data.method || null
                     };
                 }
-                const text = await resp.text();
-                return { success: false, error: text, message: `Backend save failed (${resp.status})` };
+                let text = '';
+                try { text = await resp.text(); } catch (_) { text = ''; }
+                return {
+                    success: false,
+                    error: text || resp.statusText,
+                    status: resp.status,
+                    message: `Backend save failed (${resp.status})`
+                };
             } catch (err) {
                 return { success: false, error: err.message, message: 'Backend save error' };
             }
@@ -1162,7 +1216,7 @@ class GitHubDataService {
                 const urlObj = new URL(endpoint.url);
                 urlObj.searchParams.set('email', userEmail);
 
-                const resp = await fetch(urlObj.toString());
+                const resp = await fetch(urlObj.toString(), { credentials: 'include' });
                 if (resp.ok) {
                     const data = await resp.json();
                     return data.data || null;
@@ -1286,6 +1340,11 @@ class GitHubDataService {
             }
 
             const headers = { 'Content-Type': 'application/json' };
+            try {
+                const m = (typeof document !== 'undefined') ? document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/) : null;
+                const csrf = m ? decodeURIComponent(m[1]) : '';
+                if (csrf) headers['X-CSRF-Token'] = csrf;
+            } catch (_) {}
             // Dev-only optional header token if present and explicitly allowed
             let assembledToken = null;
             try {
@@ -1300,6 +1359,7 @@ class GitHubDataService {
             const resp = await fetch(ep.url, {
                 method: 'POST',
                 headers,
+                credentials: 'include',
                 body: JSON.stringify({ evaluation, userEmail })
             });
             const data = await resp.json().catch(() => { throw new Error('Backend returned an invalid JSON response'); });

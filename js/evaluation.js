@@ -242,11 +242,18 @@ function renderCurrentTrait() {
     const sectionProgress = getSectionProgress(trait.sectionKey);
     const sectionInfo = getSectionInfo(trait.sectionKey);
 
+    const safeSectionTitle = escapeHtml(trait.sectionTitle);
+    const safeSectionDesc = escapeHtml(sectionInfo.description);
+    const safeSectionImportance = escapeHtml(sectionInfo.importance);
+    const safeTraitName = escapeHtml(trait.name);
+    const safeTraitDescription = escapeHtml(trait.description);
+    const safeGradeDescription = escapeHtml(gradeDescription);
+
     container.innerHTML = `
         <div class="evaluation-card active">
             <div class="section-context">
                 <div class="section-header">
-                    <div class="section-title">${trait.sectionTitle}</div>
+                    <div class="section-title">${safeSectionTitle}</div>
                     <div class="section-progress">
                         <span class="section-progress-text">Trait ${sectionProgress.current} of ${sectionProgress.total}</span>
                         <div class="section-progress-bar">
@@ -254,23 +261,23 @@ function renderCurrentTrait() {
                         </div>
                     </div>
                 </div>
-                <div class="section-description">${sectionInfo.description}</div>
-                <div class="section-importance">${sectionInfo.importance}</div>
+                <div class="section-description">${safeSectionDesc}</div>
+                <div class="section-importance">${safeSectionImportance}</div>
             </div>
             
             <div class="trait-context">
                 <div class="trait-header">
-                    <div class="trait-subtitle">${trait.name}</div>
-                    <div class="trait-description">${trait.description}</div>
+                    <div class="trait-subtitle">${safeTraitName}</div>
+                    <div class="trait-description">${safeTraitDescription}</div>
                 </div>
             </div>
             
             <div class="grade-display ${getGradeClass(currentEvaluationLevel)}">
-                <div class="grade-description">${gradeDescription}</div>
+                <div class="grade-description">${safeGradeDescription}</div>
             </div>
             
             <div class="evaluation-guidance">
-                <div class="guidance-question">Does this Marine's performance in <strong>${trait.name}</strong> meet this standard?</div>
+                <div class="guidance-question">Does this Marine's performance in <strong>${safeTraitName}</strong> meet this standard?</div>
             </div>
             
             <div class="action-buttons">
@@ -375,6 +382,10 @@ function showJustificationModal() {
     
     updateWordCount();
     modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    try {
+        if (window.A11y) A11y.openDialog(modal, { labelledBy: 'justificationTitle', describedBy: 'justificationDesc', focusFirst: '#justificationText' });
+    } catch (_) {}
     document.getElementById('justificationText').focus();
 }
 
@@ -408,7 +419,10 @@ function saveJustification() {
         voiceBtn.textContent = '🎤 Voice Input';
     }
     
-    document.getElementById('justificationModal').classList.remove('active');
+    const modal = document.getElementById('justificationModal');
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
     pendingEvaluation = null;
     
     // Handle post-save navigation
@@ -456,7 +470,10 @@ function cancelJustification() {
         voiceBtn.textContent = '🎤 Voice Input';
     }
     
-    document.getElementById('justificationModal').classList.remove('active');
+    const modal = document.getElementById('justificationModal');
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
     pendingEvaluation = null;
 }
 
@@ -517,19 +534,23 @@ function populateReviewScreen() {
             const gradeDescription = getGradeDescription(trait.grade);
             const fullText = String(trait.justification || '').trim();
 
+            const safeTraitName = escapeHtml(trait.trait);
+            const safeGradeDesc = escapeHtml(gradeDescription);
+            const safeJustification = fullText ? nl2br(fullText) : '<em>No justification provided</em>';
+
             return `
                 <div class="review-trait-item" id="review-item-${trait.key}">
                     <div class="review-trait-header">
-                        <div class="review-trait-name">${trait.trait}</div>
+                        <div class="review-trait-name">${safeTraitName}</div>
                         <!-- Grade removed -->
                     </div>
                     <div class="review-trait-criteria">
                         <div class="criteria-meets">
-                            <strong>Selected Standard:</strong> ${gradeDescription}
+                            <strong>Selected Standard:</strong> ${safeGradeDesc}
                         </div>
                     </div>
                     <div class="review-trait-justification" style="white-space: pre-line;">
-                        ${fullText || '<em>No justification provided</em>'}
+                        ${safeJustification}
                     </div>
                     <div class="button-row" style="margin-top: 10px;">
                         <button class="btn btn-secondary" onclick="editJustification('${trait.key}')">Edit Justification</button>
@@ -541,8 +562,9 @@ function populateReviewScreen() {
 
         const sectionDiv = document.createElement('div');
         sectionDiv.className = 'review-section';
+        const safeSectionTitle = escapeHtml(sectionTitle);
         sectionDiv.innerHTML = `
-            <div class="review-section-title">${sectionTitle}</div>
+            <div class="review-section-title">${safeSectionTitle}</div>
             <div class="review-traits">${traitsHTML}</div>
         `;
         reviewGrid.appendChild(sectionDiv);
@@ -632,10 +654,17 @@ function showReevaluationModal(trait, traitKey) {
     modal.dataset.traitKeyPart = trait.traitKey;
     
     modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    try {
+        if (window.A11y) A11y.openDialog(modal, { labelledBy: 'reevaluateTitle', describedBy: 'reevaluateDesc', focusFirst: '.reevaluate-buttons .btn-meets' });
+    } catch (_) {}
 }
 
 function cancelReevaluation() {
-    document.getElementById('reevaluateModal').classList.remove('active');
+    const modal = document.getElementById('reevaluateModal');
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
 }
 
 function startReevaluation() {
@@ -665,7 +694,9 @@ function startReevaluation() {
     if (index !== -1) currentTraitIndex = index;
 
     // Hide modal and review card, then show evaluation
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
     modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
     isInReviewMode = false;
     const reviewCard = document.getElementById('reviewCard');
     if (reviewCard) {
@@ -745,10 +776,14 @@ function showSummary() {
         `FITREP Average: ${fitrepAverage}`;
 
     const metaDiv = document.getElementById('evaluationMeta');
+    const safeMarine = escapeHtml(evaluationMeta.marineName || '');
+    const safeFrom = escapeHtml(evaluationMeta.fromDate || '');
+    const safeTo = escapeHtml(evaluationMeta.toDate || '');
+    const safeEvaluator = escapeHtml(evaluationMeta.evaluatorName || '');
     metaDiv.innerHTML = `
-        <strong>Marine:</strong> ${evaluationMeta.marineName} | 
-        <strong>Period:</strong> ${evaluationMeta.fromDate} to ${evaluationMeta.toDate} | 
-        <strong>Reporting Senior:</strong> ${evaluationMeta.evaluatorName} | 
+        <strong>Marine:</strong> ${safeMarine} | 
+        <strong>Period:</strong> ${safeFrom} to ${safeTo} | 
+        <strong>Reporting Senior:</strong> ${safeEvaluator} | 
         <strong>Completed:</strong> ${new Date().toLocaleDateString()}
     `;
 
@@ -769,10 +804,15 @@ function showSummary() {
         const result = evaluationResults[key];
         const item = document.createElement('div');
         item.className = 'summary-item';
+        const safeSection = escapeHtml(result.section || '');
+        const safeTrait = escapeHtml(result.trait || '');
+        const safeGrade = escapeHtml(result.grade || '');
+        const safeGradeNum = escapeHtml(String(result.gradeNumber || ''));
+        const safeJust = nl2br(String(result.justification || ''));
         item.innerHTML = `
-            <div class="summary-trait">${result.section}: ${result.trait}</div>
-            <div class="summary-grade">Grade: ${result.grade} (${result.gradeNumber})</div>
-            <div class="summary-justification">${result.justification}</div>
+            <div class="summary-trait">${safeSection}: ${safeTrait}</div>
+            <div class="summary-grade">Grade: ${safeGrade} (${safeGradeNum})</div>
+            <div class="summary-justification">${safeJust}</div>
         `;
         summaryGrid.appendChild(item);
     });
@@ -782,10 +822,11 @@ function showSummary() {
         const sectionIItem = document.createElement('div');
         sectionIItem.className = 'summary-item';
         sectionIItem.style.background = '#f9f9f9';
+        const safeSectionI = nl2br(evaluationMeta.sectionIComments || '');
         sectionIItem.innerHTML = `
             <div class="summary-trait">Section I - Comments</div>
             <div class="summary-justification" style="max-height: none; font-size: 13px; line-height: 1.4; white-space: pre-line;">
-                ${evaluationMeta.sectionIComments}
+                ${safeSectionI}
             </div>
         `;
         summaryGrid.appendChild(sectionIItem);
@@ -796,10 +837,11 @@ function showSummary() {
         const directedCommentsItem = document.createElement('div');
         directedCommentsItem.className = 'summary-item';
         directedCommentsItem.style.background = '#f0f7ff';
+        const safeDirected = nl2br(evaluationMeta.directedComments || '');
         directedCommentsItem.innerHTML = `
             <div class="summary-trait">Section I - Directed Comments</div>
             <div class="summary-justification" style="max-height: none; font-size: 13px; line-height: 1.4; white-space: pre-line;">
-                ${evaluationMeta.directedComments}
+                ${safeDirected}
             </div>
         `;
         summaryGrid.appendChild(directedCommentsItem);

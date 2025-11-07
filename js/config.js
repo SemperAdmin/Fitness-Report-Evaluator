@@ -63,6 +63,17 @@ function maybeInjectDevToken() {
 }
 maybeInjectDevToken();
 
+// Ensure dev token flag is enabled on localhost unless explicitly overridden
+try {
+    if (typeof window !== 'undefined') {
+        const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        if (isLocal && !('DEV_ENABLE_EMBEDDED_TOKEN' in window)) {
+            window.DEV_ENABLE_EMBEDDED_TOKEN = true;
+            console.log('Dev embedded token flag enabled by default on localhost');
+        }
+    }
+} catch (_) { /* no-op */ }
+
 // Expose token assembler for environments that opt-in to client token usage
 try {
     if (typeof window !== 'undefined') {
