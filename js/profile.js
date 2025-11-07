@@ -303,6 +303,7 @@ async function postJson(url, body) {
     const resp = await fetch(endpoint, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify(payload)
     });
     if (!resp.ok) {

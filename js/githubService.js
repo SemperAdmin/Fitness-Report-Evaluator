@@ -1068,6 +1068,7 @@ class GitHubDataService {
                 const resp = await fetch(endpoint.url, {
                     method: 'POST',
                     headers,
+                    credentials: 'include',
                     body: JSON.stringify(payload)
                 });
                 if (resp.ok) {
@@ -1193,7 +1194,7 @@ class GitHubDataService {
                 const urlObj = new URL(endpoint.url);
                 urlObj.searchParams.set('email', userEmail);
 
-                const resp = await fetch(urlObj.toString());
+                const resp = await fetch(urlObj.toString(), { credentials: 'include' });
                 if (resp.ok) {
                     const data = await resp.json();
                     return data.data || null;
@@ -1336,6 +1337,7 @@ class GitHubDataService {
             const resp = await fetch(ep.url, {
                 method: 'POST',
                 headers,
+                credentials: 'include',
                 body: JSON.stringify({ evaluation, userEmail })
             });
             const data = await resp.json().catch(() => { throw new Error('Backend returned an invalid JSON response'); });

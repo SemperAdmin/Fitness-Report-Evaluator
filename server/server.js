@@ -160,11 +160,11 @@ app.use((req, res, next) => {
   const isAllowed = !CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin));
 
   // Always set standard CORS method allowances
-  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
 
   // Build allowed headers dynamically, echoing requested headers when present
   const requestedHeaders = req.headers['access-control-request-headers'];
-  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token', 'Authorization'];
+  const baseAllowed = ['Content-Type', 'Accept', 'X-GitHub-Token', 'Authorization', 'X-CSRF-Token'];
   const allowHeaderValue = requestedHeaders
     ? Array.from(new Set([...baseAllowed, ...requestedHeaders.split(',').map(h => h.trim()).filter(Boolean)])).join(', ')
     : baseAllowed.join(', ');
@@ -177,11 +177,13 @@ app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
     } else if (isAllowed) {
       res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
       res.header('Vary', 'Origin');
     } else if (req.method === 'OPTIONS') {
       // Be permissive for preflight so the browser proceeds to the actual request,
       // where origin enforcement will apply via missing ACAO on non-allowed origins.
       res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
       res.header('Vary', 'Origin');
     }
   } else if (CORS_ALLOW_ALL) {
