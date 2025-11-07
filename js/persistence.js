@@ -2,6 +2,20 @@
 let autoSaveInterval;
 let lastSaveTime = null;
 let hasUnsavedChanges = false;
+let debouncedSaveTimer = null;
+let activityEvents = [];
+let lastSavedSnapshot = null;
+let saveQueue = [];
+
+// Ensure global currentStep exists even if navigation system is not loaded yet
+try { if (typeof window.currentStep === 'undefined') { window.currentStep = 'setup'; } } catch (_) { /* noop */ }
+// Ensure navigationHistory exists and is shared via window
+try { if (!Array.isArray(window.navigationHistory)) { window.navigationHistory = []; } } catch (_) { /* noop */ }
+
+const BASE_INTERVAL_MS = 10000; // default 10s
+const MIN_INTERVAL_MS = 3000;   // adaptive lower bound
+const MAX_INTERVAL_MS = 15000;  // adaptive upper bound
+const DEBOUNCE_MS = 1200;       // immediate save when idle
 
 const STORAGE_KEYS = {
     currentSession: 'fitrep_current_session',
@@ -12,20 +26,30 @@ const STORAGE_KEYS = {
 
 // Auto-save functionality
 function initializeAutoSave() {
-    // Auto-save every 30 seconds
-    autoSaveInterval = setInterval(() => {
-        if (hasUnsavedChanges) {
-            saveProgressToStorage();
-        }
-    }, 30000);
+    // Auto-save baseline every 10 seconds, adapt to activity
+    const startInterval = (ms) => {
+        if (autoSaveInterval) clearInterval(autoSaveInterval);
+        autoSaveInterval = setInterval(() => {
+            if (hasUnsavedChanges) {
+                performSaveWithRetry();
+            }
+        }, ms);
+    };
+    startInterval(BASE_INTERVAL_MS);
     
-    // Save on page unload
+    // Save and warn on page unload when there are unsaved changes or pending syncs
     window.addEventListener('beforeunload', function(e) {
-        if (hasUnsavedChanges) {
-            saveProgressToStorage();
-            // Show warning if there are unsaved changes
+        // Evaluate pending syncs from profile context if available
+        let hasPendingSyncs = false;
+        try {
+            const evals = (window.profileEvaluations || []);
+            hasPendingSyncs = Array.isArray(evals) && evals.some(ev => ev && ev.syncStatus === 'pending');
+        } catch (_) { /* ignore */ }
+
+        if (hasUnsavedChanges || hasPendingSyncs) {
+            try { saveProgressToStorage(); } catch (_) {}
             e.preventDefault();
-            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            e.returnValue = 'You have unsaved changes or pending syncs. Sync/export first?';
             return e.returnValue;
         }
     });
@@ -33,11 +57,39 @@ function initializeAutoSave() {
     // Mark changes when user interacts with form
     document.addEventListener('input', markUnsavedChanges);
     document.addEventListener('change', markUnsavedChanges);
+
+    // Flush queued saves when connection is restored
+    window.addEventListener('online', flushSaveQueue);
+
+    // Adaptive timer recalibration every 5 seconds based on recent activity
+    setInterval(() => {
+        const now = Date.now();
+        activityEvents = activityEvents.filter(t => now - t < 20000); // keep last 20s
+        const activityRate = activityEvents.length; // events in 20s
+        let next = BASE_INTERVAL_MS;
+        if (activityRate >= 12) next = MIN_INTERVAL_MS; // very high activity
+        else if (activityRate >= 6) next = 5000;        // moderate activity
+        else next = BASE_INTERVAL_MS;
+        const currentMs = (autoSaveInterval && autoSaveInterval._ms) || null;
+        if (currentMs !== next) {
+            startInterval(next);
+            // attach ms for introspection
+            if (autoSaveInterval) autoSaveInterval._ms = next;
+        }
+    }, 5000);
 }
 
 function markUnsavedChanges() {
     hasUnsavedChanges = true;
+    activityEvents.push(Date.now());
     updateAutoSaveIndicator('unsaved');
+    // Debounce immediate save after user pauses typing
+    clearTimeout(debouncedSaveTimer);
+    debouncedSaveTimer = setTimeout(() => {
+        if (hasUnsavedChanges) {
+            performSaveWithRetry();
+        }
+    }, DEBOUNCE_MS);
 }
 
 function markChangesSaved() {
@@ -47,44 +99,34 @@ function markChangesSaved() {
 }
 
 function updateAutoSaveIndicator(status) {
-    const indicator = document.getElementById('autoSaveStatus');
-    const icon = indicator.querySelector('.auto-save-icon');
-    const text = indicator.querySelector('.auto-save-text');
-    
+    const indicator = document.getElementById('autoSaveIndicator');
     if (!indicator) return;
-    
+    const icon = indicator.querySelector('.icon');
+    const text = indicator.querySelector('.text');
+    const retryBtn = document.getElementById('retrySaveBtn');
+
     indicator.classList.remove('saved', 'unsaved', 'saving', 'error');
-    
-    switch(status) {
-        case 'saved':
-            indicator.classList.add('saved');
-            icon.textContent = '✅';
-            text.textContent = `Saved ${formatTime(lastSaveTime)}`;
-            break;
-        case 'unsaved':
-            indicator.classList.add('unsaved');
-            icon.textContent = '⚠️';
-            text.textContent = 'Unsaved changes';
-            break;
-        case 'saving':
-            indicator.classList.add('saving');
-            icon.textContent = '⏳';
-            text.textContent = 'Saving...';
-            break;
-        case 'error':
-            indicator.classList.add('error');
-            icon.textContent = '❌';
-            text.textContent = 'Save failed';
-            break;
+    indicator.classList.add(status);
+    if (retryBtn) retryBtn.style.display = status === 'error' ? 'inline' : 'none';
+
+    if (status === 'saved') {
+        const when = lastSaveTime ? formatTime(lastSaveTime) : formatTime(new Date());
+        if (text) text.textContent = `Saved ${when}`;
+        if (icon) icon.style.display = 'none';
+        // Show success briefly; keep visible but green
+        setTimeout(() => {
+            // No-op: keep indicator visible for continuity
+        }, 2000);
+    } else if (status === 'saving') {
+        if (text) text.textContent = 'Saving…';
+        if (icon) icon.style.display = 'inline-block';
+    } else if (status === 'unsaved') {
+        if (text) text.textContent = 'Unsaved changes';
+        if (icon) icon.style.display = 'none';
+    } else if (status === 'error') {
+        if (text) text.textContent = 'Save failed';
+        if (icon) icon.style.display = 'none';
     }
-    
-    // Show indicator briefly
-    indicator.style.display = 'flex';
-    setTimeout(() => {
-        if (status === 'saved') {
-            indicator.style.display = 'none';
-        }
-    }, 3000);
 }
 
 function formatTime(date) {
@@ -100,35 +142,63 @@ function formatTime(date) {
 // Enhanced save/load functions
 function saveProgressToStorage() {
     updateAutoSaveIndicator('saving');
-    
+
+    // Build session payload; support compact mode to reduce size on quota errors
+    const buildSessionData = (compact = false) => ({
+        timestamp: new Date().toISOString(),
+        currentStep: ((typeof window !== 'undefined' && typeof window.currentStep !== 'undefined') ? window.currentStep : 'setup'),
+        currentTraitIndex: currentTraitIndex,
+        currentEvaluationLevel: currentEvaluationLevel,
+        evaluationResults: evaluationResults,
+        evaluationMeta: evaluationMeta,
+        selectedDirectedComments: selectedDirectedComments,
+        // Omit large blobs when compacting to fit quota
+        directedCommentsData: compact ? {} : directedCommentsData,
+        generatedSectionI: compact ? '' : generatedSectionI,
+        navigationHistory: (Array.isArray(window.navigationHistory) ? window.navigationHistory : ['setup']),
+        isReportingSenior: isReportingSenior,
+        allTraits: allTraits
+    });
+
     try {
-        const sessionData = {
-            timestamp: new Date().toISOString(),
-            currentStep: currentStep,
-            currentTraitIndex: currentTraitIndex,
-            currentEvaluationLevel: currentEvaluationLevel,
-            evaluationResults: evaluationResults,
-            evaluationMeta: evaluationMeta,
-            selectedDirectedComments: selectedDirectedComments,
-            directedCommentsData: directedCommentsData,
-            generatedSectionI: generatedSectionI,
-            navigationHistory: navigationHistory,
-            isReportingSenior: isReportingSenior,
-            allTraits: allTraits,
-            validationState: validationState
-        };
-        
+        const sessionData = buildSessionData(false);
         localStorage.setItem(STORAGE_KEYS.currentSession, JSON.stringify(sessionData));
-        
         // Also save to session history
         saveToSessionHistory(sessionData);
-        
         markChangesSaved();
+        lastSavedSnapshot = sessionData;
         return true;
     } catch (error) {
+        // Detect quota exceeded and attempt compact fallback
+        const isQuota = (() => {
+            try {
+                return (
+                    error && (
+                        error.name === 'QuotaExceededError' ||
+                        error.code === 22 ||
+                        /quota/i.test(String(error.message || ''))
+                    )
+                );
+            } catch (_) { return false; }
+        })();
+        if (isQuota) {
+            try {
+                const compact = buildSessionData(true);
+                localStorage.setItem(STORAGE_KEYS.currentSession, JSON.stringify(compact));
+                // Do not store full history when compacting
+                markChangesSaved();
+                showToast('Storage is full. Saved a compact snapshot; export recommended.', 'warning');
+                return true;
+            } catch (e2) {
+                console.error('Compact save failed:', e2);
+            }
+        }
         console.error('Failed to save progress:', error);
+        // Cache for recovery and queue if offline
+        try { saveQueue.push({ ts: Date.now(), data: buildSessionData(true) }); } catch(_){}
+        persistQueue();
         updateAutoSaveIndicator('error');
-        showToast('Failed to save progress. Please try again.', 'error');
+        showToast('Save failed. Try clearing old sessions or exporting.', 'error');
         return false;
     }
 }
@@ -163,7 +233,7 @@ function restoreSession(sessionData) {
         selectedDirectedComments = sessionData.selectedDirectedComments || [];
         directedCommentsData = sessionData.directedCommentsData || {};
         generatedSectionI = sessionData.generatedSectionI || '';
-        navigationHistory = sessionData.navigationHistory || ['setup'];
+        try { window.navigationHistory = sessionData.navigationHistory || ['setup']; } catch (_){ /* noop */ }
         isReportingSenior = sessionData.isReportingSenior || false;
         allTraits = sessionData.allTraits || [];
         validationState = sessionData.validationState || {};
@@ -193,8 +263,29 @@ function restoreSession(sessionData) {
             }
         }
         
-        // Navigate to current step
-        jumpToStep(currentStep);
+        // Navigate to current step (guard if navigation system is not loaded)
+        if (typeof jumpToStep === 'function') {
+            jumpToStep(currentStep);
+        } else {
+            try {
+                // Fallback: show the appropriate card by id if available
+                const map = {
+                    setup: 'setupCard',
+                    evaluation: 'evaluationContainer',
+                    comments: 'directedCommentsCard',
+                    sectionI: 'sectionIGenerationCard',
+                    summary: 'summaryCard'
+                };
+                const targetId = map[currentStep] || 'setupCard';
+                const cards = [
+                    'setupCard','howItWorksCard','evaluationContainer',
+                    'directedCommentsCard','sectionIGenerationCard','summaryCard'
+                ];
+                cards.forEach(id => { const el = document.getElementById(id); if (el) { el.classList.remove('active'); el.style.display = 'none'; } });
+                const tgt = document.getElementById(targetId);
+                if (tgt) { tgt.classList.add('active'); tgt.style.display = 'block'; }
+            } catch (_) {}
+        }
         
         // Update validation
         updateFormValidation();
@@ -359,7 +450,7 @@ function importFromJSON(file) {
 
 // Manual save/load functions
 function saveProgress() {
-    return saveProgressToStorage();
+    return performSaveWithRetry();
 }
 
 function loadProgress() {
@@ -375,7 +466,7 @@ function loadProgress() {
 
 // Clear all data
 function clearAllData() {
-    if (confirm('This will permanently delete all saved data. This cannot be undone. Continue?')) {
+    if (confirm('This clears local data. Sync/export first? Continue?')) {
         Object.values(STORAGE_KEYS).forEach(key => {
             localStorage.removeItem(key);
         });
@@ -391,8 +482,70 @@ function initializePersistence() {
     // Check for previous session on load
     setTimeout(() => {
         if (!checkForPreviousSession()) {
-            // No previous session, hide loading overlay
-            hideLoadingOverlay();
+            // No previous session, hide loading overlay if present
+            try {
+                if (typeof hideLoadingOverlay === 'function') {
+                    hideLoadingOverlay();
+                } else {
+                    const el = document.getElementById('loadingOverlay');
+                    if (el) el.style.display = 'none';
+                }
+            } catch (_) {}
         }
     }, 1000);
+}
+
+// Expose manual retry/force save API
+window.autoSave = {
+    retryNow: () => performSaveWithRetry(),
+    forceSave: () => { hasUnsavedChanges = true; return performSaveWithRetry(); }
+};
+function diffSession(prev, next) {
+    const changed = {};
+    Object.keys(next || {}).forEach(k => {
+        const a = prev ? prev[k] : undefined;
+        const b = next[k];
+        const same = (() => {
+            try { return JSON.stringify(a) === JSON.stringify(b); } catch(_) { return a === b; }
+        })();
+        if (!same) changed[k] = b;
+    });
+    return changed;
+}
+
+function persistQueue() {
+    try { localStorage.setItem('fitrep_save_queue', JSON.stringify(saveQueue)); } catch(_){}
+}
+
+function loadQueue() {
+    try { saveQueue = JSON.parse(localStorage.getItem('fitrep_save_queue')||'[]'); } catch(_) { saveQueue = []; }
+}
+
+async function flushSaveQueue() {
+    loadQueue();
+    if (!navigator.onLine || !saveQueue.length) return;
+    const pending = [...saveQueue];
+    saveQueue = [];
+    for (const item of pending) {
+        try {
+            localStorage.setItem(STORAGE_KEYS.currentSession, JSON.stringify(item.data));
+        } catch (e) {
+            console.warn('Queue flush failed; requeue', e);
+            saveQueue.push(item);
+        }
+    }
+    persistQueue();
+}
+
+async function performSaveWithRetry(attempts = 3, baseDelayMs = 400) {
+    let tryCount = 0;
+    updateAutoSaveIndicator('saving');
+    while (tryCount < attempts) {
+        tryCount++;
+        const ok = saveProgressToStorage();
+        if (ok) return true;
+        await new Promise(res => setTimeout(res, baseDelayMs * Math.pow(2, tryCount-1)));
+    }
+    updateAutoSaveIndicator('error');
+    return false;
 }

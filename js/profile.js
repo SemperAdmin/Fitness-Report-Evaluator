@@ -84,10 +84,25 @@ async function createAccount() {
         return;
     }
 
-    // Client-side username format validation (aligns with server rules)
-    const usernamePattern = /^[a-zA-Z0-9._-]{3,50}$/;
-    if (!usernamePattern.test(email)) {
+    // Client-side username format validation (align with server rules)
+    if (!isValidUsernameClient(email)) {
         alert('Invalid username format. Use 3–50 chars: letters, numbers, ., _, -');
+        return;
+    }
+
+    // Client-side rank and name validation (align with server rules)
+    if (!isValidRankClient(rank)) {
+        alert('Invalid rank. Use 2–20 characters.');
+        return;
+    }
+    if (!isValidNameClient(name)) {
+        alert('Invalid name. Use 2–100 characters.');
+        return;
+    }
+
+    // Client-side password strength validation (align with server rules)
+    if (!isStrongPasswordClient(password)) {
+        alert('Password must be 8+ chars with upper, lower, and a number.');
         return;
     }
 
@@ -146,8 +161,7 @@ async function accountLogin() {
     }
 
     // Client-side username validation to reduce server round-trips
-    const usernamePattern = /^[a-zA-Z0-9._-]{3,50}$/;
-    if (!usernamePattern.test(email)) {
+    if (!isValidUsernameClient(email)) {
         alert('Invalid username format. Use 3–50 chars: letters, numbers, ., _, -');
         return;
     }
@@ -166,13 +180,19 @@ async function accountLogin() {
             // Restore UI when login fails
             if (typewriter) typewriter.style.display = 'none';
             if (loginFieldsEl) loginFieldsEl.style.display = 'block';
-            let msg = res && res.error
-                ? res.error
-                : 'Login failed. Password validation failed or service unavailable.';
+            const status = res && typeof res.status === 'number' ? res.status : 0;
+            let msg = res && res.error ? res.error : '';
             if (typeof msg === 'string' && msg.includes('Invalid username format')) {
                 msg = 'Invalid username format. Use 3–50 chars: letters, numbers, ., _, -';
             }
-            alert(msg);
+            if (!msg) {
+                if (status === 401) msg = 'Invalid username or password.';
+                else if (status === 403) msg = 'Access denied. Try same-origin login or clear cookies.';
+                else if (status === 429) msg = 'Too many attempts. Please wait and retry.';
+                else if (status >= 500) msg = 'Service unavailable. Please try again shortly.';
+                else msg = 'Login failed. Check credentials or network.';
+            }
+            showToast(msg, 'error');
             return;
         }
 
@@ -213,16 +233,48 @@ async function accountLogin() {
         // Hide animation before transitioning to dashboard
         if (typewriter) typewriter.style.display = 'none';
         showProfileDashboard();
+
+        // Auto-sync any locally pending evaluations after successful login
+        try {
+            if (typeof hasPendingSyncs === 'function' && hasPendingSyncs()) {
+                await syncAllEvaluations();
+            }
+        } catch (_) { /* ignore */ }
     } catch (err) {
         console.error('accountLogin error:', err);
         // Restore UI on network error
         if (typewriter) typewriter.style.display = 'none';
         if (loginFieldsEl) loginFieldsEl.style.display = 'block';
-        alert('Login failed due to a network error.');
+        const offline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
+        const msg = offline ? 'Offline: connect to login.' : 'Network error during login. Please retry.';
+        showToast(msg, 'error');
     }
 }
 
-// Small helper for backend POST
+// Client-side validators mirroring server-side rules
+function isValidUsernameClient(username) {
+    const u = String(username || '').trim();
+    if (u.length < 3 || u.length > 50) return false;
+    return /^[a-zA-Z0-9._-]+$/.test(u);
+}
+function isStrongPasswordClient(pw) {
+    const p = String(pw || '');
+    if (p.length < 8) return false;
+    const hasLower = /[a-z]/.test(p);
+    const hasUpper = /[A-Z]/.test(p);
+    const hasDigit = /\d/.test(p);
+    return hasLower && hasUpper && hasDigit;
+}
+function isValidNameClient(name) {
+    const n = String(name || '').trim();
+    return n.length >= 2 && n.length <= 100;
+}
+function isValidRankClient(rank) {
+    const r = String(rank || '').trim();
+    return r.length >= 2 && r.length <= 20;
+}
+
+// Small helper for backend POST with offline detection and retry
 async function postJson(url, body) {
     const base = (typeof window !== 'undefined' && window.API_BASE_URL)
         ? window.API_BASE_URL
@@ -241,6 +293,12 @@ async function postJson(url, body) {
 
     // Build headers; include token when enabled
     const headers = { 'Content-Type': 'application/json' };
+    // Include CSRF token from cookie when available
+    try {
+        const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
+        const csrf = m ? decodeURIComponent(m[1]) : '';
+        if (csrf) headers['X-CSRF-Token'] = csrf;
+    } catch (_) { /* ignore */ }
     let assembledToken = null;
     try {
         let token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
@@ -261,22 +319,51 @@ async function postJson(url, body) {
         ? { ...body, token: assembledToken }
         : body;
 
-    const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-    });
-    if (!resp.ok) {
-        let error = `Request failed (${resp.status})`;
-        try { const data = await resp.json(); error = data.error || error; } catch (_) {}
-        return { ok: false, error, status: resp.status };
+    // Offline fast-fail
+    if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) {
+        return { ok: false, error: 'Offline: no network connection', status: 0 };
     }
-    try {
-        const data = await resp.json();
-        return { ok: true, ...data };
-    } catch (_) {
-        return { ok: true };
+
+    const shouldRetryStatus = (s) => [429, 502, 503, 504].includes(s);
+    const maxAttempts = 3;
+    let attempt = 0;
+    let lastError = null;
+    while (attempt < maxAttempts) {
+        try {
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers,
+                credentials: 'include',
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                let error = `Request failed (${resp.status})`;
+                try { const data = await resp.json(); error = data.error || error; } catch (_) {}
+                if (attempt < maxAttempts - 1 && shouldRetryStatus(resp.status)) {
+                    const backoffMs = 250 * Math.pow(2, attempt); // 250ms, 500ms, 1000ms
+                    await new Promise(r => setTimeout(r, backoffMs));
+                    attempt++;
+                    continue;
+                }
+                return { ok: false, error, status: resp.status };
+            }
+            try {
+                const data = await resp.json();
+                return { ok: true, ...data };
+            } catch (_) {
+                return { ok: true };
+            }
+        } catch (e) {
+            lastError = e;
+            const msg = String(e?.message || '').toLowerCase();
+            const retryable = /network|timeout|fetch|connection|reset/.test(msg);
+            if (attempt >= maxAttempts - 1 || !retryable) break;
+            const backoffMs = 250 * Math.pow(2, attempt);
+            await new Promise(r => setTimeout(r, backoffMs));
+            attempt++;
+        }
     }
+    return { ok: false, error: lastError?.message || 'Network error', status: 0 };
 }
 
 // UI toggles for Create Account
@@ -410,7 +497,7 @@ function renderProfileHeader() {
         totalEl.textContent = String(profileEvaluations.length);
     }
 
-    const pending = profileEvaluations.filter(e => e.syncStatus !== 'synced').length;
+    const pending = profileEvaluations.filter(e => e.syncStatus === 'pending').length;
     if (pendingEl) {
         pendingEl.textContent = String(pending);
     }
@@ -444,9 +531,37 @@ function openEditProfile() {
             rank: currentProfile?.rsRank
         });
 
-        modal.style.display = 'block';
-        modal.classList.add('active');
-        console.info('[Modal] opened');
+        try {
+            if (window.ModalController && typeof window.ModalController.openById === 'function') {
+                window.ModalController.openById('editProfileModal', { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
+            } else {
+                modal.style.display = 'block';
+                modal.classList.add('active');
+                try {
+                    if (window.A11y && typeof window.A11y.openDialog === 'function') {
+                        window.A11y.openDialog(modal, { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
+                    }
+                } catch (_) {}
+            }
+            console.info('[Modal] opened');
+            // Attach real-time validation to modal fields
+            try {
+                if (window.FormValidationUI) {
+                    window.FormValidationUI.attachToContainer(modal, { submitButtonSelector: '#saveProfileBtn' });
+                }
+            } catch (e) {
+                console.warn('FormValidationUI attach failed:', e);
+            }
+        } catch (e) {
+            console.warn('ModalController.openById failed, falling back:', e);
+            modal.style.display = 'block';
+            modal.classList.add('active');
+            try {
+                if (window.A11y && typeof window.A11y.openDialog === 'function') {
+                    window.A11y.openDialog(modal, { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
+                }
+            } catch (_) {}
+        }
         console.groupEnd('ProfileEdit: openEditProfile');
     } catch (err) {
         console.error('openEditProfile error:', err);
@@ -463,9 +578,21 @@ function closeEditProfileModal() {
             console.groupEnd('ProfileEdit: closeEditProfileModal');
             return;
         }
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-        console.info('[Modal] closed');
+        try {
+            if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+                window.ModalController.closeById('editProfileModal');
+            } else {
+                try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            }
+            console.info('[Modal] closed');
+        } catch (e) {
+            console.warn('ModalController.closeById failed, falling back:', e);
+            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
         console.groupEnd('ProfileEdit: closeEditProfileModal');
     } catch (err) {
         console.error('closeEditProfileModal error:', err);
@@ -478,48 +605,76 @@ try {
     window.openEditProfile = openEditProfile;
     window.closeEditProfileModal = closeEditProfileModal;
     window.saveProfileUpdates = saveProfileUpdates;
+    // Logout handlers for breadcrumb button
+    window.logoutProfile = logoutProfile;
+    window.continueLogoutProfile = continueLogoutProfile;
     console.info('profile.js: global handlers bound to window');
 } catch (e) {
     console.warn('profile.js: failed to bind handlers to window', e);
 }
 
-// Fallback: bind click listeners after DOM ready, in case inline handlers fail
+// Bind click listeners after DOM ready; prefer direct IDs and avoid duplicates when inline handlers exist
 document.addEventListener('DOMContentLoaded', () => {
     try {
-        console.debug('profile.js: DOMContentLoaded');
-        const editBtn = document.querySelector('.profile-actions-bar button[onclick="openEditProfile()"]');
-        if (editBtn) {
+        // Edit Profile
+        const editBtn = document.getElementById('editProfileBtn')
+            || document.querySelector('.profile-name-row .editBtn');
+        if (editBtn && !editBtn.getAttribute('onclick')) {
             editBtn.addEventListener('click', (evt) => {
-                console.debug('ProfileEdit: fallback click handler triggered');
-                try { openEditProfile(); } catch (err) { console.error('fallback openEditProfile error:', err); }
+                try { openEditProfile(); } catch (err) { console.error('openEditProfile error:', err); }
                 evt.preventDefault();
-            }, { once: false });
-            console.info('profile.js: fallback click binding attached to Edit Profile button');
-        } else {
-            console.warn('profile.js: Edit Profile button not found for fallback binding');
+            });
         }
 
-        const saveBtn = document.querySelector('#editProfileModal button[onclick="saveProfileUpdates()"]');
-        if (saveBtn) {
+        // Logout
+        const logoutBtn = document.getElementById('logoutBtn')
+            || document.querySelector('.breadcrumb-nav .Btn');
+        if (logoutBtn && !logoutBtn.getAttribute('onclick')) {
+            logoutBtn.addEventListener('click', (evt) => {
+                try {
+                    const btn = evt.currentTarget || logoutBtn;
+                    if (window.UIStates && typeof window.UIStates.withLoading === 'function') {
+                        window.UIStates.withLoading(btn, async () => {
+                            logoutProfile();
+                        });
+                    } else {
+                        logoutProfile();
+                    }
+                } catch (err) { console.error('logoutProfile error:', err); }
+                evt.preventDefault();
+            });
+        }
+
+        // Save Changes
+        const saveBtn = document.getElementById('saveProfileBtn')
+            || document.querySelector('#editProfileModal .btn.btn-meets');
+        if (saveBtn && !saveBtn.getAttribute('onclick')) {
             saveBtn.addEventListener('click', (evt) => {
-                console.debug('ProfileEdit: fallback save handler triggered');
-                try { saveProfileUpdates(); } catch (err) { console.error('fallback saveProfileUpdates error:', err); }
+                try {
+                    const btn = evt.currentTarget || saveBtn;
+                    if (window.UIStates && typeof window.UIStates.withLoading === 'function') {
+                        window.UIStates.withLoading(btn, async () => {
+                            await saveProfileUpdates();
+                        });
+                    } else {
+                        saveProfileUpdates();
+                    }
+                } catch (err) { console.error('saveProfileUpdates error:', err); }
                 evt.preventDefault();
-            }, { once: false });
-            console.info('profile.js: fallback click binding attached to Save Changes');
+            });
         }
 
-        const cancelBtn = document.querySelector('#editProfileModal button[onclick="closeEditProfileModal()"]');
-        if (cancelBtn) {
+        // Cancel
+        const cancelBtn = document.getElementById('cancelProfileBtn')
+            || document.querySelector('#editProfileModal .btn.btn-secondary');
+        if (cancelBtn && !cancelBtn.getAttribute('onclick')) {
             cancelBtn.addEventListener('click', (evt) => {
-                console.debug('ProfileEdit: fallback cancel handler triggered');
-                try { closeEditProfileModal(); } catch (err) { console.error('fallback closeEditProfileModal error:', err); }
+                try { closeEditProfileModal(); } catch (err) { console.error('closeEditProfileModal error:', err); }
                 evt.preventDefault();
-            }, { once: false });
-            console.info('profile.js: fallback click binding attached to Cancel');
+            });
         }
     } catch (bindErr) {
-        console.error('profile.js: error during fallback bindings', bindErr);
+        console.error('profile.js: error during direct bindings', bindErr);
     }
 });
 
@@ -536,11 +691,23 @@ async function saveProfileUpdates() {
         const newRank = (rankInput?.value || '').trim();
         console.info('[Start] Inputs', { newName, newEmail, newRank });
 
-        if (!newName || !newEmail || !newRank) {
-            console.warn('[Abort] Validation failed: missing fields');
-            alert('Please enter Name, Email, and Rank.');
-            console.groupEnd('ProfileEdit: saveProfileUpdates');
-            return;
+        // Final validation gate before submission
+        try {
+            const container = document.getElementById('editProfileModal');
+            let validAll = true;
+            if (window.FormValidationUI && container) {
+                validAll = window.FormValidationUI.validateForm(container);
+            } else {
+                validAll = !!(newName && newEmail && newRank);
+            }
+            if (!validAll) {
+                console.warn('[Abort] Validation failed: fields invalid');
+                alert('Please correct the highlighted fields.');
+                console.groupEnd('ProfileEdit: saveProfileUpdates');
+                return;
+            }
+        } catch (e) {
+            console.warn('Validation check failed, proceeding cautiously:', e);
         }
 
         if (!currentProfile) {
@@ -654,12 +821,20 @@ async function saveProfileUpdates() {
                     });
                     if (result?.success) {
                         statusMsg = result?.message || '';
+                        try { window.__forceFreshEvaluationsOnce = true; } catch (_) {}
                         console.info('[Backend] saveUserData fallback success', result);
+                        try { showToast('Profile saved to server', 'success'); } catch (_) {}
                     } else {
                         console.warn('[Backend] saveUserData fallback failed', result);
+                        const reason = (result && (result.message || result.error)) || 'Unknown error';
+                        const msg = (result && result.status === 403)
+                            ? 'Not authorized. Please log in again.'
+                            : `Save failed: ${reason}`;
+                        try { showToast(msg, 'error'); } catch (_) {}
                     }
                 } catch (e) {
                     console.warn('Backend fallback save error:', e);
+                    try { showToast('Save failed due to a network error.', 'error'); } catch (_) {}
                 }
             }
         } else {
@@ -684,7 +859,16 @@ async function saveProfileUpdates() {
             console.info('[UI] Status set', { synced, statusMsg });
         }
 
-        alert('Profile updated successfully.');
+        try {
+            const container = document.getElementById('editProfileModal');
+            if (window.FormValidationUI && typeof window.FormValidationUI.showSuccessBanner === 'function') {
+                window.FormValidationUI.showSuccessBanner(container, (container && container.dataset && container.dataset.successMessage) || 'Profile updated successfully');
+            } else {
+                showToast('Profile updated successfully.', 'success');
+            }
+        } catch (_) {
+            showToast('Profile updated successfully.', 'success');
+        }
         console.groupEnd('ProfileEdit: saveProfileUpdates');
     } catch (error) {
         console.error('saveProfileUpdates error:', error);
@@ -840,20 +1024,20 @@ function createEvaluationListItem(evaluation) {
         <div class="eval-header" onclick="toggleEvaluation(this)">
             <div class="eval-summary">
                 <div class="eval-marine-info">
-                    <span class="marine-rank">${(evaluation.marineInfo || evaluation.marine || {}).rank || ''}</span>
-                    <span class="marine-name">${(evaluation.marineInfo || evaluation.marine || {}).name || ''}</span>
+                    <span class="marine-rank">${escapeHtml((evaluation.marineInfo || evaluation.marine || {}).rank || '')}</span>
+                    <span class="marine-name">${escapeHtml((evaluation.marineInfo || evaluation.marine || {}).name || '')}</span>
                 </div>
                 <div class="eval-meta">
-                    <span class="eval-occasion">${evaluation.occasion}</span>
-                    <span class="eval-dates">${((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).from || ''} to ${((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).to || ''}</span>
-                    <span class="eval-average">Avg: ${evaluation.fitrepAverage}</span>
+                    <span class="eval-occasion">${escapeHtml(evaluation.occasion || '')}</span>
+                    <span class="eval-dates">${escapeHtml((((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).from || ''))} to ${escapeHtml((((evaluation.marineInfo || evaluation.marine || {}).evaluationPeriod || {}).to || ''))}</span>
+                    <span class="eval-average">Avg: ${escapeHtml(String(evaluation.fitrepAverage || ''))}</span>
                 </div>
             </div>
             <div class="eval-actions">
-                <span class="sync-status ${evaluation.syncStatus || 'pending'}">
+                <span class="sync-status ${escapeHtml(evaluation.syncStatus || 'pending')}">
                     ${evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending'}
                 </span>
-                <button class="icon-btn" onclick="event.stopPropagation(); deleteEvaluation('${evalId}')">
+                <button class="icon-btn" onclick="event.stopPropagation(); deleteEvaluation('${escapeHtml(evalId)}')">
                     🗑️
                 </button>
                 <span class="expand-icon">▼</span>
@@ -872,8 +1056,8 @@ function renderEvaluationDetails(evaluation) {
     Object.values(evaluation.traitEvaluations).forEach(trait => {
         justificationsHTML += `
             <div class="justification-item">
-                <strong>${trait.trait} (${trait.grade}):</strong>
-                <p>${trait.justification}</p>
+                <strong>${escapeHtml(trait.trait)} (${escapeHtml(String(trait.grade))}):</strong>
+                <p>${trait.justification ? nl2br(escapeHtml(trait.justification)) : '<em>No justification provided</em>'}</p>
             </div>
         `;
     });
@@ -882,7 +1066,7 @@ function renderEvaluationDetails(evaluation) {
         <div class="eval-details-grid">
             <div class="detail-section">
                 <h4>Section I Comments</h4>
-                <div class="comments-text">${evaluation.sectionIComments || 'No comments provided'}</div>
+                <div class="comments-text">${evaluation.sectionIComments ? nl2br(escapeHtml(evaluation.sectionIComments)) : 'No comments provided'}</div>
             </div>
             <div class="detail-section full-width">
                 <h4>Justifications</h4>
@@ -890,7 +1074,7 @@ function renderEvaluationDetails(evaluation) {
             </div>
         </div>
         <div class="eval-detail-actions">
-            <button class="btn btn-secondary" onclick="exportEvaluation('${evaluation.evaluationId}')">
+            <button class="btn btn-secondary" onclick="exportEvaluation('${escapeHtml(evaluation.evaluationId)}')">
                 Export This Evaluation
             </button>
         </div>
@@ -1028,7 +1212,7 @@ async function confirmSaveToProfile() {
         sectionIComments: evaluationMeta.sectionIComments || '',
         directedComments: evaluationMeta.directedComments || '',
         savedToProfile: true,
-        syncStatus: shouldSyncToGitHub ? 'pending' : 'local-only'
+        syncStatus: 'pending'
     };
 
     // Save to localStorage
@@ -1063,8 +1247,8 @@ async function confirmSaveToProfile() {
         }
     } catch (_) { /* ignore */ }
 
-    // Optional: sync to GitHub when online and logged in
-    if (shouldSyncToGitHub && navigator.onLine) {
+    // Optional: try to sync immediately if online
+    if (navigator.onLine) {
         const synced = await syncEvaluationToGitHub(evaluation);
         if (synced) {
             evaluation.syncStatus = 'synced';
@@ -1074,13 +1258,42 @@ async function confirmSaveToProfile() {
     // Hide modal safely
     const modal = document.getElementById('saveProfileModal');
     if (modal) {
-        modal.classList.remove('active');
+        try {
+            if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+                window.ModalController.closeById('saveProfileModal');
+            } else {
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            }
+        } catch (_) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
     }
     alert('Evaluation saved to your profile!');
+
+    // Attempt to sync any pending evaluations in the background
+    try {
+        if (hasPendingSyncs()) {
+            await syncAllEvaluations();
+        }
+    } catch (_) { /* ignore */ }
 }
 
 function skipSaveToProfile() {
-    document.getElementById('saveProfileModal').classList.remove('active');
+    const modal = document.getElementById('saveProfileModal');
+    if (!modal) return;
+    try {
+        if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+            window.ModalController.closeById('saveProfileModal');
+        } else {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    } catch (_) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
 }
 
 // New: Save and immediately return to RS Dashboard
@@ -1095,14 +1308,14 @@ async function confirmSaveToProfileAndReturn() {
 // Sync Operations
 async function syncAllEvaluations() {
     if (!navigator.onLine) {
-        alert('You are offline. Connect to the internet to sync evaluations.');
+        showToast('Offline: connect to the internet to sync.', 'warning');
         return;
     }
 
-    const pending = profileEvaluations.filter(e => e.syncStatus !== 'synced');
+    const pending = profileEvaluations.filter(e => e.syncStatus === 'pending');
 
     if (pending.length === 0) {
-        alert('All evaluations already synced!');
+        showToast('All evaluations already synced.', 'info');
         return;
     }
 
@@ -1112,8 +1325,33 @@ async function syncAllEvaluations() {
         btn.textContent = '⏳ Syncing...';
     }
 
-    for (const evaluation of pending) {
-        await syncEvaluationToGitHub(evaluation);
+    // Helper: retry a single evaluation sync with backoff
+    const syncWithRetry = async (evaluation, maxAttempts = 3) => {
+        let attempt = 0;
+        while (attempt < maxAttempts) {
+            const ok = await syncEvaluationToGitHub(evaluation);
+            if (ok) return true;
+            const backoffMs = 300 * Math.pow(2, attempt); // 300ms, 600ms, 1200ms
+            await new Promise(r => setTimeout(r, backoffMs));
+            attempt++;
+        }
+        return false;
+    };
+
+    // Global operation feedback with cancellable progress
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : { signal: { aborted: false }, abort(){ this.signal.aborted = true; } };
+    if (window.UIStates && typeof window.UIStates.showGlobalLoading === 'function') {
+        window.UIStates.showGlobalLoading({ text: `Syncing ${pending.length} evaluation(s)…`, determinate: true, cancellable: true, onCancel: () => controller.abort() });
+    }
+    showToast(`Syncing ${pending.length} evaluation(s)...`, 'info');
+    let successCount = 0;
+    let failureCount = 0;
+    for (let i = 0; i < pending.length; i++) {
+        if (controller.signal && controller.signal.aborted) break;
+        const evaluation = pending[i];
+        const ok = await syncWithRetry(evaluation, 3);
+        if (ok) successCount++; else failureCount++;
+        try { if (window.UIStates && typeof window.UIStates.updateGlobalProgress === 'function') window.UIStates.updateGlobalProgress(((i + 1) / pending.length) * 100); } catch(_){}
     }
 
     const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
@@ -1125,13 +1363,20 @@ async function syncAllEvaluations() {
     }
 
     renderEvaluationsList();
-    alert('Sync complete!');
+    try { if (window.UIStates && typeof window.UIStates.hideGlobalLoading === 'function') window.UIStates.hideGlobalLoading(); } catch(_){}
+    if (failureCount === 0) {
+        const msg = controller.signal && controller.signal.aborted ? `Sync canceled: ${successCount} succeeded.` : `Sync complete: ${successCount} succeeded.`;
+        showToast(msg, 'success');
+    } else {
+        const msg = controller.signal && controller.signal.aborted ? `Sync canceled: ${successCount} succeeded, ${failureCount} failed.` : `Sync complete: ${successCount} succeeded, ${failureCount} failed.`;
+        showToast(msg, 'warning');
+    }
 }
 
 // Pending sync guard helpers
 function hasPendingSyncs() {
     try {
-        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => e.syncStatus !== 'synced');
+        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => e.syncStatus === 'pending');
     } catch (_) {
         return false;
     }
@@ -1142,18 +1387,38 @@ function openPendingSyncModal(nextAction) {
     const countEl = document.getElementById('pendingSyncCount');
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (!modal) return;
-    const count = (window.profileEvaluations || []).filter(e => e.syncStatus !== 'synced').length;
+    const count = (window.profileEvaluations || []).filter(e => e.syncStatus === 'pending').length;
     if (countEl) countEl.textContent = String(count);
     if (nextEl) nextEl.value = nextAction || '';
-    modal.style.display = 'block';
-    modal.classList.add('active');
+    try {
+        if (window.ModalController && typeof window.ModalController.openById === 'function') {
+            window.ModalController.openById('pendingSyncModal', { labelledBy: 'pendingSyncTitle' });
+        } else {
+            modal.style.display = 'block';
+            modal.classList.add('active');
+            try { if (window.A11y && typeof window.A11y.openDialog === 'function') window.A11y.openDialog(modal, { labelledBy: 'pendingSyncTitle' }); } catch(_){}
+        }
+    } catch (_) {
+        modal.style.display = 'block';
+        modal.classList.add('active');
+    }
 }
 
 function closePendingSyncModal() {
     const modal = document.getElementById('pendingSyncModal');
     if (!modal) return;
-    modal.classList.remove('active');
-    modal.style.display = 'none';
+    try {
+        if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+            window.ModalController.closeById('pendingSyncModal');
+        } else {
+            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    } catch (_) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (nextEl) nextEl.value = '';
 }
@@ -1381,14 +1646,22 @@ function exportProfile() {
 function toggleSubMenu() {
     const menu = document.getElementById('subMenu');
     const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
+    const toggleBtn = document.getElementById('mainToggleButton');
     if (!menu) return;
     const isActive = menu.classList.contains('active');
     if (isActive) {
         menu.classList.remove('active');
         if (chevron) chevron.classList.remove('rotated');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+        try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
     } else {
         menu.classList.add('active');
         if (chevron) chevron.classList.add('rotated');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+        // Focus first actionable item when opening
+        const firstItem = menu.querySelector('button');
+        try { if (firstItem) firstItem.focus(); } catch (_) {}
+        try { if (window.A11y) A11y.announce('Manage data menu expanded'); } catch (_) {}
     }
 }
 
@@ -1603,7 +1876,7 @@ function importEvaluationsFromRows(headers, rows) {
             sectionIComments: '',
             directedComments: '',
             savedToProfile: true,
-            syncStatus: 'local-only'
+            syncStatus: 'pending'
         };
 
         profileEvaluations.push(evaluation);
@@ -1622,6 +1895,28 @@ function logoutProfile() {
 
 function continueLogoutProfile() {
     if (confirm('Log out? Unsaved changes will remain in local storage.')) {
+        // Ensure any open modals/overlays are closed so interactions aren't blocked
+        try {
+            if (window.ModalController && typeof window.ModalController.closeAll === 'function') {
+                window.ModalController.closeAll();
+            } else {
+                document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch(_) {} });
+                document.body.classList.remove('sa-modal-open');
+                document.body.style.position = '';
+                document.body.style.top = '';
+                document.body.style.width = '';
+            }
+            const navOverlay = document.getElementById('navMenuOverlay');
+            if (navOverlay) navOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        } catch (_) { /* ignore cleanup errors */ }
+
+        // Attempt to clear server-side session cookies
+        try {
+            const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : window.location.origin;
+            const endpoint = new URL('/api/account/logout', base).toString();
+            fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+        } catch (_) { /* ignore */ }
         currentProfile = null;
         profileEvaluations = [];
         
@@ -2908,4 +3203,123 @@ async function syncEvaluationToGitHub(evaluation) {
 // Inline availability feedback for Create Account username input
 function initUsernameAvailabilityWatcher() {
     // No-op: availability UI removed; server will enforce uniqueness on create
+}
+
+// Live validation hint binding (username, password strength, name, rank)
+function bindValidationHints() {
+    const doc = document;
+    const byId = (id) => doc.getElementById(id);
+    const setHint = (el, text, className) => {
+        if (!el) return;
+        el.textContent = text || '';
+        el.className = 'input-hint' + (className ? ' ' + className : '');
+    };
+
+    // Username hints (login & create)
+    const loginUserInput = byId('loginEmailInput');
+    const loginUserHint = byId('loginEmailHint');
+    const caUserInput = byId('caEmailInput');
+    const caUserHint = byId('caEmailHint');
+    const updateUsername = (val, hintEl) => {
+        if (!hintEl) return;
+        if (isValidUsernameClient(val)) {
+            setHint(hintEl, 'Valid username.', 'hint-ok');
+        } else {
+            setHint(hintEl, '3–50 chars; letters, numbers, . _ - only.', 'hint-warn');
+        }
+    };
+    if (loginUserInput) {
+        loginUserInput.addEventListener('input', () => updateUsername(loginUserInput.value.trim(), loginUserHint));
+        updateUsername(loginUserInput.value.trim(), loginUserHint);
+    }
+    if (caUserInput) {
+        caUserInput.addEventListener('input', () => updateUsername(caUserInput.value.trim(), caUserHint));
+        updateUsername(caUserInput.value.trim(), caUserHint);
+    }
+
+    // Name and Rank hints (create)
+    const caNameInput = byId('caNameInput');
+    const caNameHint = byId('caNameHint');
+    const caRankInput = byId('caRankInput');
+    const caRankHint = byId('caRankHint');
+    const updateName = (val) => {
+        if (!caNameHint) return;
+        const len = String(val || '').trim().length;
+        if (len === 0) setHint(caNameHint, '2–100 characters.', 'hint-info');
+        else if (isValidNameClient(val)) setHint(caNameHint, 'Looks good.', 'hint-ok');
+        else setHint(caNameHint, '2–100 characters required.', 'hint-warn');
+    };
+    const updateRank = (val) => {
+        if (!caRankHint) return;
+        const len = String(val || '').trim().length;
+        if (len === 0) setHint(caRankHint, '2–20 characters.', 'hint-info');
+        else if (isValidRankClient(val)) setHint(caRankHint, 'Looks good.', 'hint-ok');
+        else setHint(caRankHint, '2–20 characters required.', 'hint-warn');
+    };
+    if (caNameInput) {
+        caNameInput.addEventListener('input', () => updateName(caNameInput.value));
+        updateName(caNameInput.value);
+    }
+    if (caRankInput) {
+        caRankInput.addEventListener('input', () => updateRank(caRankInput.value));
+        updateRank(caRankInput.value);
+    }
+
+    // Password hints (login & create)
+    const loginPwInput = byId('loginPasswordInput');
+    const loginPwHint = byId('loginPasswordHint');
+    const caPwInput = byId('caPasswordInput');
+    const caPwHint = byId('caPasswordHint');
+    const caPwConfirmInput = byId('caPasswordConfirmInput');
+    const caPwConfirmHint = byId('caPasswordConfirmHint');
+
+    const pwCriteria = (p) => ({
+        length8: String(p || '').length >= 8,
+        lower: /[a-z]/.test(String(p || '')),
+        upper: /[A-Z]/.test(String(p || '')),
+        digit: /\d/.test(String(p || '')),
+        length12: String(p || '').length >= 12
+    });
+    const strengthLabel = (c) => {
+        const meetsServer = c.length8 && c.lower && c.upper && c.digit;
+        if (!c.length8) return { text: 'Strength: very weak', cls: 'strength-weak' };
+        if (!meetsServer) return { text: 'Strength: weak', cls: 'strength-weak' };
+        if (c.length12) return { text: 'Strength: strong', cls: 'strength-strong' };
+        return { text: 'Strength: medium', cls: 'strength-medium' };
+    };
+    const updateCreatePw = (val) => {
+        if (!caPwHint) return;
+        const c = pwCriteria(val);
+        const s = strengthLabel(c);
+        const req = 'Must be 8+ chars with upper, lower, and a number.';
+        setHint(caPwHint, `${s.text} • ${req}`, s.cls);
+    };
+    const updateLoginPw = (val) => {
+        if (!loginPwHint) return;
+        const c = pwCriteria(val);
+        const s = strengthLabel(c);
+        setHint(loginPwHint, `${s.text}`, s.cls);
+    };
+    if (caPwInput) {
+        caPwInput.addEventListener('input', () => updateCreatePw(caPwInput.value));
+        updateCreatePw(caPwInput.value);
+    }
+    if (loginPwInput) {
+        loginPwInput.addEventListener('input', () => updateLoginPw(loginPwInput.value));
+        updateLoginPw(loginPwInput.value);
+    }
+
+    const updateConfirmPw = () => {
+        if (!caPwConfirmHint) return;
+        const p = caPwInput ? caPwInput.value : '';
+        const c = caPwConfirmInput ? caPwConfirmInput.value : '';
+        if (!c) { setHint(caPwConfirmHint, 'Re-enter your password to confirm.', 'hint-info'); return; }
+        if (p && c && p === c) setHint(caPwConfirmHint, 'Passwords match.', 'hint-ok');
+        else setHint(caPwConfirmHint, 'Passwords do not match.', 'hint-warn');
+    };
+    if (caPwConfirmInput) {
+        caPwConfirmInput.addEventListener('input', updateConfirmPw);
+        if (caPwInput) caPwInput.addEventListener('input', updateConfirmPw);
+        updateConfirmPw();
+    }
 }
