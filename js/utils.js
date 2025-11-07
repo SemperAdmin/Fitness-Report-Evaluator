@@ -147,12 +147,127 @@ function resetEvaluation() {
     }
 }
 
+// --- Accessibility Helpers ---
+// Lightweight utilities to support WCAG-compliant dialogs, focus, and announcements
+const A11y = (function() {
+    let liveRegionEl = null;
+    function ensureLiveRegion() {
+        if (liveRegionEl) return liveRegionEl;
+        liveRegionEl = document.getElementById('srAnnouncements');
+        if (!liveRegionEl) {
+            liveRegionEl = document.createElement('div');
+            liveRegionEl.id = 'srAnnouncements';
+            liveRegionEl.setAttribute('aria-live', 'polite');
+            liveRegionEl.setAttribute('role', 'status');
+            liveRegionEl.style.position = 'absolute';
+            liveRegionEl.style.width = '1px';
+            liveRegionEl.style.height = '1px';
+            liveRegionEl.style.padding = '0';
+            liveRegionEl.style.margin = '-1px';
+            liveRegionEl.style.overflow = 'hidden';
+            liveRegionEl.style.clip = 'rect(0 0 0 0)';
+            liveRegionEl.style.whiteSpace = 'nowrap';
+            liveRegionEl.style.border = '0';
+            document.body.appendChild(liveRegionEl);
+        }
+        return liveRegionEl;
+    }
+
+    function announce(message, politeness) {
+        try {
+            const el = ensureLiveRegion();
+            if (politeness) el.setAttribute('aria-live', politeness);
+            el.textContent = String(message || '');
+        } catch (_) {}
+    }
+
+    function getFocusable(container) {
+        const selectors = [
+            'a[href]', 'button:not([disabled])', 'input:not([disabled])', 'select:not([disabled])', 'textarea:not([disabled])',
+            '[tabindex]:not([tabindex="-1"])'
+        ];
+        return Array.from(container.querySelectorAll(selectors.join(',')))
+            .filter(el => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
+    }
+
+    function trapFocus(modalEl) {
+        function onKeyDown(e) {
+            if (e.key !== 'Tab') return;
+            const focusables = getFocusable(modalEl);
+            if (!focusables.length) return;
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            const active = document.activeElement;
+            if (e.shiftKey) {
+                if (active === first || !modalEl.contains(active)) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (active === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        }
+        modalEl.__a11yTrap = onKeyDown;
+        modalEl.addEventListener('keydown', onKeyDown);
+    }
+
+    function untrapFocus(modalEl) {
+        const handler = modalEl.__a11yTrap;
+        if (handler) modalEl.removeEventListener('keydown', handler);
+        modalEl.__a11yTrap = null;
+    }
+
+    function openDialog(modalEl, opts = {}) {
+        if (!modalEl) return;
+        const { labelledBy, describedBy, focusFirst } = opts;
+        // Dialog semantics
+        modalEl.setAttribute('role', 'dialog');
+        modalEl.setAttribute('aria-modal', 'true');
+        if (labelledBy) modalEl.setAttribute('aria-labelledby', labelledBy);
+        if (describedBy) modalEl.setAttribute('aria-describedby', describedBy);
+        // Focus management
+        modalEl.__lastFocused = document.activeElement;
+        const target = focusFirst ? modalEl.querySelector(focusFirst) : getFocusable(modalEl)[0];
+        try { if (target) target.focus(); } catch (_) {}
+        trapFocus(modalEl);
+        announce('Dialog opened');
+    }
+
+    function closeDialog(modalEl) {
+        if (!modalEl) return;
+        untrapFocus(modalEl);
+        const last = modalEl.__lastFocused;
+        modalEl.__lastFocused = null;
+        try { if (last && typeof last.focus === 'function') last.focus(); } catch (_) {}
+        announce('Dialog closed');
+    }
+
+    return { ensureLiveRegion, announce, openDialog, closeDialog };
+})();
+
+try { window.A11y = A11y; } catch (_) {}
+
 function openHelpModal() {
-    document.getElementById('helpModal').classList.add('active');
+    const modal = document.getElementById('helpModal');
+    const trigger = document.getElementById('helpButton');
+    if (!modal) return;
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    A11y.openDialog(modal, { labelledBy: 'helpModalTitle', focusFirst: '.help-close' });
 }
 
 function closeHelpModal() {
-    document.getElementById('helpModal').classList.remove('active');
+    const modal = document.getElementById('helpModal');
+    const trigger = document.getElementById('helpButton');
+    if (!modal) return;
+    A11y.closeDialog(modal);
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
 }
 
 // Global HTML escaping utilities for XSS safety

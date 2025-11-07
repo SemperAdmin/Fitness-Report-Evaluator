@@ -382,6 +382,10 @@ function showJustificationModal() {
     
     updateWordCount();
     modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    try {
+        if (window.A11y) A11y.openDialog(modal, { labelledBy: 'justificationTitle', describedBy: 'justificationDesc', focusFirst: '#justificationText' });
+    } catch (_) {}
     document.getElementById('justificationText').focus();
 }
 
@@ -415,7 +419,10 @@ function saveJustification() {
         voiceBtn.textContent = '🎤 Voice Input';
     }
     
-    document.getElementById('justificationModal').classList.remove('active');
+    const modal = document.getElementById('justificationModal');
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
     pendingEvaluation = null;
     
     // Handle post-save navigation
@@ -463,7 +470,10 @@ function cancelJustification() {
         voiceBtn.textContent = '🎤 Voice Input';
     }
     
-    document.getElementById('justificationModal').classList.remove('active');
+    const modal = document.getElementById('justificationModal');
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
     pendingEvaluation = null;
 }
 
@@ -644,10 +654,17 @@ function showReevaluationModal(trait, traitKey) {
     modal.dataset.traitKeyPart = trait.traitKey;
     
     modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    try {
+        if (window.A11y) A11y.openDialog(modal, { labelledBy: 'reevaluateTitle', describedBy: 'reevaluateDesc', focusFirst: '.reevaluate-buttons .btn-meets' });
+    } catch (_) {}
 }
 
 function cancelReevaluation() {
-    document.getElementById('reevaluateModal').classList.remove('active');
+    const modal = document.getElementById('reevaluateModal');
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
 }
 
 function startReevaluation() {
@@ -677,7 +694,9 @@ function startReevaluation() {
     if (index !== -1) currentTraitIndex = index;
 
     // Hide modal and review card, then show evaluation
+    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
     modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
     isInReviewMode = false;
     const reviewCard = document.getElementById('reviewCard');
     if (reviewCard) {
