@@ -28,8 +28,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fromDateInput').value = oneYearAgo.toISOString().split('T')[0];
     document.getElementById('toDateInput').value = today.toISOString().split('T')[0];
 
-    // Word count tracking and modal handlers remain
-    document.addEventListener('input', function(e) {
+    // Word count tracking and modal handlers using lifecycle manager
+    const addListener = (target, event, handler, options) => {
+        if (typeof globalLifecycle !== 'undefined') {
+            globalLifecycle.addEventListener(target, event, handler, options);
+        } else {
+            target.addEventListener(event, handler, options);
+        }
+    };
+
+    addListener(document, 'input', function(e) {
         if (e.target.id === 'justificationText') {
             updateWordCount();
         } else if (e.target.id === 'sectionITextarea') {
@@ -38,17 +46,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Close modal when clicking outside
-    document.getElementById('justificationModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            cancelJustification();
-        }
-    });
+    const justificationModal = document.getElementById('justificationModal');
+    if (justificationModal) {
+        addListener(justificationModal, 'click', function(e) {
+            if (e.target === this) {
+                cancelJustification();
+            }
+        });
+    }
 
-    document.getElementById('helpModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeHelpModal();
-        }
-    });
+    const helpModal = document.getElementById('helpModal');
+    if (helpModal) {
+        addListener(helpModal, 'click', function(e) {
+            if (e.target === this) {
+                closeHelpModal();
+            }
+        });
+    }
 
     // Dev-only dispatch removed; production UI should not expose workflow controls here
 });

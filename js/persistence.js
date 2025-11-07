@@ -12,27 +12,48 @@ const STORAGE_KEYS = {
 
 // Auto-save functionality
 function initializeAutoSave() {
-    // Auto-save every 30 seconds
-    autoSaveInterval = setInterval(() => {
-        if (hasUnsavedChanges) {
-            saveProgressToStorage();
-        }
-    }, 30000);
-    
-    // Save on page unload
-    window.addEventListener('beforeunload', function(e) {
-        if (hasUnsavedChanges) {
-            saveProgressToStorage();
-            // Show warning if there are unsaved changes
-            e.preventDefault();
-            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-            return e.returnValue;
-        }
-    });
-    
-    // Mark changes when user interacts with form
-    document.addEventListener('input', markUnsavedChanges);
-    document.addEventListener('change', markUnsavedChanges);
+    // Auto-save every 30 seconds using lifecycle manager
+    if (typeof globalLifecycle !== 'undefined') {
+        autoSaveInterval = globalLifecycle.setInterval(() => {
+            if (hasUnsavedChanges) {
+                saveProgressToStorage();
+            }
+        }, 30000);
+
+        // Save on page unload using lifecycle manager
+        globalLifecycle.addEventListener(window, 'beforeunload', function(e) {
+            if (hasUnsavedChanges) {
+                saveProgressToStorage();
+                // Show warning if there are unsaved changes
+                e.preventDefault();
+                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
+
+        // Mark changes when user interacts with form
+        globalLifecycle.addEventListener(document, 'input', markUnsavedChanges);
+        globalLifecycle.addEventListener(document, 'change', markUnsavedChanges);
+    } else {
+        // Fallback for when memoryManager is not loaded
+        autoSaveInterval = setInterval(() => {
+            if (hasUnsavedChanges) {
+                saveProgressToStorage();
+            }
+        }, 30000);
+
+        window.addEventListener('beforeunload', function(e) {
+            if (hasUnsavedChanges) {
+                saveProgressToStorage();
+                e.preventDefault();
+                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
+
+        document.addEventListener('input', markUnsavedChanges);
+        document.addEventListener('change', markUnsavedChanges);
+    }
 }
 
 function markUnsavedChanges() {

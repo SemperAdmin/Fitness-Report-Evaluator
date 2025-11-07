@@ -2,8 +2,10 @@
 let currentProfile = null;
 let profileEvaluations = [];
 let syncQueue = [];
-// In-memory cache for expanded evaluation details
-const evaluationDetailsCache = new Map();
+// In-memory cache for expanded evaluation details (with automatic size management)
+const evaluationDetailsCache = typeof ManagedCache !== 'undefined'
+    ? new ManagedCache(100)
+    : new Map();
 
 // Performance optimization instances
 let tableRenderer = null; // OptimizedTableRenderer instance
@@ -487,9 +489,19 @@ try {
 document.addEventListener('DOMContentLoaded', () => {
     try {
         console.debug('profile.js: DOMContentLoaded');
+
+        // Helper to add event listeners with lifecycle management
+        const addManagedListener = (element, event, handler, options) => {
+            if (typeof globalLifecycle !== 'undefined') {
+                globalLifecycle.addEventListener(element, event, handler, options);
+            } else {
+                element.addEventListener(event, handler, options);
+            }
+        };
+
         const editBtn = document.querySelector('.profile-actions-bar button[onclick="openEditProfile()"]');
         if (editBtn) {
-            editBtn.addEventListener('click', (evt) => {
+            addManagedListener(editBtn, 'click', (evt) => {
                 console.debug('ProfileEdit: fallback click handler triggered');
                 try { openEditProfile(); } catch (err) { console.error('fallback openEditProfile error:', err); }
                 evt.preventDefault();
@@ -501,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const saveBtn = document.querySelector('#editProfileModal button[onclick="saveProfileUpdates()"]');
         if (saveBtn) {
-            saveBtn.addEventListener('click', (evt) => {
+            addManagedListener(saveBtn, 'click', (evt) => {
                 console.debug('ProfileEdit: fallback save handler triggered');
                 try { saveProfileUpdates(); } catch (err) { console.error('fallback saveProfileUpdates error:', err); }
                 evt.preventDefault();
@@ -511,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cancelBtn = document.querySelector('#editProfileModal button[onclick="closeEditProfileModal()"]');
         if (cancelBtn) {
-            cancelBtn.addEventListener('click', (evt) => {
+            addManagedListener(cancelBtn, 'click', (evt) => {
                 console.debug('ProfileEdit: fallback cancel handler triggered');
                 try { closeEditProfileModal(); } catch (err) { console.error('fallback closeEditProfileModal error:', err); }
                 evt.preventDefault();
@@ -1697,9 +1709,16 @@ function updateConnectionStatus() {
     }
 }
 
-window.addEventListener('online', updateConnectionStatus);
-window.addEventListener('offline', updateConnectionStatus);
-window.addEventListener('load', updateConnectionStatus);
+// Connection status event listeners with lifecycle management
+if (typeof globalLifecycle !== 'undefined') {
+    globalLifecycle.addEventListener(window, 'online', updateConnectionStatus);
+    globalLifecycle.addEventListener(window, 'offline', updateConnectionStatus);
+    globalLifecycle.addEventListener(window, 'load', updateConnectionStatus);
+} else {
+    window.addEventListener('online', updateConnectionStatus);
+    window.addEventListener('offline', updateConnectionStatus);
+    window.addEventListener('load', updateConnectionStatus);
+}
 
 // Helper stubs for functions referenced from evaluation.js
 function calculateFitrepAverage() {
