@@ -559,8 +559,9 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
       const sessionToken = signSessionPayload(payload);
       const csrfToken = crypto.randomBytes(32).toString('hex');
       const cookies = [
-        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
-        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
+        // Use SameSite=None for cross-site fetches from GitHub Pages; requires Secure in production
+        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: 'None', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
+        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: 'None', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
       ];
       // Append cookies without clobbering existing headers
       res.setHeader('Set-Cookie', cookies);
