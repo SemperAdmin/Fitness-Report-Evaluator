@@ -108,6 +108,9 @@ function serializeCookie(name, value, opts = {}) {
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
 const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
+// Dynamic SameSite: use 'None' only when Secure cookies are enabled (prod HTTPS);
+// fall back to 'Lax' in local/dev http to avoid browsers dropping the cookie.
+const COOKIE_SAMESITE = COOKIE_SECURE ? 'None' : 'Lax';
 function signSessionPayload(payload) {
   const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
   const h = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
@@ -148,6 +151,7 @@ app.use((req, res, next) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return next();
     const path = String(req.path || req.url || '');
     if (path.startsWith('/api/admin')) return next();
+    if (path === '/api/account/login') return next();
     // Only enforce when a session exists
     if (!req.sessionUser) return next();
     const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'] || '';
@@ -559,9 +563,9 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
       const sessionToken = signSessionPayload(payload);
       const csrfToken = crypto.randomBytes(32).toString('hex');
       const cookies = [
-        // Use SameSite=None for cross-site fetches from GitHub Pages; requires Secure in production
-        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: 'None', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
-        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: 'None', secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
+        // SameSite dynamically chosen: 'None' in prod (Secure=true), 'Lax' in local/dev
+        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
+        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
       ];
       // Append cookies without clobbering existing headers
       res.setHeader('Set-Cookie', cookies);
@@ -588,8 +592,8 @@ app.post('/api/account/logout', (req, res) => {
   try {
     const expired = new Date(0);
     const cookies = [
-      serializeCookie('fitrep_session', '', { httpOnly: true, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, expires: expired }),
-      serializeCookie('fitrep_csrf', '', { httpOnly: false, path: '/', sameSite: 'Lax', secure: COOKIE_SECURE, expires: expired })
+      serializeCookie('fitrep_session', '', { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, expires: expired }),
+      serializeCookie('fitrep_csrf', '', { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, expires: expired })
     ];
     res.setHeader('Set-Cookie', cookies);
   } catch (_) { /* ignore */ }
@@ -1393,7 +1397,7 @@ app.get('/api/debug/github', (req, res) => {
 
 // Start server if executed directly
 if (require.main === module) {
-  const port = process.env.PORT || 5173;
+  const port = process.env.PORT || 10000;
   // Serve static files for local preview after all API routes
   app.use(express.static('.'));
   const commitSha = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
