@@ -1,6 +1,24 @@
 const assert = require('assert');
 const { ModalStack } = require('../js/modals.js');
 
+// Minimal polyfill for test runner environments without Mocha/Jest.
+if (typeof global.describe !== 'function') {
+  global.describe = (name, fn) => { fn(); };
+}
+if (typeof global.it !== 'function') {
+  global.it = (name, fn) => {
+    try {
+      const res = fn();
+      if (res && typeof res.then === 'function') {
+        res.then(() => {}).catch(e => { console.error(e); process.exit(1); });
+      }
+    } catch (e) {
+      console.error(e);
+      process.exit(1);
+    }
+  };
+}
+
 describe('ModalStack', () => {
   it('push/pop maintains order and z-indices', () => {
     const s = new ModalStack();
@@ -24,4 +42,3 @@ describe('ModalStack', () => {
     assert.ok(z[0] < z[1]);
   });
 });
-

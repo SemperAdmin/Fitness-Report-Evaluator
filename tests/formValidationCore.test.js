@@ -1,6 +1,24 @@
 const assert = require('assert');
 const { ValidationRules, parseRules, validateValue, errorMessageFor, validateField, validateFormPayload } = require('../js/formValidationCore.js');
 
+// Minimal polyfill for test runner environments without Mocha/Jest.
+if (typeof global.describe !== 'function') {
+  global.describe = (name, fn) => { fn(); };
+}
+if (typeof global.it !== 'function') {
+  global.it = (name, fn) => {
+    try {
+      const res = fn();
+      if (res && typeof res.then === 'function') {
+        res.then(() => {}).catch(e => { console.error(e); process.exit(1); });
+      }
+    } catch (e) {
+      console.error(e);
+      process.exit(1);
+    }
+  };
+}
+
 describe('FormValidationCore', () => {
   it('parseRules parses rule strings', () => {
     const rules = parseRules('required|minLength:2|maxLength:10');
@@ -37,4 +55,3 @@ describe('FormValidationCore', () => {
     assert.strictEqual(res.fields.b.valid, true);
   });
 });
-
