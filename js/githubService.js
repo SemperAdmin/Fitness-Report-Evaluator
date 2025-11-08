@@ -110,6 +110,27 @@ class GitHubDataService {
     }
 
     /**
+     * Helper method to determine fetch credentials based on same-origin detection
+     * Mobile browsers enforce strict CORS policies, requiring credentials only for same-origin
+     *
+     * @private
+     * @param {string} endpointUrl - The full URL of the endpoint being called
+     * @returns {string} 'include' for same-origin, 'omit' for cross-origin
+     */
+    _getFetchCredentials(endpointUrl) {
+        try {
+            const epOrigin = new URL(endpointUrl).origin;
+            const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : '';
+            const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
+            return sameOrigin ? 'include' : 'omit';
+        } catch (_) {
+            // Fallback for invalid URLs or non-browser environments
+            // Use 'omit' as the safe default to avoid CORS issues
+            return 'omit';
+        }
+    }
+
+    /**
      * Get authentication token from environment
      *
      * This is a placeholder that demonstrates different approaches:
@@ -642,21 +663,17 @@ class GitHubDataService {
                     return [];
                 }
 
-                // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
-                const epOrigin = (() => { try { return new URL(endpoint.url).origin; } catch (_) { return ''; } })();
-                const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
-                const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
-
                 // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
+                const credentials = this._getFetchCredentials(endpoint.url);
                 const fetchOpts = forceFresh
-                    ? { method: 'GET', cache: 'no-store', credentials: sameOrigin ? 'include' : 'omit' }
-                    : { method: 'GET', credentials: sameOrigin ? 'include' : 'omit' };
+                    ? { method: 'GET', cache: 'no-store', credentials }
+                    : { method: 'GET', credentials };
 
                 const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {
                     // Log detailed error for debugging (especially CORS failures on mobile)
                     console.error(`Failed to fetch evaluations: ${resp.status} ${resp.statusText} from ${endpoint.url}`);
-                    console.error(`Origin: page=${pageOrigin}, endpoint=${epOrigin}, sameOrigin=${sameOrigin}`);
+                    console.error(`Credentials mode: ${credentials}`);
                     return [];
                 }
                 const data = await resp.json().catch(() => ({}));
@@ -1082,10 +1099,8 @@ class GitHubDataService {
                     ? { userData: normalized, token: assembledToken }
                     : { userData: normalized };
 
-                // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
-                const epOrigin = (() => { try { return new URL(endpoint.url).origin; } catch (_) { return ''; } })();
-                const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
-                const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
+                // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
+                const credentials = this._getFetchCredentials(endpoint.url);
 
                 // Simple retry/backoff for transient failures
                 const shouldRetryStatus = (s) => [429, 502, 503, 504].includes(Number(s));
@@ -1093,7 +1108,7 @@ class GitHubDataService {
                     return fetch(endpoint.url, {
                         method: 'POST',
                         headers,
-                        credentials: sameOrigin ? 'include' : 'omit',
+                        credentials,
                         body: JSON.stringify(payload)
                     });
                 };
@@ -1237,12 +1252,9 @@ class GitHubDataService {
                 const urlObj = new URL(endpoint.url);
                 urlObj.searchParams.set('email', userEmail);
 
-                // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
-                const epOrigin = urlObj.origin;
-                const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
-                const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
-
-                const resp = await fetch(urlObj.toString(), { credentials: sameOrigin ? 'include' : 'omit' });
+                // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
+                const credentials = this._getFetchCredentials(urlObj.toString());
+                const resp = await fetch(urlObj.toString(), { credentials });
                 if (resp.ok) {
                     const data = await resp.json();
                     return data.data || null;
@@ -1384,15 +1396,13 @@ class GitHubDataService {
                 headers['X-GitHub-Token'] = assembledToken;
             }
 
-            // Same-origin detection for proper credentials handling (fixes mobile CORS issues)
-            const epOrigin = (() => { try { return new URL(ep.url).origin; } catch (_) { return ''; } })();
-            const pageOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
-            const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
+            // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
+            const credentials = this._getFetchCredentials(ep.url);
 
             const resp = await fetch(ep.url, {
                 method: 'POST',
                 headers,
-                credentials: sameOrigin ? 'include' : 'omit',
+                credentials,
                 body: JSON.stringify({ evaluation, userEmail })
             });
             const data = await resp.json().catch(() => { throw new Error('Backend returned an invalid JSON response'); });
