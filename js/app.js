@@ -3,6 +3,10 @@
 // Initialize application when DOM is loaded
 // DOMContentLoaded initialization
 document.addEventListener('DOMContentLoaded', () => {
+    // Centralized UI constants with safe fallbacks
+    const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+        ? window.CONSTANTS.UI_SETTINGS
+        : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
     // Replace login-first boot with mode selection boot
     initializeVoiceRecognition();
 
@@ -14,10 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboard = document.getElementById('profileDashboardCard');
     const setup = document.getElementById('setupCard');
 
-    if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
-    if (login) { login.classList.remove('active'); login.style.display = 'none'; }
-    if (dashboard) { dashboard.classList.remove('active'); dashboard.style.display = 'none'; }
-    if (setup) { setup.classList.remove('active'); setup.style.display = 'none'; }
+    if (mode) { mode.classList.add(UI.CSS.ACTIVE); mode.style.display = UI.DISPLAY.SHOW; }
+    if (login) { login.classList.remove(UI.CSS.ACTIVE); login.style.display = UI.DISPLAY.HIDE; }
+    if (dashboard) { dashboard.classList.remove(UI.CSS.ACTIVE); dashboard.style.display = UI.DISPLAY.HIDE; }
+    if (setup) { setup.classList.remove(UI.CSS.ACTIVE); setup.style.display = UI.DISPLAY.HIDE; }
 
     setTimeout(() => {
         if (typeof showProfileDashboardOnLoad === 'function') {
@@ -79,12 +83,15 @@ function startStandaloneMode() {
     const mode = document.getElementById('modeSelectionCard');
     const login = document.getElementById('profileLoginCard');
     const dashboard = document.getElementById('profileDashboardCard');
+    const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+        ? window.CONSTANTS.UI_SETTINGS
+        : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
     [mode, login, dashboard].forEach(el => {
-        if (el) { el.classList.remove('active'); el.style.display = 'none'; }
+        if (el) { el.classList.remove(UI.CSS.ACTIVE); el.style.display = UI.DISPLAY.HIDE; }
     });
 
     const setup = document.getElementById('setupCard');
-    if (setup) { setup.classList.add('active'); setup.style.display = 'block'; }
+    if (setup) { setup.classList.add(UI.CSS.ACTIVE); setup.style.display = UI.DISPLAY.SHOW; }
 
     // Ensure RS display/input reflect standalone mode (no profile)
     try { if (typeof updateRSSetupDisplay === 'function') updateRSSetupDisplay(); } catch (_) {}
@@ -116,28 +123,31 @@ function showRSLoginFirst() {
         'reviewCard','sectionIGenerationCard','directedCommentsCard','summaryCard'
     ];
 
-    if (header) header.style.display = 'none';
-    if (warning) warning.style.display = 'none';
-    if (mode) { mode.classList.remove('active'); mode.style.display = 'none'; }
+    const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+        ? window.CONSTANTS.UI_SETTINGS
+        : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
+    if (header) header.style.display = UI.DISPLAY.HIDE;
+    if (warning) warning.style.display = UI.DISPLAY.HIDE;
+    if (mode) { mode.classList.remove(UI.CSS.ACTIVE); mode.style.display = UI.DISPLAY.HIDE; }
 
     cards.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.classList.remove('active');
-        el.style.display = 'none';
+        el.classList.remove(UI.CSS.ACTIVE);
+        el.style.display = UI.DISPLAY.HIDE;
     });
 
     // Centralize the swap between Mode Selection and Login card
     try { if (window.UIStates && typeof window.UIStates.toggleExclusive === 'function') { window.UIStates.toggleExclusive('profileLoginCard','modeSelectionCard'); } } catch (_) {}
 
     if (login) {
-        login.classList.add('active');
-        login.style.display = 'block';
+        login.classList.add(UI.CSS.ACTIVE);
+        login.style.display = UI.DISPLAY.SHOW;
 
         // Ensure a clean login state: show fields, hide create-account and animation
-        if (typewriter) typewriter.style.display = 'none';
-        if (createSection) createSection.style.display = 'none';
-        if (loginFields) loginFields.style.display = 'block';
+        if (typewriter) typewriter.style.display = UI.DISPLAY.HIDE;
+        if (createSection) createSection.style.display = UI.DISPLAY.HIDE;
+        if (loginFields) loginFields.style.display = UI.DISPLAY.SHOW;
     }
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
@@ -157,7 +167,10 @@ function showTooltip(event, tooltipId) {
         const left = rect.left;
         tip.style.top = `${top}px`;
         tip.style.left = `${left}px`;
-        tip.style.display = 'block';
+        const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+            ? window.CONSTANTS.UI_SETTINGS
+            : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
+        tip.style.display = UI.DISPLAY.SHOW;
 
         // Clear previous timer and set a new auto-hide
         if (__tooltipHideTimer) clearTimeout(__tooltipHideTimer);
@@ -178,7 +191,10 @@ function showTooltip(event, tooltipId) {
 
 function hideTooltip(tooltipId) {
     const tip = document.getElementById(tooltipId);
-    if (tip) tip.style.display = 'none';
+    const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+        ? window.CONSTANTS.UI_SETTINGS
+        : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
+    if (tip) tip.style.display = UI.DISPLAY.HIDE;
     if (__tooltipHideTimer) {
         clearTimeout(__tooltipHideTimer);
         __tooltipHideTimer = null;

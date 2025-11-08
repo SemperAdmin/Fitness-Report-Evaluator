@@ -180,7 +180,8 @@
 
       try {
         const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : '';
-        const url = base ? new URL('/api/feedback', base).toString() : '/api/feedback';
+        const FEEDBACK_ROUTE = (window.CONSTANTS?.ROUTES?.API?.FEEDBACK) || '/api/feedback';
+        const url = base ? new URL(FEEDBACK_ROUTE, base).toString() : FEEDBACK_ROUTE;
         const resp = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

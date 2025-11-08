@@ -14,6 +14,14 @@ const STEPS = {
     summary: 'summary'
 };
 
+// Centralized UI constants with safe fallbacks
+const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+    ? window.CONSTANTS.UI_SETTINGS
+    : {
+        DISPLAY: { SHOW: 'block', HIDE: 'none' },
+        CSS: { ACTIVE: 'active' }
+      };
+
 // Navigation Functions
 function updateNavigationState(step) {
     currentStep = step;
@@ -137,14 +145,14 @@ function updateNavigationMenu() {
             navItem.classList.remove('disabled');
             
             if (step === currentStep) {
-                navItem.classList.add('active');
+                navItem.classList.add(UI.CSS.ACTIVE);
             } else {
-                navItem.classList.remove('active');
+                navItem.classList.remove(UI.CSS.ACTIVE);
             }
         } else {
             navItem.disabled = true;
             navItem.classList.add('disabled');
-            navItem.classList.remove('active');
+            navItem.classList.remove(UI.CSS.ACTIVE);
         }
     });
 }
@@ -175,7 +183,7 @@ function updateNavigationProgress() {
 
 function toggleMenu() {
     const overlay = document.getElementById('navMenuOverlay');
-    overlay.classList.toggle('active');
+    overlay.classList.toggle(UI.CSS.ACTIVE);
     
     // Prevent body scroll when menu is open
     if (overlay.classList.contains('active')) {
@@ -197,7 +205,7 @@ function renderBreadcrumbs() {
     el.innerHTML = '';
     accessibleTrail.forEach((s, idx) => {
         const a = document.createElement('a');
-        a.className = 'crumb' + (s === currentStep ? ' active' : '');
+        a.className = 'crumb' + (s === currentStep ? (' ' + UI.CSS.ACTIVE) : '');
         a.textContent = labels[s] || s;
         if (s !== currentStep) a.href = '#' + s;
         a.addEventListener('click', (e) => { e.preventDefault(); jumpToStep(s); });
@@ -214,8 +222,8 @@ function showSetupCard() {
     hideAllCards();
     const setupCard = document.getElementById('setupCard');
     if (setupCard) {
-        setupCard.classList.add('active');
-        setupCard.style.display = 'block';
+        setupCard.classList.add(UI.CSS.ACTIVE);
+        setupCard.style.display = UI.DISPLAY.SHOW;
         // Sync RS display/input visibility based on profile context or restored meta
         if (typeof updateRSSetupDisplay === 'function') {
             try { updateRSSetupDisplay(); } catch (_) {}
@@ -257,20 +265,20 @@ function updateRSSetupDisplay() {
         if (rsDisplay) {
             const rank = profile.rsRank ? profile.rsRank + ' ' : '';
             rsDisplay.textContent = `Reporting Senior: ${rank}${profile.rsName}`;
-            rsDisplay.style.display = 'block';
+            rsDisplay.style.display = UI.DISPLAY.SHOW;
         }
         if (evaluatorInput) {
             evaluatorInput.value = profile.rsName || '';
-            evaluatorInput.style.display = 'none';
+            evaluatorInput.style.display = UI.DISPLAY.HIDE;
         }
         if (returnBtn) {
             // Force visible display when launched from a profile
-            try { returnBtn.style.setProperty('display', 'block', 'important'); } catch (_) { returnBtn.style.display = 'block'; }
+            try { returnBtn.style.setProperty('display', UI.DISPLAY.SHOW, 'important'); } catch (_) { returnBtn.style.display = UI.DISPLAY.SHOW; }
         }
     } else {
         if (rsDisplay) {
             rsDisplay.textContent = '';
-            rsDisplay.style.display = 'none';
+            rsDisplay.style.display = UI.DISPLAY.HIDE;
         }
         if (evaluatorInput) {
             // Preserve restored name if present
@@ -281,7 +289,7 @@ function updateRSSetupDisplay() {
             evaluatorInput.style.display = '';
         }
         if (returnBtn) {
-            try { returnBtn.style.setProperty('display', 'none', 'important'); } catch (_) { returnBtn.style.display = 'none'; }
+            try { returnBtn.style.setProperty('display', UI.DISPLAY.HIDE, 'important'); } catch (_) { returnBtn.style.display = UI.DISPLAY.HIDE; }
         }
     }
 }
@@ -291,7 +299,7 @@ function showEvaluationStep() {
     hideAllCards();
     const container = document.getElementById('evaluationContainer');
     if (container) {
-        container.style.display = 'block';
+        container.style.display = UI.DISPLAY.SHOW;
         renderCurrentTrait();
         try { container.setAttribute('tabindex','-1'); container.focus(); } catch (_) {}
     }
@@ -302,8 +310,8 @@ function showDirectedCommentsStep() {
     hideAllCards();
     const card = document.getElementById('directedCommentsCard');
     if (card) {
-        card.classList.add('active');
-        card.style.display = 'block';
+        card.classList.add(UI.CSS.ACTIVE);
+        card.style.display = UI.DISPLAY.SHOW;
         try { card.setAttribute('tabindex','-1'); card.focus(); } catch (_) {}
     }
 }
@@ -313,8 +321,8 @@ function showSectionIStep() {
     hideAllCards();
     const card = document.getElementById('sectionIGenerationCard');
     if (card) {
-        card.classList.add('active');
-        card.style.display = 'block';
+        card.classList.add(UI.CSS.ACTIVE);
+        card.style.display = UI.DISPLAY.SHOW;
         try { card.setAttribute('tabindex','-1'); card.focus(); } catch (_) {}
     }
 }
@@ -324,8 +332,8 @@ function showSummaryStep() {
     hideAllCards();
     const card = document.getElementById('summaryCard');
     if (card) {
-        card.classList.add('active');
-        card.style.display = 'block';
+        card.classList.add(UI.CSS.ACTIVE);
+        card.style.display = UI.DISPLAY.SHOW;
         try { card.setAttribute('tabindex','-1'); card.focus(); } catch (_) {}
     }
 }
@@ -349,8 +357,8 @@ function hideAllCards() {
     cards.forEach(cardId => {
         const card = document.getElementById(cardId);
         if (card) {
-            card.classList.remove('active');
-            card.style.display = 'none';
+            card.classList.remove(UI.CSS.ACTIVE);
+            card.style.display = UI.DISPLAY.HIDE;
         }
     });
 }

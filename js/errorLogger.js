@@ -8,7 +8,7 @@
     appVersion: 'dev',
     environment: 'development',
     remoteEnabled: false,
-    remoteUrl: '/api/feedback',
+  remoteUrl: (window.CONSTANTS?.ROUTES?.API?.FEEDBACK) || '/api/feedback',
     maxStored: 500
   };
 
@@ -162,4 +162,3 @@
   try { ErrorLogger.init(); } catch (_) {}
 
 })(typeof window !== 'undefined' ? window : globalThis);
-

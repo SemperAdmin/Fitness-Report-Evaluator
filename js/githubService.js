@@ -217,7 +217,8 @@ class GitHubDataService {
                 if (!isLocal && !prodFlag) {
                     return null;
                 }
-                const ep = this.resolveBackendEndpoint('/api/github-token');
+                const ROUTE = (window.CONSTANTS?.ROUTES?.API?.GITHUB_TOKEN) || '/api/github-token';
+                const ep = this.resolveBackendEndpoint(ROUTE);
                 if (!ep || ('blocked' in ep && ep.blocked)) {
                     // No configured base or origin not allowed; skip backend token retrieval
                     // In production, tokens should be managed server-side, so this is safe to ignore
@@ -687,7 +688,8 @@ class GitHubDataService {
                 let forceFresh = false;
                 try { if (typeof window !== 'undefined' && window.__forceFreshEvaluationsOnce) forceFresh = true; } catch (_) {}
 
-                const endpoint = this.resolveBackendEndpoint(`/api/evaluations/list?email=${encodeURIComponent(userEmail)}${forceFresh ? `&t=${Date.now()}` : ''}`);
+                const LIST_ROUTE = (window.CONSTANTS?.ROUTES?.API?.EVALUATIONS_LIST) || '/api/evaluations/list';
+                const endpoint = this.resolveBackendEndpoint(`${LIST_ROUTE}?email=${encodeURIComponent(userEmail)}${forceFresh ? `&t=${Date.now()}` : ''}`);
                 if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
                     console.warn('Backend endpoint blocked or unavailable for evaluation list');
                     return [];
@@ -1064,7 +1066,8 @@ class GitHubDataService {
         // If no token available, attempt backend save endpoint as a secure fallback
         if (!this.initialized || !this.token) {
             try {
-                const endpoint = this.resolveBackendEndpoint('/api/user/save');
+                const SAVE_ROUTE = (window.CONSTANTS?.ROUTES?.API?.USER_SAVE) || '/api/user/save';
+                const endpoint = this.resolveBackendEndpoint(SAVE_ROUTE);
                 if (!endpoint) {
                     return { success: false, error: 'Configuration error', message: 'API base URL is not configured for backend fallback.' };
                 }
@@ -1237,7 +1240,8 @@ class GitHubDataService {
         // If no token available, attempt backend load endpoint as a secure fallback
         if (!this.initialized || !this.token) {
             try {
-                const endpoint = this.resolveBackendEndpoint('/api/user/load');
+                const LOAD_ROUTE = (window.CONSTANTS?.ROUTES?.API?.USER_LOAD) || '/api/user/load';
+                const endpoint = this.resolveBackendEndpoint(LOAD_ROUTE);
                 if (!endpoint || ('blocked' in endpoint && endpoint.blocked)) {
                     // API base URL is not configured or origin blocked; cannot load user data.
                     console.warn('Backend endpoint blocked or unavailable for user data load');
@@ -1365,7 +1369,8 @@ class GitHubDataService {
 
         // Backend fallback path when no client token is available
         if (!this.initialized || !this.token) {
-            const ep = this.resolveBackendEndpoint('/api/evaluation/save');
+            const EVAL_SAVE_ROUTE = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
+            const ep = this.resolveBackendEndpoint(EVAL_SAVE_ROUTE);
             if (!ep) {
                 throw new Error('Backend API base URL is not configured');
             }

@@ -119,7 +119,8 @@ async function createAccount() {
 
     try {
         // Send explicit username for clarity; keep email for compatibility
-        const res = await postJson('/api/account/create', { rank, name, email, username: email, password });
+        const CREATE_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_CREATE) || '/api/account/create';
+        const res = await postJson(CREATE_ROUTE, { rank, name, email, username: email, password });
         if (!res || !res.ok) {
             const msg = res && res.error ? res.error : 'Account creation failed.';
             alert(msg);
@@ -177,7 +178,8 @@ async function accountLogin() {
 
     try {
         // Send explicit username for clarity; keep email for compatibility
-        const res = await postJson('/api/account/login', { email, username: email, password });
+        const LOGIN_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_LOGIN) || '/api/account/login';
+        const res = await postJson(LOGIN_ROUTE, { email, username: email, password });
         if (!res || !res.ok) {
             // Restore UI when login fails
             if (typewriter) typewriter.style.display = 'none';
@@ -1989,7 +1991,8 @@ function continueLogoutProfile() {
         // Attempt to clear server-side session cookies
         try {
             const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : window.location.origin;
-            const endpoint = new URL('/api/account/logout', base).toString();
+            const LOGOUT_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_LOGOUT) || '/api/account/logout';
+            const endpoint = new URL(LOGOUT_ROUTE, base).toString();
             fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {});
         } catch (_) { /* ignore */ }
         currentProfile = null;
@@ -2063,17 +2066,20 @@ try {
 
 // Connection Status
 function updateConnectionStatus() {
+    const C = (typeof window !== 'undefined' && window.CONSTANTS) || {};
+    const STATUS = (C.STATUS_MESSAGES) || { ONLINE: 'Connected - Sync available', OFFLINE: 'Offline - Changes saved locally' };
+    const CSS = (C.UI_SETTINGS && C.UI_SETTINGS.CSS) || { ONLINE: 'online', OFFLINE: 'offline' };
     const indicator = document.getElementById('connectionStatus');
     const dot = document.querySelector('.status-dot');
 
     if (navigator.onLine) {
-        indicator.textContent = 'Connected - Sync available';
-        dot.classList.add('online');
-        dot.classList.remove('offline');
+        indicator.textContent = STATUS.ONLINE;
+        dot.classList.add(CSS.ONLINE);
+        dot.classList.remove(CSS.OFFLINE);
     } else {
-        indicator.textContent = 'Offline - Changes saved locally';
-        dot.classList.add('offline');
-        dot.classList.remove('online');
+        indicator.textContent = STATUS.OFFLINE;
+        dot.classList.add(CSS.OFFLINE);
+        dot.classList.remove(CSS.ONLINE);
     }
 }
 

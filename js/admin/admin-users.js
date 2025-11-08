@@ -282,7 +282,8 @@ window.AdminUsers = (function() {
       if (recentActivityList) recentActivityList.innerHTML = '<li style="color:#9aa7b8">No username</li>';
       return;
     }
-    const resp = await fetch(`/api/evaluations/list?username=${encodeURIComponent(username)}`, { credentials: 'include' });
+    const LIST_ROUTE = (window.CONSTANTS?.ROUTES?.API?.EVALUATIONS_LIST) || '/api/evaluations/list';
+    const resp = await fetch(`${LIST_ROUTE}?username=${encodeURIComponent(username)}`, { credentials: 'include' });
     if (!resp.ok) throw new Error('eval list failed');
     const data = await resp.json();
     const evals = Array.isArray(data.evaluations) ? data.evaluations : [];
@@ -396,7 +397,8 @@ window.AdminUsers = (function() {
     const u = String(username || '').trim();
     if (!u) return { ok: false, error: 'Missing username' };
     try {
-      const resp = await fetch(`/api/account/available?username=${encodeURIComponent(u)}`, { credentials: 'include' });
+      const AVAIL_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_AVAILABLE) || '/api/account/available';
+      const resp = await fetch(`${AVAIL_ROUTE}?username=${encodeURIComponent(u)}`, { credentials: 'include' });
       if (!resp.ok) return { ok: false, error: `Availability check failed (${resp.status})` };
       const data = await resp.json();
       return { ok: true, available: !!data.available };
@@ -442,7 +444,8 @@ window.AdminUsers = (function() {
     if (editStatusEl) editStatusEl.textContent = 'Saving…';
     try {
       const body = { userData: { rsName: name, rsEmail: username, rsRank: rank, previousEmail: prev } };
-      const resp = await fetch('/api/user/save', {
+      const SAVE_ROUTE = (window.CONSTANTS?.ROUTES?.API?.USER_SAVE) || '/api/user/save';
+      const resp = await fetch(SAVE_ROUTE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -494,7 +497,8 @@ window.AdminUsers = (function() {
     if (deleteStatusEl) deleteStatusEl.textContent = 'Deleting…';
     try {
       const hard = !!(hardDeleteCheckbox && hardDeleteCheckbox.checked);
-      const url = hard ? `/api/admin/users/${encodeURIComponent(expected)}/hard` : `/api/admin/users/${encodeURIComponent(expected)}`;
+      const ADMIN_BASE = (window.CONSTANTS?.ROUTES?.API?.ADMIN_BASE) || '/api/admin';
+      const url = hard ? `${ADMIN_BASE}/users/${encodeURIComponent(expected)}/hard` : `${ADMIN_BASE}/users/${encodeURIComponent(expected)}`;
       const resp = await fetch(url, { method: 'DELETE', credentials: 'include' });
       if (!resp.ok) throw new Error(`Delete failed (${resp.status})`);
       const data = await resp.json();
