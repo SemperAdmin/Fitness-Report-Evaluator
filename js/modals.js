@@ -2,6 +2,9 @@
 // Exports ModalController and ModalStack for testing in Node environments
 
 (function(){
+  const C = (typeof window !== 'undefined' && window.CONSTANTS) || {};
+  const DISPLAY = (C.UI_SETTINGS && C.UI_SETTINGS.DISPLAY) || { BLOCK: 'block', NONE: 'none' };
+  const CSS = (C.UI_SETTINGS && C.UI_SETTINGS.CSS) || { ACTIVE: 'active' };
   const BASE_BACKDROP_Z = 1000;
   const BASE_MODAL_Z = 1010;
   const Z_STEP = 20; // gap between stacked layers
@@ -94,7 +97,7 @@
       const wrapper = document.createElement('div');
       wrapper.id = id;
       wrapper.className = className + ' sa-modal-background';
-      wrapper.style.display = 'none';
+    wrapper.style.display = DISPLAY.NONE;
       wrapper.setAttribute('role', 'dialog');
       wrapper.setAttribute('aria-modal', 'true');
       const titleId = labelledBy || (id + 'Title');
@@ -154,8 +157,8 @@
 
       // Modal visuals and semantics
       modal.style.zIndex = String(entry.zIndexModal);
-      modal.style.display = 'block';
-      modal.classList.add('active');
+    modal.style.display = DISPLAY.BLOCK;
+    modal.classList.add(CSS.ACTIVE);
       modal.classList.remove('sa-modal-background');
       modal.setAttribute('aria-hidden', 'false');
       modal.setAttribute('role', modal.getAttribute('role') || 'dialog');
@@ -202,9 +205,9 @@
       } catch (_) {}
 
       // Visual hide
-      modal.classList.remove('active');
+    modal.classList.remove(CSS.ACTIVE);
       modal.classList.remove('sa-modal-background');
-      modal.style.display = 'none';
+    modal.style.display = DISPLAY.NONE;
       modal.setAttribute('aria-hidden', 'true');
 
       // Re-layer remaining modals

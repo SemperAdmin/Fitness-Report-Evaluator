@@ -10,6 +10,9 @@ const os = require('os');
 const path = require('path');
 const fsp = fs.promises;
 const crypto = require('crypto');
+// Centralized constants (isomorphic: shared with frontend)
+let CONSTANTS;
+try { CONSTANTS = require('../js/constants.js'); } catch (_) { CONSTANTS = null; }
 
 const app = express();
 app.use(express.json());
@@ -29,7 +32,7 @@ const CORS_ORIGINS = CORS_ORIGINS_RAW
 const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*') || CORS_ORIGINS.length === 0;
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const defaultOrigin = `http://localhost:${process.env.PORT || 5173}`;
+  const defaultOrigin = `http://localhost:${process.env.PORT || (CONSTANTS && CONSTANTS.API_CONFIG && CONSTANTS.API_CONFIG.DEFAULT_LOCAL_PORT) || 5173}`;
   // Include GitHub Pages origin by default to support static hosting
   const pagesOrigin = 'https://semperadmin.github.io';
   const allowedOrigins = CORS_ALLOW_ALL
@@ -161,7 +164,7 @@ app.use((req, res, next) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return next();
     const path = String(req.path || req.url || '');
     if (path.startsWith('/api/admin')) return next();
-    if (path === '/api/account/login') return next();
+  if (path === ((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_LOGIN) || '/api/account/login')) return next();
     // Only enforce when a session exists
     if (!req.sessionUser) return next();
     const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'] || '';
@@ -450,7 +453,7 @@ const validationCache = new ValidationCache(512, 90_000);
 // Reserved labels that should not be used by users
 const RESERVED_LABELS = new Set(['admin','system','null','undefined','root','owner','support','staff']);
 
-app.post('/api/account/create', authRateLimit, async (req, res) => {
+app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_CREATE) || '/api/account/create'), authRateLimit, async (req, res) => {
   try {
     const { rank, name, email, password, username: rawUsername } = req.body || {};
     const username = String(rawUsername || email || '').trim();
@@ -609,7 +612,7 @@ app.post('/api/account/create', authRateLimit, async (req, res) => {
   }
 });
 
-app.post('/api/account/login', authRateLimit, async (req, res) => {
+app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_LOGIN) || '/api/account/login'), authRateLimit, async (req, res) => {
   try {
     const { email, password, username: rawUsername } = req.body || {};
     const username = String(rawUsername || email || '').trim();
@@ -759,7 +762,7 @@ app.get('/api/account/available', async (req, res) => {
 
 // Development-only endpoint to provide a GitHub token to the client.
 // This should NEVER be enabled in production.
-app.get('/api/github-token', (req, res) => {
+app.get(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.GITHUB_TOKEN) || '/api/github-token'), (req, res) => {
   try {
     const allow = process.env.ALLOW_DEV_TOKEN === 'true';
     const token = process.env.FITREP_DATA || '';

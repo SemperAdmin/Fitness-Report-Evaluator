@@ -223,8 +223,21 @@ async function accountLogin() {
 
             // If we got an empty array, check if it was due to an error (CORS, network, etc.)
             if (evaluations.length === 0) {
-                // Check console for recent errors that might indicate why
-                console.info('No evaluations loaded - this may be normal for new profiles or could indicate a network/CORS issue');
+                const lastErr = (typeof window !== 'undefined' && window.__lastApiError) ? window.__lastApiError : null;
+                const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+                const apiBase = (typeof githubService?.getApiBase === 'function') ? githubService.getApiBase() : '';
+                const apiOrigin = (apiBase ? new URL(apiBase).origin : '');
+                const crossOrigin = Boolean(pageOrigin && apiOrigin && pageOrigin !== apiOrigin);
+
+                // Message classification: expected vs actionable error
+                if (lastErr && lastErr.type === 'cors' && crossOrigin) {
+                    console.info('Evaluations not loaded due to CORS (expected in local HTTP cross-origin).');
+                    if (typeof showToast === 'function') {
+                        showToast('Running locally with different origins; browsers block cross-site cookies on HTTP. Use the same origin or HTTPS to load evaluations.', 'info');
+                    }
+                } else {
+                    console.info('No evaluations loaded - this may be normal for new profiles or could indicate a network issue.');
+                }
             }
         } catch (e) {
             console.error('Evaluations fetch failed during login:', e);
@@ -233,11 +246,17 @@ async function accountLogin() {
 
             // Show user-friendly error message
             if (typeof showToast === 'function') {
-                const isCorsError = e.message && (e.message.includes('CORS') || e.message.includes('fetch'));
-                const errorMsg = isCorsError
-                    ? 'Unable to load evaluations. This may be a temporary network issue. Please try again.'
-                    : 'Failed to load evaluations. Your profile has been created but evaluations could not be retrieved.';
-                showToast(errorMsg, 'warning');
+                const lastErr = (typeof window !== 'undefined' && window.__lastApiError) ? window.__lastApiError : null;
+                const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+                const apiBase = (typeof githubService?.getApiBase === 'function') ? githubService.getApiBase() : '';
+                const apiOrigin = (apiBase ? new URL(apiBase).origin : '');
+                const crossOrigin = Boolean(pageOrigin && apiOrigin && pageOrigin !== apiOrigin);
+
+                if (lastErr && lastErr.type === 'cors' && crossOrigin) {
+                    showToast('CORS blocked on local HTTP cross-origin. Run frontend and backend on the same origin or use HTTPS.', 'info');
+                } else {
+                    showToast('Failed to load evaluations. Your profile has been created but evaluations could not be retrieved.', 'warning');
+                }
             }
         }
         const profile = { ...baseProfile, totalEvaluations: Array.isArray(evaluations) ? evaluations.length : 0 };

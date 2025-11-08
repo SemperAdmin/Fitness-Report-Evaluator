@@ -120,18 +120,22 @@ class GitHubDataService {
     _getFetchCredentials(endpointUrl) {
         try {
             const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+            const pageProtocol = (typeof window !== 'undefined' && window.location?.protocol) || '';
             const endpointOrigin = new URL(endpointUrl).origin;
+            const endpointProtocol = new URL(endpointUrl).protocol;
 
             // Include credentials for same-origin
             if (pageOrigin && endpointOrigin === pageOrigin) {
                 return 'include';
             }
 
-            // Allow credentials for allowlisted cross-origin endpoints
+            // Allow credentials for allowlisted cross-origin endpoints ONLY in secure (HTTPS) contexts
+            // Browsers block cross-site cookies on insecure HTTP; avoid 'include' to prevent CORS failures
             const allowlist = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
                 ? window.API_ALLOWED_ORIGINS
                 : [];
-            if (allowlist.includes(endpointOrigin)) {
+            const isSecureContext = (pageProtocol === 'https:' && endpointProtocol === 'https:');
+            if (allowlist.includes(endpointOrigin) && isSecureContext) {
                 return 'include';
             }
 
@@ -697,15 +701,23 @@ class GitHubDataService {
 
                 // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
                 const credentials = this._getFetchCredentials(endpoint.url);
+                const sameOrigin = (typeof window !== 'undefined' && window.location?.origin)
+                    ? (new URL(endpoint.url).origin === window.location.origin)
+                    : false;
+                const mode = sameOrigin ? 'same-origin' : 'cors';
                 const fetchOpts = forceFresh
-                    ? { method: 'GET', cache: 'no-store', credentials }
-                    : { method: 'GET', credentials };
+                    ? { method: 'GET', cache: 'no-store', credentials, mode }
+                    : { method: 'GET', credentials, mode };
 
                 const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {
                     // Log detailed error for debugging (especially CORS failures on mobile)
                     console.error(`Failed to fetch evaluations: ${resp.status} ${resp.statusText} from ${endpoint.url}`);
                     console.error(`Credentials mode: ${credentials}`);
+                    try {
+                        const acao = resp.headers?.get?.('access-control-allow-origin');
+                        if (acao) console.error(`Response ACAO: ${acao}`);
+                    } catch (_) { /* header read best-effort */ }
                     return [];
                 }
                 const data = await resp.json().catch(() => ({}));
@@ -716,9 +728,31 @@ class GitHubDataService {
             } catch (err) {
                 console.error('Backend evaluation list failed:', err);
                 // Provide more context for mobile debugging
-                if (err.message && err.message.includes('CORS')) {
-                    console.error('CORS error detected - this commonly happens on mobile when credentials are sent cross-origin');
-                }
+                try {
+                    const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+                    const endpointOrigin = new URL((typeof endpoint !== 'undefined' ? endpoint.url : 'about:blank')).origin;
+                    const isCrossOrigin = pageOrigin && endpointOrigin && pageOrigin !== endpointOrigin;
+                    const probableCors = (
+                        isCrossOrigin && (
+                            (err && err.name === 'TypeError' && /Failed to fetch|NetworkError/i.test(err.message || '')) ||
+                            (err && /CORS/i.test(err.message || ''))
+                        )
+                    );
+                    if (probableCors) {
+                        console.error('Probable CORS blockage: cross-origin request with credentials from insecure context or disallowed origin');
+                        if (typeof window !== 'undefined') {
+                            window.__lastApiError = {
+                                type: 'cors',
+                                endpoint: (typeof endpoint !== 'undefined' ? endpoint.url : ''),
+                                pageOrigin,
+                                endpointOrigin,
+                                credentials: (typeof credentials !== 'undefined' ? credentials : 'unknown')
+                            };
+                        }
+                    } else if (typeof window !== 'undefined') {
+                        window.__lastApiError = { type: 'network', message: String(err && err.message || err) };
+                    }
+                } catch (_) { /* best-effort classification */ }
                 return [];
             }
         }

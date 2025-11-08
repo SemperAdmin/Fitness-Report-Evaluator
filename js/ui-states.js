@@ -2,6 +2,9 @@
 // Provides loading/disabled state management with visual hooks
 
 (function () {
+  const C = (typeof window !== 'undefined' && window.CONSTANTS) || {};
+  const DISPLAY = (C.UI_SETTINGS && C.UI_SETTINGS.DISPLAY) || { BLOCK: 'block', NONE: 'none' };
+  const CSS = (C.UI_SETTINGS && C.UI_SETTINGS.CSS) || { ACTIVE: 'active' };
   // Button state helpers
   function setLoading(btn, loading) {
     if (!btn) return;
@@ -75,8 +78,8 @@
       try {
         const a = document.getElementById(aId);
         const b = document.getElementById(bId);
-        if (a) { a.style.display = 'block'; a.classList.add('active'); }
-        if (b) { b.style.display = 'none'; b.classList.remove('active'); }
+        if (a) { a.style.display = DISPLAY.BLOCK; a.classList.add(CSS.ACTIVE); }
+        if (b) { b.style.display = DISPLAY.NONE; b.classList.remove(CSS.ACTIVE); }
       } catch (_) {}
     }
   };
