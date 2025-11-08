@@ -119,10 +119,8 @@ class GitHubDataService {
      */
     _getFetchCredentials(endpointUrl) {
         try {
-            const epOrigin = new URL(endpointUrl).origin;
-            const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : '';
-            const sameOrigin = epOrigin && pageOrigin && epOrigin === pageOrigin;
-            return sameOrigin ? 'include' : 'omit';
+            const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+            return pageOrigin && (new URL(endpointUrl).origin === pageOrigin) ? 'include' : 'omit';
         } catch (_) {
             // Fallback for invalid URLs or non-browser environments
             // Use 'omit' as the safe default to avoid CORS issues
