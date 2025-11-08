@@ -356,7 +356,12 @@ async function postJson(url, body) {
     const allowedOrigins = Array.isArray(window.API_ALLOWED_ORIGINS)
         ? window.API_ALLOWED_ORIGINS
         : [baseOrigin];
-    if (!allowedOrigins.includes(resolvedUrl.origin)) {
+    const endpointOrigin = resolvedUrl.origin;
+    const isLocal = (() => { try { const h = new URL(endpointOrigin).hostname.toLowerCase(); return (h === 'localhost' || h === '127.0.0.1' || h === '::1'); } catch (_) { return false; } })();
+    const isAllowed = (typeof window !== 'undefined' && typeof window.isOriginAllowed === 'function')
+        ? window.isOriginAllowed(endpointOrigin)
+        : (isLocal || allowedOrigins.includes(endpointOrigin));
+    if (!isAllowed) {
         throw new Error('Requests to untrusted origins are blocked.');
     }
     const endpoint = resolvedUrl.toString();

@@ -166,46 +166,79 @@ try {
     // Deduplicate
     window.API_ALLOWED_ORIGINS = Array.from(new Set(allowed));
 
+    // Provide permissive localhost origin check helper for the rest of the app
+    // - Allows any http(s)://localhost:* and http(s)://127.0.0.1:* (and ::1)
+    // - Still respects explicit allowlist for non-local hosts
+    try {
+      window.isLocalHostname = function(hostname) {
+        const h = String(hostname || '').toLowerCase();
+        return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+      };
+      window.isOriginAllowed = function(origin) {
+        try {
+          const u = new URL(origin);
+          if (window.isLocalHostname(u.hostname)) return true;
+          const allowlist = Array.isArray(window.API_ALLOWED_ORIGINS) ? window.API_ALLOWED_ORIGINS : [];
+          return allowlist.includes(u.origin);
+        } catch (_) {
+          return false;
+        }
+      };
+    } catch (_) { /* ignore helper injection failures */ }
+
     console.log('[api] base:', window.API_BASE_URL);
     console.log('[api] allowed origins:', window.API_ALLOWED_ORIGINS);
 
-    // Auto-detect local backend only if override is not set and current base is unreachable
-    // Tries a list of known dev ports: 5173, 5174, 8081, 8080
-    if (isLocal && !override) {
-      const candidates = [
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:8081',
-        'http://localhost:8080'
-      ];
-      const probe = async (url) => {
-        try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 1200);
-          const resp = await fetch(new URL('/health', url).toString(), { signal: ctrl.signal });
-          clearTimeout(timer);
-          return resp && resp.ok;
-        } catch (_) { return false; }
-      };
-      (async () => {
-        // If current base is healthy, keep it and skip detection
-        const baseOk = await probe(window.API_BASE_URL);
-        if (baseOk) {
-          console.log('[api] base healthy; skipping auto-detect');
+    // Fallback detection: if the selected base is unreachable, try alternatives
+    // - Works for local static servers (prefers known backend ports)
+    // - Handles Render outages by falling back to page origin or local backend
+    const probe = async (url) => {
+      try {
+        if (!url) return false;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 1200);
+        const resp = await fetch(new URL('/health', url).toString(), { signal: ctrl.signal });
+        clearTimeout(timer);
+        return resp && resp.ok;
+      } catch (_) { return false; }
+    };
+    (async () => {
+      const baseOk = await probe(window.API_BASE_URL);
+      if (baseOk) {
+        console.log('[api] base healthy; keeping selection:', window.API_BASE_URL);
+        return;
+      }
+      const knownPorts = [5173, 5174, 8081, 8080];
+      const localHosts = ['http://localhost:', 'http://127.0.0.1:'];
+      const trustedOrigins = Array.isArray(window.TRUSTED_API_ORIGINS) ? window.TRUSTED_API_ORIGINS : [];
+      const candidatesSet = new Set();
+      // Current page origin first (may be backend when served by Express)
+      candidatesSet.add(pageOrigin);
+      // Known local backend ports
+      for (const p of knownPorts) {
+        for (const h of localHosts) candidatesSet.add(`${h}${p}`);
+      }
+      // Trusted origins (e.g., Render)
+      for (const t of trustedOrigins) {
+        try { const o = new URL(t).origin; candidatesSet.add(o); } catch (_) {}
+      }
+      // Also include the currently selected base
+      try { const currentOrigin = new URL(window.API_BASE_URL).origin; candidatesSet.add(currentOrigin); } catch (_) {}
+      // Attempt each candidate until one responds healthy
+      for (const c of candidatesSet) {
+        const ok = await probe(c);
+        if (ok) {
+          window.API_BASE_URL = c;
+          const origin = new URL(c).origin;
+          window.API_ALLOWED_ORIGINS = Array.from(new Set([origin, ...window.API_ALLOWED_ORIGINS]));
+          console.log('[api] auto-selected backend:', c);
           return;
         }
-        for (const c of candidates) {
-          const ok = await probe(c);
-          if (ok) {
-            window.API_BASE_URL = c;
-            const origin = new URL(c).origin;
-            window.API_ALLOWED_ORIGINS = Array.from(new Set([origin, ...window.API_ALLOWED_ORIGINS]));
-            console.log('[api] auto-detected backend:', c);
-            break;
-          }
-        }
-      })();
-    }
+      }
+      // No healthy backend found; mark degraded mode
+      window.API_DEGRADED = true;
+      console.warn('[api] No healthy backend detected. Render/unified backend may be unavailable.');
+    })();
   }
 } catch (e) {
   console.warn('API base resolution failed:', e);

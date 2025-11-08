@@ -42,9 +42,14 @@ app.use((req, res, next) => {
     ? ['*']
     : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, pagesOrigin])) : [defaultOrigin, pagesOrigin]);
 
-  // Treat GitHub Pages as explicitly allowed for credentialed requests
+  // Treat GitHub Pages and any localhost as explicitly allowed for credentialed requests
   const originIsGhPages = Boolean(origin && origin.replace(/\/$/, '') === pagesOrigin);
-  const isAllowed = (!CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin))) || originIsGhPages;
+  let originIsLocalhost = false;
+  try {
+    const h = new URL(origin).hostname.toLowerCase();
+    originIsLocalhost = (h === 'localhost' || h === '127.0.0.1' || h === '::1');
+  } catch (_) { originIsLocalhost = false; }
+  const isAllowed = originIsLocalhost || originIsGhPages || (!CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin)));
 
   // Always set standard CORS method allowances
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');

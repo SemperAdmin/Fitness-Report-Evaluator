@@ -42,7 +42,8 @@
 
         <!-- Setup Card: start hidden (no 'active') -->
         <!-- Setup Card: add Occasion Type -->
-        <div class="setup-card" id="setupCard">
+        <div class="setup-card" id="setupCard" style="position: relative;">
+            <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="position: absolute; top: 8px; right: 8px; z-index: 10; display: none; white-space: nowrap;">← Return to RS Dashboard</button>
             <div class="setup-title">Evaluation Setup</div>
             
             <div class="form-group">
@@ -133,13 +134,41 @@
             
             <div class="form-group" id="rsInfoGroup">
                 <label class="form-label" for="evaluatorNameInput">Reporting Senior Information:</label>
-                <!-- Inline RS name + Return button when launched from RS Dashboard -->
-                <div class="rs-inline" style="display: flex; align-items: center; gap: 10px; justify-content: space-between;">
-                    <div id="rsProfileDisplay" class="form-static" style="display: none;" aria-live="polite"></div>
-                    <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="display: none; white-space: nowrap;">← Return to RS Dashboard</button>
+                <!-- Combined readonly input and RS Dashboard button -->
+                <div class="rs-inline" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="text" class="form-input" id="evaluatorCombinedInput" 
+                           placeholder="Rank and Name" aria-label="Reporting Senior Rank and Name" 
+                           readonly tabindex="0" style="flex: 1;">
+                    <button class="btn btn-secondary" id="rsDashboardBtn" onclick="showProfileDashboard()" 
+                            aria-label="Open RS Dashboard" tabindex="0">RS Dashboard</button>
+                    <!-- Hidden originals kept for compatibility -->
+                    <select class="setup-select" id="evaluatorRankSelect" aria-label="Reporting Senior Rank" 
+                            style="display:none" aria-hidden="true">
+                        <option value="">Rank...</option>
+                        <option value="Sgt">Sgt</option>
+                        <option value="SSgt">SSgt</option>
+                        <option value="GySgt">GySgt</option>
+                        <option value="MSgt">MSgt</option>
+                        <option value="1stSgt">1stSgt</option>
+                        <option value="MGySgt">MGySgt</option>
+                        <option value="SgtMaj">SgtMaj</option>
+                        <option value="WO">WO</option>
+                        <option value="CWO2">CWO2</option>
+                        <option value="CWO3">CWO3</option>
+                        <option value="CWO4">CWO4</option>
+                        <option value="CWO5">CWO5</option>
+                        <option value="2ndLt">2ndLt</option>
+                        <option value="1stLt">1stLt</option>
+                        <option value="Capt">Capt</option>
+                        <option value="Maj">Maj</option>
+                        <option value="LtCol">LtCol</option>
+                        <option value="Col">Col</option>
+                    </select>
+                    <input type="text" class="form-input" id="evaluatorNameInput" 
+                           placeholder="Reporting Senior Name" required aria-required="true" 
+                           style="display:none" aria-hidden="true">
                 </div>
-                <!-- Input shown when not launched from a profile -->
-                <input type="text" class="form-input" id="evaluatorNameInput" placeholder="Reporting Senior Name" required aria-required="true">
+                <div id="rsProfileDisplay" class="form-static" style="display: none;" aria-live="polite"></div>
             </div>
             
             <button class="btn btn-meets" onclick="startEvaluation()" style="margin-top: 20px; width: 100%;">Begin Evaluation</button>
@@ -771,8 +800,15 @@
           const apiParam = (params.get('api') || '').trim().toLowerCase();
 
           // Default selection based on hosting environment
+          // Prefer Render for ALL static server instances regardless of port
+          // Keep same-origin when running on known backend ports
           const isGhPages = window.location.origin.includes('semperadmin.github.io');
-          const isStaticDev = window.location.port === '5500';
+          const hostname = window.location.hostname.toLowerCase();
+          const port = Number(window.location.port || 0);
+          const KNOWN_BACKEND_PORTS = [5173, 5174, 8081, 8080];
+          const isLocalHost = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1');
+          const isKnownBackendPort = KNOWN_BACKEND_PORTS.includes(port);
+          const isStaticDev = isLocalHost && !isKnownBackendPort; // treat any other local port as static
           let override = null; // null means "no override specified yet"
 
           if (apiParam) {
@@ -788,12 +824,11 @@
           }
 
           // If no explicit query param override was processed, choose sensible default
+          // Default policy:
+          // - GitHub Pages AND any local static server -> use Render backend
+          // - Known backend ports (e.g., 5173) -> use same-origin
           if (override === null) {
-            if (isGhPages || isStaticDev) {
-              override = RENDER_URL;
-            } else {
-              override = window.location.origin;
-            }
+            override = (isGhPages || isStaticDev) ? RENDER_URL : window.location.origin;
           }
 
           // Apply and trust override origin
@@ -804,6 +839,15 @@
           } catch (_) {
             // ignore invalid URLs (e.g., when override is empty for api=none)
           }
+
+          // Documentation: Override Mechanism
+          // - Query param `?api=render`        => force Render backend
+          // - Query param `?api=local`         => force same-origin backend
+          // - Query param `?api=http://host:port` => use explicit backend URL
+          // - Query param `?api=none`          => disable backend calls (testing only)
+          // Defaults:
+          // - On GitHub Pages or any local static server (any port), prefers Render
+          // - On known backend ports (5173, 5174, 8081, 8080), prefers same-origin
         })();
         // Disable client-side token assembly; backend should manage auth/secrets
         window.USE_ASSEMBLED_TOKEN = false;
@@ -848,6 +892,8 @@
     <script src="js/modals.js"></script>
     <script src="js/formValidationCore.js"></script>
     <script src="js/formValidationUI.js"></script>
+    <!-- Navigation helpers (showSetupCard, updateRSSetupDisplay, etc.) -->
+    <script src="js/navigation.js"></script>
     <script src="js/profile.js"></script>
     <!-- Persistence and enhanced auto-save system -->
     <script src="js/persistence.js"></script>

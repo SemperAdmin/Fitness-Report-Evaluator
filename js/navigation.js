@@ -236,7 +236,9 @@ function showSetupCard() {
 function updateRSSetupDisplay() {
     const rsDisplay = document.getElementById('rsProfileDisplay');
     const evaluatorInput = document.getElementById('evaluatorNameInput');
-    const returnBtn = document.getElementById('returnToDashboardBtn');
+    const evaluatorRank = document.getElementById('evaluatorRankSelect');
+    const combinedInput = document.getElementById('evaluatorCombinedInput');
+    const returnBtn = document.getElementById('rsDashboardBtn') || document.getElementById('returnToDashboardBtn');
     let profile = window.currentProfile || null;
     let hasProfile = !!(profile && profile.rsName);
 
@@ -262,42 +264,102 @@ function updateRSSetupDisplay() {
     }
 
     if (hasProfile) {
-        if (rsDisplay) {
-            const rank = profile.rsRank ? profile.rsRank + ' ' : '';
-            rsDisplay.textContent = `Reporting Senior: ${rank}${profile.rsName}`;
-            rsDisplay.style.display = UI.DISPLAY.SHOW;
-            try { rsDisplay.setAttribute('aria-hidden', 'false'); } catch (_) {}
+        // Prefill inputs with profile data; lock inputs to match profile header
+        const headerEl = document.getElementById('profileHeaderName');
+        const headerText = (headerEl && headerEl.textContent ? headerEl.textContent : '').trim();
+        let headerRank = '';
+        let headerName = '';
+        if (headerText) {
+            // Attempt to split rank from name by first space
+            const parts = headerText.split(/\s+/);
+            if (parts.length > 1) {
+                headerRank = parts[0];
+                headerName = parts.slice(1).join(' ');
+            } else {
+                headerName = headerText;
+            }
         }
+        const rankValue = profile.rsRank || headerRank || '';
+        const nameValue = profile.rsName || headerName || '';
+
         if (evaluatorInput) {
-            evaluatorInput.value = profile.rsName || '';
-            evaluatorInput.style.display = UI.DISPLAY.HIDE;
-            // Ensure the hidden input does not block interactions/validation
-            try { evaluatorInput.required = false; } catch (_) {}
+            evaluatorInput.value = nameValue;
             try { evaluatorInput.disabled = true; } catch (_) {}
-            try { evaluatorInput.setAttribute('aria-hidden', 'true'); } catch (_) {}
+            try { evaluatorInput.readOnly = true; } catch (_) {}
+            try { evaluatorInput.required = true; } catch (_) {}
+            try { evaluatorInput.setAttribute('aria-hidden', 'false'); } catch (_) {}
+            // Keep original hidden; combined input will present the value
+            evaluatorInput.style.display = 'none';
+        }
+        if (evaluatorRank) {
+            if (rankValue) evaluatorRank.value = rankValue;
+            try { evaluatorRank.disabled = true; } catch (_) {}
+            try { evaluatorRank.setAttribute('aria-hidden', 'false'); } catch (_) {}
+            evaluatorRank.style.display = 'none';
+        }
+        if (combinedInput) {
+            combinedInput.value = (rankValue ? (rankValue + ' ') : '') + (nameValue || '');
+            try { combinedInput.setAttribute('aria-hidden', 'false'); } catch (_) {}
+        }
+        if (rsDisplay) {
+            rsDisplay.textContent = '';
+            rsDisplay.style.display = UI.DISPLAY.HIDE;
+            try { rsDisplay.setAttribute('aria-hidden', 'true'); } catch (_) {}
         }
         if (returnBtn) {
-            // Force visible display when launched from a profile
+            // Visible when launched from a profile
             try { returnBtn.style.setProperty('display', UI.DISPLAY.SHOW, 'important'); } catch (_) { returnBtn.style.display = UI.DISPLAY.SHOW; }
             try { returnBtn.setAttribute('aria-hidden', 'false'); } catch (_) {}
         }
     } else {
+        // No profile: fill combined from meta/header if available; keep originals hidden
         if (rsDisplay) {
             rsDisplay.textContent = '';
             rsDisplay.style.display = UI.DISPLAY.HIDE;
             try { rsDisplay.setAttribute('aria-hidden', 'true'); } catch (_) {}
         }
         if (evaluatorInput) {
-            // Preserve restored name if present
             const restoredName = (typeof evaluationMeta === 'object' && evaluationMeta && evaluationMeta.evaluatorName) ? evaluationMeta.evaluatorName : '';
             if (restoredName && !evaluatorInput.value) {
                 evaluatorInput.value = restoredName;
             }
-            evaluatorInput.style.display = '';
-            // Re-enable and restore validation semantics when shown
-            try { evaluatorInput.disabled = false; } catch (_) {}
+            evaluatorInput.style.display = 'none';
+            try { evaluatorInput.disabled = true; } catch (_) {}
+            try { evaluatorInput.readOnly = true; } catch (_) {}
             try { evaluatorInput.required = true; } catch (_) {}
             try { evaluatorInput.setAttribute('aria-hidden', 'false'); } catch (_) {}
+        }
+        if (evaluatorRank) {
+            const restoredRank = (typeof evaluationMeta === 'object' && evaluationMeta && evaluationMeta.evaluatorRank) ? evaluationMeta.evaluatorRank : '';
+            if (restoredRank && !evaluatorRank.value) {
+                evaluatorRank.value = restoredRank;
+            } else {
+                evaluatorRank.value = '';
+            }
+            evaluatorRank.style.display = 'none';
+            try { evaluatorRank.disabled = true; } catch (_) {}
+            try { evaluatorRank.setAttribute('aria-hidden', 'false'); } catch (_) {}
+        }
+        if (combinedInput) {
+            const headerEl = document.getElementById('profileHeaderName');
+            const headerText = (headerEl && headerEl.textContent ? headerEl.textContent : '').trim();
+            let headerRank = '';
+            let headerName = '';
+            if (headerText) {
+                const parts = headerText.split(/\s+/);
+                if (parts.length > 1) {
+                    headerRank = parts[0];
+                    headerName = parts.slice(1).join(' ');
+                } else {
+                    headerName = headerText;
+                }
+            }
+            const restoredRank = (typeof evaluationMeta === 'object' && evaluationMeta && evaluationMeta.evaluatorRank) ? evaluationMeta.evaluatorRank : '';
+            const restoredName = (typeof evaluationMeta === 'object' && evaluationMeta && evaluationMeta.evaluatorName) ? evaluationMeta.evaluatorName : '';
+            const rankValue = restoredRank || headerRank || '';
+            const nameValue = restoredName || headerName || '';
+            combinedInput.value = (rankValue ? (rankValue + ' ') : '') + (nameValue || '');
+            try { combinedInput.setAttribute('aria-hidden', 'false'); } catch (_) {}
         }
         if (returnBtn) {
             try { returnBtn.style.setProperty('display', UI.DISPLAY.HIDE, 'important'); } catch (_) { returnBtn.style.display = UI.DISPLAY.HIDE; }

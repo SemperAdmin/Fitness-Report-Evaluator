@@ -73,7 +73,11 @@ class GitHubDataService {
             const allowed = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
                 ? window.API_ALLOWED_ORIGINS
                 : [origin];
-            if (!allowed.includes(origin)) {
+            const isLocal = (() => { try { const h = new URL(origin).hostname.toLowerCase(); return (h === 'localhost' || h === '127.0.0.1' || h === '::1'); } catch (_) { return false; } })();
+            const isAllowed = (typeof window !== 'undefined' && typeof window.isOriginAllowed === 'function')
+                ? window.isOriginAllowed(origin)
+                : (isLocal || allowed.includes(origin));
+            if (!isAllowed) {
                 return { blocked: true, url: endpointUrl.toString(), origin };
             }
         } catch (_) {
