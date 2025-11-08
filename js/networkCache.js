@@ -15,8 +15,9 @@ class RequestCache {
     constructor(options = {}) {
         this.maxSize = options.maxSize || 100;
         this.defaultTTL = options.defaultTTL || 5 * 60 * 1000; // 5 minutes
+        // Use Map's insertion order for LRU tracking (O(1) operations)
+        // Most recently used items are at the end
         this.cache = new Map();
-        this.accessOrder = [];
         this.stats = {
             hits: 0,
             misses: 0,
@@ -53,12 +54,9 @@ class RequestCache {
             return null;
         }
 
-        // Update access order (LRU)
-        const index = this.accessOrder.indexOf(key);
-        if (index > -1) {
-            this.accessOrder.splice(index, 1);
-        }
-        this.accessOrder.push(key);
+        // Update access order (LRU) - delete and re-set to move to end (O(1))
+        this.cache.delete(key);
+        this.cache.set(key, entry);
 
         this.stats.hits++;
         return entry.response;
@@ -70,27 +68,26 @@ class RequestCache {
     set(key, response, ttl = null) {
         const expiresAt = Date.now() + (ttl || this.defaultTTL);
 
-        // Evict oldest if at capacity
+        // If key exists, delete it first to update position
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        }
+
+        // Evict oldest (first entry in Map) if at capacity
         if (this.cache.size >= this.maxSize) {
-            const oldestKey = this.accessOrder.shift();
-            if (oldestKey) {
+            const oldestKey = this.cache.keys().next().value;
+            if (oldestKey !== undefined) {
                 this.cache.delete(oldestKey);
                 this.stats.evictions++;
             }
         }
 
+        // Add to end (most recently used)
         this.cache.set(key, {
             response: response,
             expiresAt: expiresAt,
             cachedAt: Date.now()
         });
-
-        // Update access order
-        const index = this.accessOrder.indexOf(key);
-        if (index > -1) {
-            this.accessOrder.splice(index, 1);
-        }
-        this.accessOrder.push(key);
     }
 
     /**
@@ -100,15 +97,18 @@ class RequestCache {
         let count = 0;
         const regex = new RegExp(pattern);
 
+        // Collect keys to delete (can't delete while iterating)
+        const keysToDelete = [];
         for (const [key, _] of this.cache.entries()) {
             if (regex.test(key)) {
-                this.cache.delete(key);
-                const index = this.accessOrder.indexOf(key);
-                if (index > -1) {
-                    this.accessOrder.splice(index, 1);
-                }
-                count++;
+                keysToDelete.push(key);
             }
+        }
+
+        // Delete collected keys
+        for (const key of keysToDelete) {
+            this.cache.delete(key);
+            count++;
         }
 
         return count;
@@ -119,7 +119,6 @@ class RequestCache {
      */
     clear() {
         this.cache.clear();
-        this.accessOrder = [];
     }
 
     /**
@@ -338,6 +337,39 @@ class NetworkEfficiencyManager {
     }
 
     /**
+     * Deep clone an object, handling common data types
+     * More robust than JSON.parse(JSON.stringify()) which doesn't handle Date, undefined, etc.
+     * @private
+     * @param {*} obj - Object to clone
+     * @returns {*} - Cloned object
+     */
+    _deepClone(obj) {
+        if (obj === null || typeof obj !== 'object') {
+            return obj;
+        }
+
+        if (obj instanceof Date) {
+            return new Date(obj.getTime());
+        }
+
+        if (Array.isArray(obj)) {
+            const arrCopy = [];
+            for (let i = 0; i < obj.length; i++) {
+                arrCopy[i] = this._deepClone(obj[i]);
+            }
+            return arrCopy;
+        }
+
+        const objCopy = {};
+        for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                objCopy[key] = this._deepClone(obj[key]);
+            }
+        }
+        return objCopy;
+    }
+
+    /**
      * Execute a cached request with deduplication
      * @param {Object} options - Request options
      * @param {string} options.method - HTTP method
@@ -368,7 +400,7 @@ class NetworkEfficiencyManager {
             const cached = this.cache.get(cacheKey);
             if (cached) {
                 this.metrics.cachedRequests++;
-                return JSON.parse(JSON.stringify(cached)); // Deep clone
+                return this._deepClone(cached); // Deep clone
             }
         }
 
