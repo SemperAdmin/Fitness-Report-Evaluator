@@ -296,12 +296,15 @@ function parseEvaluationYamlMinimal(yamlStr) {
     }
 
     // Extract fields with safe defaults
-    const id = parsed.id || `eval-${Date.now()}`;
+    const id = parsed.id || `eval-${crypto.randomBytes(8).toString('hex')}`;
     const occasion = parsed.occasion || null;
     const completedDate = parsed.completedDate || null;
-    const fitrepAverage = parsed.fitrepAverage !== undefined
-      ? String(parseFloat(parsed.fitrepAverage))
-      : null;
+
+    // Parse and validate fitrepAverage in one step
+    const rawFitrep = parsed.fitrepAverage;
+    const numFitrep = (rawFitrep === undefined || rawFitrep === null) ? NaN : parseFloat(rawFitrep);
+    const fitrepAverage = Number.isFinite(numFitrep) ? String(numFitrep) : null;
+
     const sectionIComments = parsed.sectionIComments || '';
 
     // Marine info
@@ -328,36 +331,27 @@ function parseEvaluationYamlMinimal(yamlStr) {
     const traits = [];
     const rawTraits = parsed.traitEvaluations;
 
-    if (Array.isArray(rawTraits)) {
-      rawTraits.forEach(trait => {
-        if (trait && typeof trait === 'object') {
-          traits.push({
-            section: trait.section || '',
-            trait: trait.trait || '',
-            grade: trait.grade || '',
-            gradeNumber: Number(trait.gradeNumber) || 0
-          });
-        }
-      });
-    } else if (rawTraits && typeof rawTraits === 'object') {
-      // Handle object format (keyed by trait name)
-      Object.values(rawTraits).forEach(trait => {
-        if (trait && typeof trait === 'object') {
-          traits.push({
-            section: trait.section || '',
-            trait: trait.trait || '',
-            grade: trait.grade || '',
-            gradeNumber: Number(trait.gradeNumber) || 0
-          });
-        }
-      });
+    // Normalize to array: handle both array and object (keyed by trait name) formats
+    const traitsList = Array.isArray(rawTraits)
+      ? rawTraits
+      : (rawTraits && typeof rawTraits === 'object' ? Object.values(rawTraits) : []);
+
+    for (const trait of traitsList) {
+      if (trait && typeof trait === 'object') {
+        traits.push({
+          section: trait.section || '',
+          trait: trait.trait || '',
+          grade: trait.grade || '',
+          gradeNumber: Number(trait.gradeNumber) || 0
+        });
+      }
     }
 
     return {
       evaluationId: id,
       occasion,
       completedDate,
-      fitrepAverage: Number.isFinite(parseFloat(fitrepAverage)) ? fitrepAverage : null,
+      fitrepAverage,
       marineInfo,
       rsInfo,
       sectionIComments,
@@ -369,7 +363,7 @@ function parseEvaluationYamlMinimal(yamlStr) {
     console.error('YAML parsing error:', error.message);
     // Return minimal valid structure on parse failure
     return {
-      evaluationId: `eval-${Date.now()}`,
+      evaluationId: `eval-${crypto.randomBytes(8).toString('hex')}`,
       occasion: null,
       completedDate: null,
       fitrepAverage: null,
