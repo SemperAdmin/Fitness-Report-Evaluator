@@ -262,8 +262,8 @@ class VersionedIndexedDB {
         this.dbPromise = new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
 
-            request.onerror = () => {
-                reject(new Error(`IndexedDB open failed: ${request.error}`));
+            request.onerror = (event) => {
+                reject(new Error(`IndexedDB open failed: ${event.target.error}`));
             };
 
             request.onsuccess = () => {
