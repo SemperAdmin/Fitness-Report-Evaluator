@@ -166,21 +166,33 @@ function saveProgressToStorage() {
     updateAutoSaveIndicator('saving');
 
     // Build session payload; support compact mode to reduce size on quota errors
-    const buildSessionData = (compact = false) => ({
-        timestamp: new Date().toISOString(),
-        currentStep: ((typeof window !== 'undefined' && typeof window.currentStep !== 'undefined') ? window.currentStep : 'setup'),
-        currentTraitIndex: currentTraitIndex,
-        currentEvaluationLevel: currentEvaluationLevel,
-        evaluationResults: evaluationResults,
-        evaluationMeta: evaluationMeta,
-        selectedDirectedComments: selectedDirectedComments,
-        // Omit large blobs when compacting to fit quota
-        directedCommentsData: compact ? {} : directedCommentsData,
-        generatedSectionI: compact ? '' : generatedSectionI,
-        navigationHistory: (Array.isArray(window.navigationHistory) ? window.navigationHistory : ['setup']),
-        isReportingSenior: isReportingSenior,
-        allTraits: allTraits
-    });
+    const buildSessionData = (compact = false) => {
+        const evalState = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.state) ? window.Evaluation.state : null;
+        const safe = {
+            currentTraitIndex: evalState ? evalState.currentTraitIndex : (typeof currentTraitIndex !== 'undefined' ? currentTraitIndex : 0),
+            currentEvaluationLevel: evalState ? evalState.currentEvaluationLevel : (typeof currentEvaluationLevel !== 'undefined' ? currentEvaluationLevel : 'B'),
+            evaluationResults: evalState ? evalState.evaluationResults : (typeof evaluationResults !== 'undefined' ? evaluationResults : {}),
+            evaluationMeta: evalState ? evalState.evaluationMeta : (typeof evaluationMeta !== 'undefined' ? evaluationMeta : {}),
+            isReportingSenior: evalState ? evalState.isReportingSenior : (typeof isReportingSenior !== 'undefined' ? isReportingSenior : false),
+            allTraits: evalState ? evalState.allTraits : (typeof allTraits !== 'undefined' ? allTraits : [])
+        };
+
+        return {
+            timestamp: new Date().toISOString(),
+            currentStep: ((typeof window !== 'undefined' && typeof window.currentStep !== 'undefined') ? window.currentStep : 'setup'),
+            currentTraitIndex: safe.currentTraitIndex,
+            currentEvaluationLevel: safe.currentEvaluationLevel,
+            evaluationResults: safe.evaluationResults,
+            evaluationMeta: safe.evaluationMeta,
+            selectedDirectedComments: (typeof selectedDirectedComments !== 'undefined' ? selectedDirectedComments : []),
+            // Omit large blobs when compacting to fit quota
+            directedCommentsData: compact ? {} : (typeof directedCommentsData !== 'undefined' ? directedCommentsData : {}),
+            generatedSectionI: compact ? '' : (typeof generatedSectionI !== 'undefined' ? generatedSectionI : ''),
+            navigationHistory: (Array.isArray(window.navigationHistory) ? window.navigationHistory : ['setup']),
+            isReportingSenior: safe.isReportingSenior,
+            allTraits: safe.allTraits
+        };
+    };
 
     try {
         const sessionData = buildSessionData(false);
@@ -427,7 +439,9 @@ function exportToJSON() {
     
     const link = document.createElement('a');
     link.href = URL.createObjectURL(dataBlob);
-    link.download = `fitrep_${evaluationMeta.marineName?.replace(/[^a-zA-Z0-9]/g, '_') || 'evaluation'}_${new Date().toISOString().split('T')[0]}.json`;
+    const evalState = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.state) ? window.Evaluation.state : null;
+    const metaForName = evalState ? evalState.evaluationMeta : (typeof evaluationMeta !== 'undefined' ? evaluationMeta : {});
+    link.download = `fitrep_${(metaForName.marineName || '').replace(/[^a-zA-Z0-9]/g, '_') || 'evaluation'}_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     
     showToast('Evaluation data exported successfully!', 'success');
