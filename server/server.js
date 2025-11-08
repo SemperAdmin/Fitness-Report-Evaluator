@@ -300,9 +300,8 @@ function parseEvaluationYamlMinimal(yamlStr) {
     const occasion = parsed.occasion || null;
     const completedDate = parsed.completedDate || null;
 
-    // Parse and validate fitrepAverage in one step
-    const rawFitrep = parsed.fitrepAverage;
-    const numFitrep = (rawFitrep === undefined || rawFitrep === null) ? NaN : parseFloat(rawFitrep);
+    // Parse and validate fitrepAverage (parseFloat handles undefined/null by returning NaN)
+    const numFitrep = parseFloat(parsed.fitrepAverage);
     const fitrepAverage = Number.isFinite(numFitrep) ? String(numFitrep) : null;
 
     const sectionIComments = parsed.sectionIComments || '';

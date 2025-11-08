@@ -129,6 +129,34 @@ class GitHubDataService {
     }
 
     /**
+     * Helper method to construct GitHub API request options
+     * Centralizes common headers and credentials handling for mobile CORS compatibility
+     *
+     * @private
+     * @param {string} method - HTTP method (GET, PUT, DELETE, etc.)
+     * @param {Object|null} body - Request body (will be JSON stringified if provided)
+     * @returns {Object} - Fetch options object
+     */
+    _getGitHubApiRequestOptions(method = 'GET', body = null) {
+        const options = {
+            method,
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            },
+            // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
+            credentials: 'omit'
+        };
+
+        if (body) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(body);
+        }
+
+        return options;
+    }
+
+    /**
      * Get authentication token from environment
      *
      * This is a placeholder that demonstrates different approaches:
@@ -357,14 +385,7 @@ class GitHubDataService {
         const cfg = this.getConfig();
         const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
 
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                'Accept': 'application/vnd.github.v3+json'
-            },
-            credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-        });
+        const response = await fetch(url, this._getGitHubApiRequestOptions('GET'));
         if (response.status === 404) return null;
         if (!response.ok) {
             let msg = response.statusText;
@@ -389,14 +410,7 @@ class GitHubDataService {
         }
         const cfg = this.getConfig();
         const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${dirPath}`;
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                'Accept': 'application/vnd.github.v3+json'
-            },
-            credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-        });
+        const response = await fetch(url, this._getGitHubApiRequestOptions('GET'));
         if (response.status === 404) return [];
         if (!response.ok) {
             let msg = response.statusText;
@@ -782,14 +796,7 @@ class GitHubDataService {
         const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
 
         try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                },
-                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-            });
+            const response = await fetch(url, this._getGitHubApiRequestOptions('GET'));
 
             if (response.status === 404) {
                 return null; // File doesn't exist
@@ -851,16 +858,7 @@ class GitHubDataService {
         }
 
         try {
-            const response = await fetch(url, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body),
-                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-            });
+            const response = await fetch(url, this._getGitHubApiRequestOptions('PUT', body));
 
             if (!response.ok) {
                 // Handle stale SHA: refetch latest SHA and retry once
@@ -877,16 +875,7 @@ class GitHubDataService {
                     try {
                         const latestSha = await this.getFileSha(filePath);
                         const retryBody = { ...body, ...(latestSha ? { sha: latestSha } : {}) };
-                        const retryResp = await fetch(url, {
-                            method: 'PUT',
-                            headers: {
-                                'Authorization': `Bearer ${this.token}`,
-                                'Accept': 'application/vnd.github.v3+json',
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(retryBody),
-                            credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-                        });
+                        const retryResp = await fetch(url, this._getGitHubApiRequestOptions('PUT', retryBody));
                         if (!retryResp.ok) {
                             let retryMsg = '';
                             try { const d = await retryResp.json(); retryMsg = d.message || retryResp.statusText; } catch (_) { retryMsg = retryResp.statusText; }
@@ -950,16 +939,7 @@ class GitHubDataService {
         };
 
         try {
-            const response = await fetch(url, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body),
-                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-            });
+            const response = await fetch(url, this._getGitHubApiRequestOptions('DELETE', body));
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -1004,14 +984,7 @@ class GitHubDataService {
         const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
 
         try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                },
-                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-            });
+            const response = await fetch(url, this._getGitHubApiRequestOptions('GET'));
 
             if (response.status === 404) {
                 return null; // File doesn't exist
@@ -1465,14 +1438,7 @@ class GitHubDataService {
             // Try to access the repository
             const cfg = this.getConfig();
             const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}`;
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                },
-                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
-            });
+            const response = await fetch(url, this._getGitHubApiRequestOptions('GET'));
 
             return response.ok;
 
