@@ -215,7 +215,8 @@
         this._touchBlock = (e) => {
           // Allow scrolling inside active modal content if it is scrollable
           const target = e.target;
-          const activeModal = document.querySelector('.save-profile-modal.active');
+          const topModal = this.stack.top();
+          const activeModal = topModal ? document.getElementById(topModal.id) : null;
           if (activeModal && activeModal.contains(target)) {
             return; // do not block inside modal content
           }

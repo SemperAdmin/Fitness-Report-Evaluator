@@ -4,6 +4,7 @@ const express = require('express');
 // Support node-fetch v3 in CommonJS via dynamic import wrapper
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const bcrypt = require('bcryptjs');
+const yaml = require('js-yaml');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -283,61 +284,106 @@ async function writeLocalUser(prefix, userObj) {
   await fsp.writeFile(p, str, 'utf8');
 }
 
-// Minimal YAML parser for evaluation files created by workflows
-// Extracts core fields without external dependencies
+// Parse YAML evaluation files created by workflows
+// Uses js-yaml for robust parsing, resilient to formatting variations
 function parseEvaluationYamlMinimal(yamlStr) {
-  const get = (re) => {
-    const m = yamlStr.match(re);
-    return m ? m[1] : null;
-  };
-  const id = get(/\bid:\s*"([^"]+)"/);
-  const occasion = get(/\boccasion:\s*"([^"]+)"/);
-  const completedDate = get(/\bcompletedDate:\s*"([^"]+)"/);
-  const fitrepAverageStr = get(/\bfitrepAverage:\s*"?([0-9.]+)"?/);
-  const fitrepAverage = fitrepAverageStr ? parseFloat(fitrepAverageStr) : null;
-  const sectionIComments = get(/\bsectionIComments:\s*"([\s\S]*?)"\s*(?:\n|$)/);
-  // Marine block
-  const marineName = get(/\bmarine:\s*[\r\n]+\s{2}name:\s*"([^"]+)"/);
-  const marineRank = get(/\bmarine:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
-  const periodFrom = get(/\bevaluationPeriod:\s*[\r\n]+\s{4}from:\s*"([^"]+)"/);
-  const periodTo = get(/\bevaluationPeriod:[\s\S]*?\n\s{4}to:\s*"([^"]+)"/);
-  // RS block
-  const rsName = get(/\brs:\s*[\r\n]+\s{2}name:\s*"([^"]+)"/);
-  const rsEmail = get(/\brs:[\s\S]*?\n\s{2}email:\s*"([^"]+)"/);
-  const rsRank = get(/\brs:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
+  try {
+    // Parse YAML with js-yaml for robustness
+    const parsed = yaml.load(yamlStr);
 
-  // Trait evaluations block (minimal YAML parser via regex)
-  const traitBlockMatch = yamlStr.match(/\btraitEvaluations:\s*([\s\S]*?)(?:\n\w|\n[a-zA-Z_]+:|$)/);
-  const traitBlock = traitBlockMatch ? traitBlockMatch[1] : '';
-  const traits = [];
-  if (traitBlock) {
-    const re = /-\s*[\r\n]+\s{2,}section:\s*"([^\"]+)"[\s\S]*?\n\s{2,}trait:\s*"([^\"]+)"[\s\S]*?\n\s{2,}grade:\s*"([^\"]+)"[\s\S]*?\n\s{2,}gradeNumber:\s*([0-9]+)/g;
-    let m;
-    while ((m = re.exec(traitBlock)) !== null) {
-      traits.push({
-        section: m[1],
-        trait: m[2],
-        grade: m[3],
-        gradeNumber: Number(m[4])
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Invalid YAML structure');
+    }
+
+    // Extract fields with safe defaults
+    const id = parsed.id || `eval-${Date.now()}`;
+    const occasion = parsed.occasion || null;
+    const completedDate = parsed.completedDate || null;
+    const fitrepAverage = parsed.fitrepAverage !== undefined
+      ? String(parseFloat(parsed.fitrepAverage))
+      : null;
+    const sectionIComments = parsed.sectionIComments || '';
+
+    // Marine info
+    const marine = parsed.marine || {};
+    const evaluationPeriod = marine.evaluationPeriod || {};
+    const marineInfo = {
+      name: marine.name || '',
+      rank: marine.rank || '',
+      evaluationPeriod: {
+        from: evaluationPeriod.from || '',
+        to: evaluationPeriod.to || ''
+      }
+    };
+
+    // RS info
+    const rs = parsed.rs || {};
+    const rsInfo = {
+      name: rs.name || '',
+      email: rs.email || '',
+      rank: rs.rank || ''
+    };
+
+    // Trait evaluations - handle both array and object formats
+    const traits = [];
+    const rawTraits = parsed.traitEvaluations;
+
+    if (Array.isArray(rawTraits)) {
+      rawTraits.forEach(trait => {
+        if (trait && typeof trait === 'object') {
+          traits.push({
+            section: trait.section || '',
+            trait: trait.trait || '',
+            grade: trait.grade || '',
+            gradeNumber: Number(trait.gradeNumber) || 0
+          });
+        }
+      });
+    } else if (rawTraits && typeof rawTraits === 'object') {
+      // Handle object format (keyed by trait name)
+      Object.values(rawTraits).forEach(trait => {
+        if (trait && typeof trait === 'object') {
+          traits.push({
+            section: trait.section || '',
+            trait: trait.trait || '',
+            grade: trait.grade || '',
+            gradeNumber: Number(trait.gradeNumber) || 0
+          });
+        }
       });
     }
-  }
 
-  return {
-    evaluationId: id || `eval-${Date.now()}`,
-    occasion: occasion || null,
-    completedDate: completedDate || null,
-    fitrepAverage: Number.isFinite(fitrepAverage) ? String(fitrepAverage) : null,
-    marineInfo: {
-      name: marineName || '',
-      rank: marineRank || '',
-      evaluationPeriod: { from: periodFrom || '', to: periodTo || '' }
-    },
-    rsInfo: { name: rsName || '', email: rsEmail || '', rank: rsRank || '' },
-    sectionIComments: sectionIComments || '',
-    traitEvaluations: traits,
-    syncStatus: 'synced'
-  };
+    return {
+      evaluationId: id,
+      occasion,
+      completedDate,
+      fitrepAverage: Number.isFinite(parseFloat(fitrepAverage)) ? fitrepAverage : null,
+      marineInfo,
+      rsInfo,
+      sectionIComments,
+      traitEvaluations: traits,
+      syncStatus: 'synced'
+    };
+
+  } catch (error) {
+    console.error('YAML parsing error:', error.message);
+    // Return minimal valid structure on parse failure
+    return {
+      evaluationId: `eval-${Date.now()}`,
+      occasion: null,
+      completedDate: null,
+      fitrepAverage: null,
+      marineInfo: {
+        name: '',
+        rank: '',
+        evaluationPeriod: { from: '', to: '' }
+      },
+      rsInfo: { name: '', email: '', rank: '' },
+      sectionIComments: '',
+      traitEvaluations: [],
+      syncStatus: 'synced'
+    };
+  }
 }
 
 // Lightweight rate limiter per IP
