@@ -266,19 +266,26 @@ function updateRSSetupDisplay() {
             const rank = profile.rsRank ? profile.rsRank + ' ' : '';
             rsDisplay.textContent = `Reporting Senior: ${rank}${profile.rsName}`;
             rsDisplay.style.display = UI.DISPLAY.SHOW;
+            try { rsDisplay.setAttribute('aria-hidden', 'false'); } catch (_) {}
         }
         if (evaluatorInput) {
             evaluatorInput.value = profile.rsName || '';
             evaluatorInput.style.display = UI.DISPLAY.HIDE;
+            // Ensure the hidden input does not block interactions/validation
+            try { evaluatorInput.required = false; } catch (_) {}
+            try { evaluatorInput.disabled = true; } catch (_) {}
+            try { evaluatorInput.setAttribute('aria-hidden', 'true'); } catch (_) {}
         }
         if (returnBtn) {
             // Force visible display when launched from a profile
             try { returnBtn.style.setProperty('display', UI.DISPLAY.SHOW, 'important'); } catch (_) { returnBtn.style.display = UI.DISPLAY.SHOW; }
+            try { returnBtn.setAttribute('aria-hidden', 'false'); } catch (_) {}
         }
     } else {
         if (rsDisplay) {
             rsDisplay.textContent = '';
             rsDisplay.style.display = UI.DISPLAY.HIDE;
+            try { rsDisplay.setAttribute('aria-hidden', 'true'); } catch (_) {}
         }
         if (evaluatorInput) {
             // Preserve restored name if present
@@ -287,9 +294,14 @@ function updateRSSetupDisplay() {
                 evaluatorInput.value = restoredName;
             }
             evaluatorInput.style.display = '';
+            // Re-enable and restore validation semantics when shown
+            try { evaluatorInput.disabled = false; } catch (_) {}
+            try { evaluatorInput.required = true; } catch (_) {}
+            try { evaluatorInput.setAttribute('aria-hidden', 'false'); } catch (_) {}
         }
         if (returnBtn) {
             try { returnBtn.style.setProperty('display', UI.DISPLAY.HIDE, 'important'); } catch (_) { returnBtn.style.display = UI.DISPLAY.HIDE; }
+            try { returnBtn.setAttribute('aria-hidden', 'true'); } catch (_) {}
         }
     }
 }

@@ -16,6 +16,9 @@ try { CONSTANTS = require('../js/constants.js'); } catch (_) { CONSTANTS = null;
 
 const app = express();
 app.use(express.json());
+// Accept URL-encoded bodies to enable simple cross-origin POST without preflight
+// This helps login work even if the browser blocks preflight on some devices/networks.
+app.use(express.urlencoded({ extended: true }));
 
 // Basic CORS support to allow cross-origin usage when hosted on static origins
 // Hardened CORS: allow only configured origins (or default server origin)

@@ -135,7 +135,7 @@
                 <label class="form-label" for="evaluatorNameInput">Reporting Senior Information:</label>
                 <!-- Inline RS name + Return button when launched from RS Dashboard -->
                 <div class="rs-inline" style="display: flex; align-items: center; gap: 10px; justify-content: space-between;">
-                    <div id="rsProfileDisplay" class="form-static" style="display: none;"></div>
+                    <div id="rsProfileDisplay" class="form-static" style="display: none;" aria-live="polite"></div>
                     <button class="btn btn-secondary" id="returnToDashboardBtn" onclick="showProfileDashboard()" style="display: none; white-space: nowrap;">← Return to RS Dashboard</button>
                 </div>
                 <!-- Input shown when not launched from a profile -->

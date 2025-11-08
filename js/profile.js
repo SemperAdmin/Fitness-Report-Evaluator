@@ -195,7 +195,11 @@ async function accountLogin() {
     try {
         // Send explicit username for clarity; keep email for compatibility
         const LOGIN_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_LOGIN) || '/api/account/login';
-        const res = await postJson(LOGIN_ROUTE, { email, username: email, password });
+        let res = await postJson(LOGIN_ROUTE, { email, username: email, password });
+        // If network/CORS failed, retry using URL-encoded to avoid preflight
+        if (!res || (!res.ok && res.status === 0)) {
+            res = await postForm(LOGIN_ROUTE, { email, username: email, password });
+        }
         if (!res || !res.ok) {
             // Restore UI when login fails
             if (typewriter) typewriter.style.display = 'none';
@@ -428,6 +432,28 @@ async function postJson(url, body) {
             }
         } catch (e) {
             lastError = e;
+            // Classify probable CORS/network issue for diagnostics
+            try {
+                const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+                const endpointOrigin = resolvedUrl.origin;
+                const probableCors = (
+                    isCrossOrigin && (
+                        (e && e.name === 'TypeError' && /Failed to fetch|NetworkError/i.test(e.message || '')) ||
+                        (e && /CORS/i.test(e.message || ''))
+                    )
+                );
+                if (probableCors && typeof window !== 'undefined') {
+                    window.__lastApiError = {
+                        type: 'cors',
+                        endpoint: endpoint,
+                        pageOrigin,
+                        endpointOrigin,
+                        credentials: (isCrossOrigin ? 'omit' : 'include')
+                    };
+                } else if (typeof window !== 'undefined') {
+                    window.__lastApiError = { type: 'network', message: String(e && e.message || e) };
+                }
+            } catch (_) { /* best-effort */ }
             const msg = String(e?.message || '').toLowerCase();
             const retryable = /network|timeout|fetch|connection|reset/.test(msg);
             // If we failed on a cross-origin call while including credentials, retry once without credentials
@@ -467,6 +493,82 @@ async function postJson(url, body) {
         }
     }
     return { ok: false, error: lastError?.message || 'Network error', status: 0 };
+}
+
+// Cross-origin friendly POST using application/x-www-form-urlencoded to avoid preflight
+async function postForm(url, body) {
+    const base = (typeof window !== 'undefined' && window.API_BASE_URL)
+        ? window.API_BASE_URL
+        : window.location.origin;
+    const resolvedUrl = new URL(url, base);
+    const baseOrigin = new URL(base).origin;
+    const allowedOrigins = Array.isArray(window.API_ALLOWED_ORIGINS)
+        ? window.API_ALLOWED_ORIGINS
+        : [baseOrigin];
+    if (!allowedOrigins.includes(resolvedUrl.origin)) {
+        throw new Error('Requests to untrusted origins are blocked.');
+    }
+    const endpoint = resolvedUrl.toString();
+    const isCrossOrigin = (typeof window !== 'undefined')
+        ? (resolvedUrl.origin !== window.location.origin)
+        : false;
+
+    // Build form data; include optional assembled token if present
+    let assembledToken = null;
+    try {
+        if (typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
+            try { assembledToken = window.assembleToken(); } catch (_) { assembledToken = null; }
+        }
+    } catch (_) { /* ignore */ }
+    const payload = new URLSearchParams();
+    Object.entries(assembledToken ? { ...body, token: assembledToken } : body).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) payload.append(k, String(v));
+    });
+
+    try {
+        const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            credentials: isCrossOrigin ? 'omit' : 'include',
+            mode: 'cors',
+            cache: 'no-store',
+            body: payload.toString()
+        });
+        if (!resp.ok) {
+            let error = `Request failed (${resp.status})`;
+            try { const data = await resp.json(); error = data.error || error; } catch (_) {}
+            return { ok: false, error, status: resp.status };
+        }
+        try {
+            const data = await resp.json();
+            return { ok: true, ...data };
+        } catch (_) {
+            return { ok: true };
+        }
+    } catch (err) {
+        try {
+            const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+            const endpointOrigin = resolvedUrl.origin;
+            const probableCors = (
+                isCrossOrigin && (
+                    (err && err.name === 'TypeError' && /Failed to fetch|NetworkError/i.test(err.message || '')) ||
+                    (err && /CORS/i.test(err.message || ''))
+                )
+            );
+            if (probableCors && typeof window !== 'undefined') {
+                window.__lastApiError = {
+                    type: 'cors',
+                    endpoint: endpoint,
+                    pageOrigin,
+                    endpointOrigin,
+                    credentials: (isCrossOrigin ? 'omit' : 'include')
+                };
+            } else if (typeof window !== 'undefined') {
+                window.__lastApiError = { type: 'network', message: String(err && err.message || err) };
+            }
+        } catch (_) { /* best-effort */ }
+        return { ok: false, error: err?.message || 'Network error', status: 0 };
+    }
 }
 
 // UI toggles for Create Account
