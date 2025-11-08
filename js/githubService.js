@@ -362,7 +362,8 @@ class GitHubDataService {
             headers: {
                 'Authorization': `Bearer ${this.token}`,
                 'Accept': 'application/vnd.github.v3+json'
-            }
+            },
+            credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
         });
         if (response.status === 404) return null;
         if (!response.ok) {
@@ -393,7 +394,8 @@ class GitHubDataService {
             headers: {
                 'Authorization': `Bearer ${this.token}`,
                 'Accept': 'application/vnd.github.v3+json'
-            }
+            },
+            credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
         });
         if (response.status === 404) return [];
         if (!response.ok) {
@@ -785,7 +787,8 @@ class GitHubDataService {
                 headers: {
                     'Authorization': `Bearer ${this.token}`,
                     'Accept': 'application/vnd.github.v3+json'
-                }
+                },
+                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
             });
 
             if (response.status === 404) {
@@ -855,7 +858,8 @@ class GitHubDataService {
                     'Accept': 'application/vnd.github.v3+json',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
             });
 
             if (!response.ok) {
@@ -880,7 +884,8 @@ class GitHubDataService {
                                 'Accept': 'application/vnd.github.v3+json',
                                 'Content-Type': 'application/json'
                             },
-                            body: JSON.stringify(retryBody)
+                            body: JSON.stringify(retryBody),
+                            credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
                         });
                         if (!retryResp.ok) {
                             let retryMsg = '';
@@ -952,7 +957,8 @@ class GitHubDataService {
                     'Accept': 'application/vnd.github.v3+json',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
             });
 
             if (!response.ok) {
@@ -1003,7 +1009,8 @@ class GitHubDataService {
                 headers: {
                     'Authorization': `Bearer ${this.token}`,
                     'Accept': 'application/vnd.github.v3+json'
-                }
+                },
+                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
             });
 
             if (response.status === 404) {
@@ -1463,7 +1470,8 @@ class GitHubDataService {
                 headers: {
                     'Authorization': `Bearer ${this.token}`,
                     'Accept': 'application/vnd.github.v3+json'
-                }
+                },
+                credentials: 'omit' // Mobile CORS: omit credentials for cross-origin GitHub API calls with Authorization header
             });
 
             return response.ok;
