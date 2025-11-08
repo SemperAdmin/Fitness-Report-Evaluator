@@ -140,14 +140,48 @@ async function getEvaluationDetailSafe(userEmail, evaluationId) {
 }
 
 /**
+ * Execute promises with concurrency limit to avoid overwhelming browser/API
+ *
+ * @param {Array} items - Array of items to process
+ * @param {Function} fn - Async function to execute for each item
+ * @param {number} concurrency - Maximum concurrent executions (default: 5)
+ * @returns {Promise<Array>} - Array of results in original order
+ */
+async function batchWithConcurrency(items, fn, concurrency = 5) {
+    const results = new Array(items.length);
+    let index = 0;
+
+    // Worker function that processes items sequentially
+    async function worker() {
+        while (index < items.length) {
+            const currentIndex = index++;
+            try {
+                results[currentIndex] = await fn(items[currentIndex], currentIndex);
+            } catch (error) {
+                results[currentIndex] = null;
+            }
+        }
+    }
+
+    // Create concurrency-limited workers
+    const workers = Array(Math.min(concurrency, items.length))
+        .fill(null)
+        .map(() => worker());
+
+    await Promise.all(workers);
+    return results;
+}
+
+/**
  * Batch load multiple evaluations efficiently
- * Uses Promise.all for parallel loading with caching
+ * Uses concurrency-limited parallel loading with caching
  *
  * @param {string} userEmail - User email
  * @param {Array<string>} evaluationIds - Array of evaluation IDs
+ * @param {number} concurrency - Maximum concurrent requests (default: 5)
  * @returns {Promise<Array>} - Array of evaluation details (nulls for failures)
  */
-async function batchLoadEvaluations(userEmail, evaluationIds) {
+async function batchLoadEvaluations(userEmail, evaluationIds, concurrency = 5) {
     const ready = await ensureGitHubReady();
 
     if (!ready) {
@@ -155,16 +189,19 @@ async function batchLoadEvaluations(userEmail, evaluationIds) {
     }
 
     try {
-        // Load all evaluations in parallel (caching/deduplication handles efficiency)
-        const promises = evaluationIds.map(id =>
-            githubService.getEvaluationDetail(userEmail, id)
-                .catch(error => {
+        // Load evaluations with concurrency limit to avoid overwhelming browser/API
+        return await batchWithConcurrency(
+            evaluationIds,
+            async (id) => {
+                try {
+                    return await githubService.getEvaluationDetail(userEmail, id);
+                } catch (error) {
                     console.warn(`Failed to load evaluation ${id}:`, error);
                     return null;
-                })
+                }
+            },
+            concurrency
         );
-
-        return await Promise.all(promises);
 
     } catch (error) {
         console.error('Batch load failed:', error);
@@ -285,7 +322,10 @@ if (typeof window !== 'undefined') {
 
     // Log stats periodically in development
     if (window.location.hostname === 'localhost') {
-        setInterval(() => {
+        const managedSetInterval = (typeof globalLifecycle !== 'undefined' && globalLifecycle.setInterval)
+            ? globalLifecycle.setInterval.bind(globalLifecycle)
+            : setInterval;
+        managedSetInterval(() => {
             const stats = getNetworkStats();
             if (stats && stats.metrics.totalRequests > 0) {
                 console.log('[Network Stats]',

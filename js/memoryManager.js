@@ -429,7 +429,7 @@ if (typeof window !== 'undefined') {
     // Periodic leak check in development
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         const monitor = new MemoryMonitor();
-        setInterval(() => {
+        globalLifecycle.setInterval(() => {
             const leakCheck = monitor.checkLeaks();
             if (leakCheck.hasLeaks) {
                 console.warn('Potential memory leaks detected:', leakCheck.warnings);
