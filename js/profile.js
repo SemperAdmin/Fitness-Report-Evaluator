@@ -258,7 +258,9 @@ async function accountLogin() {
             if (typeof hasPendingSyncs === 'function' && hasPendingSyncs()) {
                 await syncAllEvaluations();
             }
-        } catch (_) { /* ignore */ }
+        } catch (err) {
+            console.warn('Background sync attempt failed after login:', err);
+        }
     } catch (err) {
         console.error('accountLogin error:', err);
         // Restore UI on network error
@@ -1305,7 +1307,9 @@ async function confirmSaveToProfile() {
         if (hasPendingSyncs()) {
             await syncAllEvaluations();
         }
-    } catch (_) { /* ignore */ }
+    } catch (err) {
+        console.warn('Background sync attempt failed after saving evaluation:', err);
+    }
 }
 
 function skipSaveToProfile() {
