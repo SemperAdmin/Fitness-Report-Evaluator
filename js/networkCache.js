@@ -337,33 +337,43 @@ class NetworkEfficiencyManager {
     }
 
     /**
-     * Deep clone an object, handling common data types
+     * Deep clone an object, handling common data types and circular references
      * More robust than JSON.parse(JSON.stringify()) which doesn't handle Date, undefined, etc.
      * @private
      * @param {*} obj - Object to clone
+     * @param {Map} seen - Internal tracking for circular references
      * @returns {*} - Cloned object
      */
-    _deepClone(obj) {
+    _deepClone(obj, seen = new Map()) {
         if (obj === null || typeof obj !== 'object') {
             return obj;
         }
 
+        // Handle circular references
+        if (seen.has(obj)) {
+            return seen.get(obj);
+        }
+
         if (obj instanceof Date) {
-            return new Date(obj.getTime());
+            const newDate = new Date(obj.getTime());
+            seen.set(obj, newDate);
+            return newDate;
         }
 
         if (Array.isArray(obj)) {
             const arrCopy = [];
+            seen.set(obj, arrCopy);
             for (let i = 0; i < obj.length; i++) {
-                arrCopy[i] = this._deepClone(obj[i]);
+                arrCopy[i] = this._deepClone(obj[i], seen);
             }
             return arrCopy;
         }
 
         const objCopy = {};
+        seen.set(obj, objCopy);
         for (const key in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                objCopy[key] = this._deepClone(obj[key]);
+                objCopy[key] = this._deepClone(obj[key], seen);
             }
         }
         return objCopy;
