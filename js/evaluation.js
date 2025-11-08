@@ -1,14 +1,70 @@
-// Core Evaluation Logic
-let currentTraitIndex = 0;
-let currentEvaluationLevel = 'B';
-let evaluationResults = {};
-let allTraits = [];
-let isReportingSenior = false;
-let pendingEvaluation = null;
-let evaluationMeta = {};
-let isInReviewMode = false;
-let traitBeingReevaluated = null;
-let reevaluationReturnTo = null;
+/**
+ * Evaluation Module: encapsulates evaluation workflow and state to avoid globals.
+ * Provides backward-compatible shims so existing inline handlers continue to work.
+ */
+;(function (global) {
+    'use strict';
+
+    /**
+     * Index of the current trait within the ordered `allTraits` list.
+     * @type {number}
+     */
+    let currentTraitIndex = 0;
+
+    /**
+     * Active evaluation grade letter for the current trait (A–G).
+     * @type {string}
+     */
+    let currentEvaluationLevel = 'B';
+
+    /**
+     * Accumulated evaluation results keyed by trait key.
+     * Each entry stores selected grade and justification.
+     * @type {Record<string, {grade: string, justification: string}>}
+     */
+    let evaluationResults = {};
+
+    /**
+     * Ordered list of trait definitions used by the evaluation UI.
+     * @type {Array<object>}
+     */
+    let allTraits = [];
+
+    /**
+     * Whether Reporting Senior section (H) should be included.
+     * @type {boolean}
+     */
+    let isReportingSenior = false;
+
+    /**
+     * Pending evaluation state awaiting confirmation in re-evaluation flow.
+     * @type {object|null}
+     */
+    let pendingEvaluation = null;
+
+    /**
+     * Metadata for the current evaluation (Marine name, rank, dates, evaluator, occasion).
+     * @type {object}
+     */
+    let evaluationMeta = {};
+
+    /**
+     * Whether the UI is currently showing the review screen.
+     * @type {boolean}
+     */
+    let isInReviewMode = false;
+
+    /**
+     * Trait currently being re-evaluated, if any.
+     * @type {object|null}
+     */
+    let traitBeingReevaluated = null;
+
+    /**
+     * Anchor indicating where to return after re-evaluation completes.
+     * @type {string|null}
+     */
+    let reevaluationReturnTo = null;
 
 // Safely split a composite trait key like "E_effectiveness_under_stress"
 function splitTraitKey(compositeKey) {
@@ -851,4 +907,57 @@ function showSummary() {
 }
 
 // Explicitly expose this implementation for other modules
-window.evaluationShowSummary = showSummary;
+// Expose module API and backward-compatible shims
+const EvaluationAPI = {
+    startEvaluation,
+    getSectionProgress,
+    getSectionInfo,
+    getGradeMeaning,
+    getRemainingsSections,
+    updateProgress,
+    renderCurrentTrait,
+    finalizeTrait,
+    showJustificationModal,
+    saveJustification,
+    cancelReevaluation,
+    startReevaluation,
+    editTrait,
+    editJustification,
+    showReevaluationModal,
+    showReviewScreen,
+    populateReviewScreen,
+    getGradeDescription,
+    goBackToLastTrait,
+    proceedToDirectedComments,
+    showSummary,
+    /**
+     * Read-only view of internal state for debugging.
+     */
+    state: {
+        get currentTraitIndex() { return currentTraitIndex; },
+        get currentEvaluationLevel() { return currentEvaluationLevel; },
+        get evaluationResults() { return evaluationResults; },
+        get allTraits() { return allTraits; },
+        get isReportingSenior() { return isReportingSenior; },
+        get pendingEvaluation() { return pendingEvaluation; },
+        get evaluationMeta() { return evaluationMeta; },
+        get isInReviewMode() { return isInReviewMode; },
+        get traitBeingReevaluated() { return traitBeingReevaluated; },
+        get reevaluationReturnTo() { return reevaluationReturnTo; }
+    }
+};
+
+global.Evaluation = EvaluationAPI;
+
+// Backward-compat for inline event handlers in HTML
+global.startEvaluation = EvaluationAPI.startEvaluation;
+global.goBackToLastTrait = EvaluationAPI.goBackToLastTrait;
+global.proceedToDirectedComments = EvaluationAPI.proceedToDirectedComments;
+global.saveJustification = EvaluationAPI.saveJustification;
+global.cancelReevaluation = EvaluationAPI.cancelReevaluation;
+global.startReevaluation = EvaluationAPI.startReevaluation;
+global.editTrait = EvaluationAPI.editTrait;
+global.editJustification = EvaluationAPI.editJustification;
+global.evaluationShowSummary = EvaluationAPI.showSummary;
+
+})(typeof window !== 'undefined' ? window : globalThis);
