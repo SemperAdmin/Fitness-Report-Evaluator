@@ -87,6 +87,15 @@ app.use((req, res, next) => {
 });
 
 // --- Minimal cookie/session helpers ---
+/**
+ * Parse an HTTP `Cookie` header into a key–value map.
+ *
+ * @param {string} cookieHeader - Raw `Cookie` header value.
+ * @returns {Object<string,string>} Map of cookie names to decoded values.
+ * @throws {never} Decoding errors are swallowed; this function does not throw.
+ * @example
+ * // "a=1; b=hello" -> { a: "1", b: "hello" }
+ */
 function parseCookies(cookieHeader) {
   const out = {};
   const str = String(cookieHeader || '');
@@ -101,6 +110,20 @@ function parseCookies(cookieHeader) {
   }
   return out;
 }
+/**
+ * Serialize a cookie name/value pair with options into a `Set-Cookie` string.
+ *
+ * @param {string} name - Cookie name.
+ * @param {string} value - Cookie value (will be URI encoded).
+ * @param {Object} [opts] - Optional attributes for the cookie.
+ * @param {number} [opts.maxAge] - Max age in seconds.
+ * @param {Date} [opts.expires] - Absolute expiration date.
+ * @param {string} [opts.path] - Cookie path. Defaults to "/".
+ * @param {('Lax'|'Strict'|'None')} [opts.sameSite] - SameSite policy.
+ * @param {boolean} [opts.httpOnly] - When true, hides cookie from JS.
+ * @param {boolean} [opts.secure] - When true, sends only over HTTPS.
+ * @returns {string} A valid `Set-Cookie` header value.
+ */
 function serializeCookie(name, value, opts = {}) {
   const parts = [`${name}=${encodeURIComponent(value)}`];
   if (opts.maxAge != null) parts.push(`Max-Age=${Math.floor(opts.maxAge)}`);
@@ -124,11 +147,25 @@ const inferredHostedSecure = (
 const COOKIE_SECURE = inferredHostedSecure;
 // Dynamic SameSite: use 'None' with Secure cookies (cross-site), otherwise 'Lax' for local/dev.
 const COOKIE_SAMESITE = COOKIE_SECURE ? 'None' : 'Lax';
+/**
+ * Sign a session payload using HMAC SHA-256 and a server secret.
+ * Produces a compact token: `base64(json).hex(hmac)`.
+ *
+ * @param {Object} payload - Session data including `u` and optional `exp`.
+ * @returns {string} Token suitable for a cookie or header.
+ */
 function signSessionPayload(payload) {
   const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
   const h = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
   return `${data}.${h}`;
 }
+/**
+ * Verify a session token produced by {@link signSessionPayload}.
+ * Validates signature and expiration. Returns parsed object or `null`.
+ *
+ * @param {string} token - Token in `data.signature` format.
+ * @returns {Object|null} Parsed session data `{ u, exp }` or `null`.
+ */
 function verifySessionToken(token) {
   if (!token || typeof token !== 'string') return null;
   const idx = token.lastIndexOf('.');
@@ -178,6 +215,14 @@ app.use((req, res, next) => {
   }
 });
 
+/**
+ * Express middleware that enforces authentication via `req.sessionUser`.
+ * Responds with `401` and `{ error: 'Not authenticated' }` when absent.
+ *
+ * @param {import('express').Request} req - HTTP request.
+ * @param {import('express').Response} res - HTTP response.
+ * @param {Function} next - Next middleware function.
+ */
 function requireAuth(req, res, next) {
   if (!req.sessionUser) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -287,8 +332,20 @@ async function writeLocalUser(prefix, userObj) {
   await fsp.writeFile(p, str, 'utf8');
 }
 
-// Parse YAML evaluation files created by workflows
-// Uses js-yaml for robust parsing, resilient to formatting variations
+/**
+ * Parse YAML evaluation files produced by CI workflows.
+ * Normalizes trait evaluations from array or object form into an array.
+ *
+ * Performance: O(n) over trait entries; memory O(n) for normalized list.
+ *
+ * Rationale: Use `js-yaml` for tolerant parsing across formatting variants
+ * and fall back to a minimal valid structure on errors.
+ *
+ * @param {string} yamlStr - Raw YAML content.
+ * @returns {Object} Minimal normalized evaluation object.
+ * @example
+ * // Returns object with `traitEvaluations: [{ section, trait, grade, ...}]`
+ */
 function parseEvaluationYamlMinimal(yamlStr) {
   try {
     // Parse YAML with js-yaml for robustness
@@ -382,7 +439,19 @@ function parseEvaluationYamlMinimal(yamlStr) {
   }
 }
 
-// Lightweight rate limiter per IP
+/**
+ * Factory for a lightweight, per-IP rate limiter middleware.
+ * Uses an in-memory map with periodic cleanup; suitable for small apps.
+ *
+ * Time complexity: O(1) per request. Space: O(N) for distinct IPs.
+ *
+ * @param {Object} params - Configuration options.
+ * @param {number} params.windowMs - Time window in milliseconds.
+ * @param {number} params.limit - Max requests allowed per window per IP.
+ * @returns {import('express').RequestHandler} Express middleware.
+ * @example
+ * app.post('/login', rateLimit({ windowMs: 60_000, limit: 30 }), handler);
+ */
 function rateLimit({ windowMs, limit }) {
   const hits = new Map();
 
@@ -421,13 +490,30 @@ const feedbackRateLimit = rateLimit({ windowMs: 60_000, limit: 20 });
 const validationRateLimit = rateLimit({ windowMs: 60_000, limit: 120 });
 
 // Lightweight in-memory LRU cache for validation responses
+/**
+ * Simple in-memory LRU cache with TTL for validation responses.
+ * Not distributed; intended for single-node deployments.
+ *
+ * @example
+ * const cache = new ValidationCache(512, 90_000);
+ */
 class ValidationCache {
+  /**
+   * @param {number} [maxEntries=512] - Max cached entries before eviction.
+   * @param {number} [ttlMs=60000] - Time-to-live for each entry in ms.
+   */
   constructor(maxEntries = 512, ttlMs = 60_000) {
     this.max = maxEntries;
     this.ttl = ttlMs;
     this.map = new Map(); // key -> { value, expires }
   }
   _now() { return Date.now(); }
+  /**
+   * Get a cached value by key, touching entry for LRU behavior.
+   *
+   * @param {string} key - Cache key.
+   * @returns {*} Cached value or `null` if missing/expired.
+   */
   get(key) {
     const ent = this.map.get(key);
     if (!ent) return null;
@@ -437,6 +523,13 @@ class ValidationCache {
     this.map.set(key, ent);
     return ent.value;
   }
+  /**
+   * Insert or update a cache entry; evicts oldest when above `max`.
+   *
+   * @param {string} key - Cache key.
+   * @param {*} value - Any serializable value.
+   * @returns {void}
+   */
   set(key, value) {
     const expires = this._now() + this.ttl;
     if (this.map.has(key)) this.map.delete(key);
@@ -779,7 +872,15 @@ app.get(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROU
   }
 });
 
-// Helper: build data JSON compatible with data repo schema
+/**
+ * Build data JSON compatible with the data repository schema.
+ *
+ * @param {Object} userData - Minimal user profile info.
+ * @param {string} [userData.rsName] - Reporting senior name.
+ * @param {string} [userData.rsEmail] - Reporting senior username/email.
+ * @param {string} [userData.rsRank] - Reporting senior rank.
+ * @returns {Object} Structured JSON used for export.
+ */
 function buildUserDataJson(userData) {
   const now = new Date().toISOString();
   return {
@@ -798,29 +899,60 @@ function buildUserDataJson(userData) {
   };
 }
 
+/**
+ * Normalize a username to a safe filesystem prefix.
+ *
+ * @param {string} username - Raw username or email-like identifier.
+ * @returns {string} Lowercased, sanitized prefix (alnum, dot, underscore,
+ * hyphen). Other characters become `_`.
+ */
 function sanitizePrefix(username) {
   const prefix = String(username || '').trim().toLowerCase();
   return prefix.replace(/[^a-z0-9._-]/gi, '_');
 }
 
+/**
+ * Sanitize a general string by removing control characters.
+ *
+ * @param {string} str - Arbitrary string input.
+ * @returns {string} Cleaned string safe for logs or storage.
+ */
 function sanitizeString(str) {
   const s = String(str || '');
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
 
 // Simple input validation helpers
+/**
+ * Basic email validation (deprecated; retained for compatibility).
+ *
+ * @param {string} email - Candidate email.
+ * @returns {boolean} True when the format looks valid.
+ */
 function isValidEmail(email) {
   // Deprecated: retained for backward compatibility with older clients
   const e = String(email || '').trim();
   if (e.length < 3 || e.length > 254) return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
+/**
+ * Validate usernames: 3–50 chars, letters/numbers/._- only.
+ *
+ * @param {string} username - Candidate username.
+ * @returns {boolean} True when format passes constraints.
+ */
 function isValidUsername(username) {
   const u = String(username || '').trim();
   if (u.length < 3 || u.length > 50) return false;
   // Allow letters, numbers, underscore, dot, hyphen; no spaces or @
   return /^[a-zA-Z0-9._-]+$/.test(u);
 }
+/**
+ * Check password strength: ≥8 chars, includes upper, lower, and digit.
+ *
+ * @param {string} pw - Password candidate.
+ * @returns {boolean} True when all criteria are satisfied.
+ */
 function isStrongPassword(pw) {
   const p = String(pw || '');
   if (p.length < 8) return false;
@@ -829,17 +961,38 @@ function isStrongPassword(pw) {
   const hasDigit = /\d/.test(p);
   return hasLower && hasUpper && hasDigit;
 }
+/**
+ * Validate display name length (2–100 characters).
+ *
+ * @param {string} name - Display name.
+ * @returns {boolean} True when within allowed length.
+ */
 function isValidName(name) {
   const n = String(name || '').trim();
   return n.length >= 2 && n.length <= 100;
 }
+/**
+ * Validate rank field length (2–20 characters).
+ *
+ * @param {string} rank - Rank value.
+ * @returns {boolean} True when within allowed length.
+ */
 function isValidRank(rank) {
   const r = String(rank || '').trim();
   return r.length >= 2 && r.length <= 20;
 }
 
-// Build updated aggregate user object by merging a new evaluation
-// Preserves passwordHash and createdDate from existing user when present
+/**
+ * Merge a new evaluation into the aggregate user object while preserving
+ * immutable fields from an existing record.
+ *
+ * @param {string} userEmail - Reporting senior username/email.
+ * @param {Object} evaluation - Parsed evaluation object.
+ * @param {Object|null} existingUser - Current stored user (if present).
+ * @param {string} _newEvaluationFilePath - Path hint (unused; kept for API).
+ * @param {string} now - ISO timestamp for `lastUpdated`.
+ * @returns {Object} Updated aggregate user object.
+ */
 function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEvaluationFilePath, now) {
   const obj = {
     rsEmail: userEmail,

@@ -20,6 +20,12 @@
 
 /**
  * GitHub API Service Class
+ *
+ * Provides methods for reading/writing user data and evaluations
+ * to a GitHub repository via the REST API. Uses backend endpoints
+ * when available and respects CORS/credentials constraints.
+ *
+ * @class GitHubDataService
  */
 class GitHubDataService {
     constructor() {
@@ -28,8 +34,10 @@ class GitHubDataService {
     }
 
     /**
-     * Resolve API base URL in browser or fallback environments.
-     * Returns null when not determinable (non-browser or missing config).
+     * Resolve API base URL for backend endpoints.
+     * Returns `null` when not determinable (non-browser or missing config).
+     *
+     * @returns {string|null} Origin/base URL for backend API or null.
      */
     getApiBase() {
         try {
@@ -47,8 +55,9 @@ class GitHubDataService {
 
     /**
      * Build a backend endpoint URL and check against allowed origins.
-     * @param {string} path - Path like '/api/user/save'
-     * @returns {null | { url: string, origin: string } | { blocked: true, url: string, origin: string }}
+     *
+     * @param {string} path Path like `/api/user/save`.
+     * @returns {null | {url: string, origin: string} | {blocked: true, url: string, origin: string}}
      */
     resolveBackendEndpoint(path) {
         const base = this.getApiBase();
@@ -75,8 +84,10 @@ class GitHubDataService {
     }
 
     /**
-     * Resolve configuration from global app config
-     * Uses dataRepo for contents operations; falls back to workflows repo
+     * Resolve configuration from global app config.
+     * Uses `dataRepo` for content operations; falls back to workflows repo.
+     *
+     * @returns {{owner:string,repo:string,branch:string,apiBase:string}} Config object.
      */
     getConfig() {
         const cfg = (typeof window !== 'undefined' && window.GITHUB_CONFIG) ? window.GITHUB_CONFIG : {};
@@ -89,14 +100,15 @@ class GitHubDataService {
     }
 
     /**
-     * Initialize the service with authentication token
+     * Initialize the service with authentication token.
      *
      * IMPORTANT: In production, this should be called with a token from:
      * - Environment variable (server-side)
      * - Secure backend API endpoint
      * - GitHub OAuth flow
      *
-     * @param {string} token - GitHub Personal Access Token
+     * @param {string} token GitHub Personal Access Token.
+     * @returns {boolean} `true` when initialized; `false` when token missing.
      */
     initialize(token) {
         if (!token) {
@@ -110,12 +122,13 @@ class GitHubDataService {
     }
 
     /**
-     * Helper method to determine fetch credentials based on same-origin detection
-     * Mobile browsers enforce strict CORS policies, requiring credentials only for same-origin
+     * Determine fetch credentials based on origin detection.
+     * Mobile browsers enforce strict CORS; use credentials for same-origin
+     * and HTTPS allowlisted cross-origins.
      *
      * @private
-     * @param {string} endpointUrl - The full URL of the endpoint being called
-     * @returns {string} 'include' for same-origin, 'omit' for cross-origin
+     * @param {string} endpointUrl Full URL of the endpoint.
+     * @returns {('include'|'omit')} Credentials mode.
      */
     _getFetchCredentials(endpointUrl) {
         try {
@@ -149,13 +162,13 @@ class GitHubDataService {
     }
 
     /**
-     * Helper method to construct GitHub API request options
-     * Centralizes common headers and credentials handling for mobile CORS compatibility
+     * Construct GitHub API request options.
+     * Centralizes common headers and credentials handling.
      *
      * @private
-     * @param {string} method - HTTP method (GET, PUT, DELETE, etc.)
-     * @param {Object|null} body - Request body (will be JSON stringified if provided)
-     * @returns {Object} - Fetch options object
+     * @param {string} [method='GET'] HTTP method.
+     * @param {Object|null} [body=null] JSON body.
+     * @returns {Object} Fetch options object.
      */
     _getGitHubApiRequestOptions(method = 'GET', body = null) {
         const options = {
@@ -177,14 +190,11 @@ class GitHubDataService {
     }
 
     /**
-     * Get authentication token from environment
+     * Get authentication token from environment.
+     * Demonstrates client and server approaches.
      *
-     * This is a placeholder that demonstrates different approaches:
-     * - Client-side: Would need to call a backend API
-     * - Server-side: Would read from process.env.FITREP_DATA
-     * - GitHub Actions: Available as secrets.FITREP_DATA
-     *
-     * @returns {Promise<string|null>}
+     * @returns {Promise<string|null>} Token or null when unavailable.
+     * @throws {Error} On unexpected failures during backend fetch.
      */
     async getTokenFromEnvironment() {
         if (typeof window !== 'undefined') {
@@ -683,6 +693,15 @@ class GitHubDataService {
      * Supports both JSON (server) and YAML (client) formats
      * @param {string} userEmail
      * @returns {Promise<Array>} Array of evaluation objects suitable for UI
+     */
+    /**
+     * Load evaluations for a user.
+     * Fetches index and detail files; normalizes YAML to JSON.
+     *
+     * Complexity: O(n) requests for n evaluations; O(n) space.
+     *
+     * @param {string} userEmail Email (used to derive file prefix).
+     * @returns {Promise<Array<Object>>} List of evaluations.
      */
     async loadUserEvaluations(userEmail) {
         // Backend fallback when not initialized with a token

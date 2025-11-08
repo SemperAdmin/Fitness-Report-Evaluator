@@ -11,7 +11,13 @@ const evaluationDetailsCache = typeof ManagedCache !== 'undefined'
 let tableRenderer = null; // OptimizedTableRenderer instance
 let rafQueue = new RAFQueue(); // Request Animation Frame queue for smooth updates
 
-// Profile Authentication
+/**
+ * Profile Authentication: Local-only login path.
+ * Validates input, loads local/IndexedDB evaluations, and updates dashboard.
+ *
+ * @returns {Promise<void>}
+ * @throws {Error} On unexpected storage access errors.
+ */
 async function profileLogin() {
     const rank = document.getElementById('rsRankInput').value.trim();
     const name = document.getElementById('rsNameInput').value.trim();
@@ -73,7 +79,12 @@ async function profileLogin() {
     showProfileDashboard();
 }
 
-// Create Account -> sends rank, name, email, password to backend
+/**
+ * Create Account: Sends rank, name, email, and password to backend.
+ * Client-side validation mirrors server rules.
+ *
+ * @returns {Promise<void>}
+ */
 async function createAccount() {
     const rank = document.getElementById('caRankInput')?.value.trim();
     const name = document.getElementById('caNameInput')?.value.trim();
@@ -154,7 +165,12 @@ async function createAccount() {
     }
 }
 
-// Account Login -> email + password
+/**
+ * Account Login: username (email) + password.
+ * Handles UI state, validates format, and hydrates evaluations.
+ *
+ * @returns {Promise<void>}
+ */
 async function accountLogin() {
     const email = document.getElementById('loginEmailInput')?.value.trim();
     const password = document.getElementById('loginPasswordInput')?.value;
@@ -317,6 +333,14 @@ function isValidRankClient(rank) {
 }
 
 // Small helper for backend POST with offline detection and retry
+/**
+ * POST JSON helper.
+ * Sends JSON body to API route and returns normalized result.
+ *
+ * @param {string} url API route.
+ * @param {Object} body JSON serializable payload.
+ * @returns {Promise<{ok:boolean,status:number,error?:string,profile?:Object,rsName?:string,rsRank?:string} | null>}
+ */
 async function postJson(url, body) {
     const base = (typeof window !== 'undefined' && window.API_BASE_URL)
         ? window.API_BASE_URL
@@ -2542,6 +2566,17 @@ function mergeEvaluations(localEvaluations = [], remoteEvaluations = []) {
 }
 
 // Helper function to try loading remote profile data
+/**
+ * Try loading a remote profile and evaluations, merging with local data.
+ *
+ * @param {string} email Email address.
+ * @param {string} name Marine name.
+ * @param {string} rank Rank label.
+ * @param {string} profileKey Local profile key.
+ * @param {Object|null} localProfile Existing local profile.
+ * @param {Array} localEvaluations Local evaluation list.
+ * @returns {Promise<{profile:Object|null,evaluations:Array}>}
+ */
 async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile, localEvaluations) {
     if (!navigator.onLine || typeof githubService === 'undefined') {
         return { profile: localProfile, evaluations: localEvaluations };
