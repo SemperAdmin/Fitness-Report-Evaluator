@@ -167,31 +167,49 @@ function saveProgressToStorage() {
 
     // Build session payload; support compact mode to reduce size on quota errors
     const buildSessionData = (compact = false) => {
-        const evalState = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.state) ? window.Evaluation.state : null;
-        const safe = {
-            currentTraitIndex: evalState ? evalState.currentTraitIndex : (typeof currentTraitIndex !== 'undefined' ? currentTraitIndex : 0),
-            currentEvaluationLevel: evalState ? evalState.currentEvaluationLevel : (typeof currentEvaluationLevel !== 'undefined' ? currentEvaluationLevel : 'B'),
-            evaluationResults: evalState ? evalState.evaluationResults : (typeof evaluationResults !== 'undefined' ? evaluationResults : {}),
-            evaluationMeta: evalState ? evalState.evaluationMeta : (typeof evaluationMeta !== 'undefined' ? evaluationMeta : {}),
-            isReportingSenior: evalState ? evalState.isReportingSenior : (typeof isReportingSenior !== 'undefined' ? isReportingSenior : false),
-            allTraits: evalState ? evalState.allTraits : (typeof allTraits !== 'undefined' ? allTraits : [])
-        };
+        try {
+            const evalState = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.state) ? window.Evaluation.state : null;
+            const safe = {
+                currentTraitIndex: evalState ? evalState.currentTraitIndex : ((typeof window !== 'undefined' && typeof window.currentTraitIndex !== 'undefined') ? window.currentTraitIndex : 0),
+                currentEvaluationLevel: evalState ? evalState.currentEvaluationLevel : ((typeof window !== 'undefined' && typeof window.currentEvaluationLevel !== 'undefined') ? window.currentEvaluationLevel : 'B'),
+                evaluationResults: evalState ? evalState.evaluationResults : ((typeof window !== 'undefined' && typeof window.evaluationResults !== 'undefined') ? window.evaluationResults : {}),
+                evaluationMeta: evalState ? evalState.evaluationMeta : ((typeof window !== 'undefined' && typeof window.evaluationMeta !== 'undefined') ? window.evaluationMeta : {}),
+                isReportingSenior: evalState ? evalState.isReportingSenior : ((typeof window !== 'undefined' && typeof window.isReportingSenior !== 'undefined') ? window.isReportingSenior : false),
+                allTraits: evalState ? evalState.allTraits : ((typeof window !== 'undefined' && typeof window.allTraits !== 'undefined') ? window.allTraits : [])
+            };
 
-        return {
-            timestamp: new Date().toISOString(),
-            currentStep: ((typeof window !== 'undefined' && typeof window.currentStep !== 'undefined') ? window.currentStep : 'setup'),
-            currentTraitIndex: safe.currentTraitIndex,
-            currentEvaluationLevel: safe.currentEvaluationLevel,
-            evaluationResults: safe.evaluationResults,
-            evaluationMeta: safe.evaluationMeta,
-            selectedDirectedComments: (typeof selectedDirectedComments !== 'undefined' ? selectedDirectedComments : []),
-            // Omit large blobs when compacting to fit quota
-            directedCommentsData: compact ? {} : (typeof directedCommentsData !== 'undefined' ? directedCommentsData : {}),
-            generatedSectionI: compact ? '' : (typeof generatedSectionI !== 'undefined' ? generatedSectionI : ''),
-            navigationHistory: (Array.isArray(window.navigationHistory) ? window.navigationHistory : ['setup']),
-            isReportingSenior: safe.isReportingSenior,
-            allTraits: safe.allTraits
-        };
+            return {
+                timestamp: new Date().toISOString(),
+                currentStep: ((typeof window !== 'undefined' && typeof window.currentStep !== 'undefined') ? window.currentStep : 'setup'),
+                currentTraitIndex: safe.currentTraitIndex,
+                currentEvaluationLevel: safe.currentEvaluationLevel,
+                evaluationResults: safe.evaluationResults,
+                evaluationMeta: safe.evaluationMeta,
+                selectedDirectedComments: ((typeof window !== 'undefined' && typeof window.selectedDirectedComments !== 'undefined') ? window.selectedDirectedComments : []),
+                // Omit large blobs when compacting to fit quota
+                directedCommentsData: compact ? {} : ((typeof window !== 'undefined' && typeof window.directedCommentsData !== 'undefined') ? window.directedCommentsData : {}),
+                generatedSectionI: compact ? '' : ((typeof window !== 'undefined' && typeof window.generatedSectionI !== 'undefined') ? window.generatedSectionI : ''),
+                navigationHistory: (typeof window !== 'undefined' && Array.isArray(window.navigationHistory) ? window.navigationHistory : ['setup']),
+                isReportingSenior: safe.isReportingSenior,
+                allTraits: safe.allTraits
+            };
+        } catch (err) {
+            try { ErrorLogger && ErrorLogger.logError(err, { module: 'persistence', action: 'buildSessionData' }, 'error'); } catch (_) {}
+            return {
+                timestamp: new Date().toISOString(),
+                currentStep: 'setup',
+                currentTraitIndex: 0,
+                currentEvaluationLevel: 'B',
+                evaluationResults: {},
+                evaluationMeta: {},
+                selectedDirectedComments: [],
+                directedCommentsData: {},
+                generatedSectionI: '',
+                navigationHistory: ['setup'],
+                isReportingSenior: false,
+                allTraits: []
+            };
+        }
     };
 
     try {
