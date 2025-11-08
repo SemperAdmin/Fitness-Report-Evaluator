@@ -290,30 +290,33 @@ class VersionedIndexedDB {
      * Run schema migrations
      */
     migrate(db, oldVersion, newVersion) {
-        if (!this.schema || !this.schema.migrations) {
-            // No migrations defined, create stores from schema
-            if (this.schema && this.schema.stores) {
-                for (const [storeName, storeConfig] of Object.entries(this.schema.stores)) {
-                    if (!db.objectStoreNames.contains(storeName)) {
-                        const store = db.createObjectStore(storeName, storeConfig.options || {});
+        // Always ensure base stores exist before running migrations
+        if (this.schema && this.schema.stores) {
+            for (const [storeName, storeConfig] of Object.entries(this.schema.stores)) {
+                if (!db.objectStoreNames.contains(storeName)) {
+                    const store = db.createObjectStore(storeName, storeConfig.options || {});
 
-                        // Create indexes
-                        if (storeConfig.indexes) {
-                            for (const [indexName, indexConfig] of Object.entries(storeConfig.indexes)) {
+                    // Create indexes for newly created stores
+                    if (storeConfig.indexes) {
+                        for (const [indexName, indexConfig] of Object.entries(storeConfig.indexes)) {
+                            try {
                                 store.createIndex(indexName, indexConfig.keyPath, indexConfig.options || {});
+                            } catch (_) {
+                                // If index exists or cannot be created, skip gracefully
                             }
                         }
                     }
                 }
             }
-            return;
         }
 
-        // Run migrations in order
-        for (const migration of this.schema.migrations) {
-            if (migration.version > oldVersion && migration.version <= newVersion) {
-                console.log(`Running migration to version ${migration.version}`);
-                migration.upgrade(db, oldVersion);
+        // Then run any explicit migrations in order
+        if (this.schema && this.schema.migrations) {
+            for (const migration of this.schema.migrations) {
+                if (migration.version > oldVersion && migration.version <= newVersion) {
+                    console.log(`Running migration to version ${migration.version}`);
+                    migration.upgrade(db, oldVersion);
+                }
             }
         }
     }

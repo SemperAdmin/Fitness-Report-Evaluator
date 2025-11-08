@@ -120,7 +120,23 @@ class GitHubDataService {
     _getFetchCredentials(endpointUrl) {
         try {
             const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
-            return pageOrigin && (new URL(endpointUrl).origin === pageOrigin) ? 'include' : 'omit';
+            const endpointOrigin = new URL(endpointUrl).origin;
+
+            // Include credentials for same-origin
+            if (pageOrigin && endpointOrigin === pageOrigin) {
+                return 'include';
+            }
+
+            // Allow credentials for allowlisted cross-origin endpoints
+            const allowlist = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
+                ? window.API_ALLOWED_ORIGINS
+                : [];
+            if (allowlist.includes(endpointOrigin)) {
+                return 'include';
+            }
+
+            // Default to omit to avoid unintended CORS issues
+            return 'omit';
         } catch (_) {
             // Fallback for invalid URLs or non-browser environments
             // Use 'omit' as the safe default to avoid CORS issues

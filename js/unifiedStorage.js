@@ -12,7 +12,7 @@
 class UnifiedStorageManager {
     constructor(options = {}) {
         this.dbName = options.dbName || 'fitrep-unified-db';
-        this.version = options.version || 2;
+        this.version = options.version || 3;
         this.schema = options.schema || this.getDefaultSchema();
         this.useCompression = options.useCompression || false;
 
@@ -440,7 +440,11 @@ class UnifiedStorageManager {
 if (typeof window !== 'undefined') {
     window.unifiedStorage = new UnifiedStorageManager({
         dbName: 'fitrep-unified-db',
+<<<<<<< HEAD
         version: 2
+=======
+        version: 3
+>>>>>>> 9d5230a (Storage: fix IndexedDB migration creating missing stores)
     });
 
     // Auto-initialize on page load
