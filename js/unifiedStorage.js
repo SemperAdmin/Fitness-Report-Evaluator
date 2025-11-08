@@ -83,7 +83,6 @@ class UnifiedStorageManager {
                         if (oldVersion < 2) {
                             // Add new indexes to evaluations store
                             if (db.objectStoreNames.contains('evaluations')) {
-                                const transaction = db.transaction;
                                 // Note: Can't modify stores during upgrade, this is handled by schema
                                 console.log('Migration v2: Updated evaluation indexes');
                             }
@@ -405,63 +404,6 @@ class UnifiedStorageManager {
             console.error(`[Storage] queryByIndex failed:`, error);
             return [];
         }
-    }
-
-    /**
-     * Migrate data from localStorage to IndexedDB
-     */
-    async migrateFromLocalStorage(oldPrefix = 'fitrep_') {
-        if (!this.idbAvailable) {
-            console.warn('[Storage] Cannot migrate: IndexedDB not available');
-            return { migrated: 0, errors: 0 };
-        }
-
-        const results = { migrated: 0, errors: 0 };
-
-        try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-
-                if (key && key.startsWith(oldPrefix)) {
-                    try {
-                        const value = localStorage.getItem(key);
-                        if (value) {
-                            const parsed = JSON.parse(value);
-
-                            // Determine store and key based on old key
-                            let storeName = 'preferences';
-                            let newKey = key;
-
-                            if (key.includes('profile')) {
-                                storeName = 'profiles';
-                                newKey = key.replace(oldPrefix, '');
-                            } else if (key.includes('evaluation')) {
-                                storeName = 'evaluations';
-                                newKey = key.replace(oldPrefix, '');
-                            }
-
-                            // Migrate to IndexedDB
-                            await this.setItem(storeName, newKey, parsed, {
-                                type: 'migrated',
-                                source: 'localStorage'
-                            });
-
-                            results.migrated++;
-                        }
-                    } catch (error) {
-                        results.errors++;
-                        console.warn(`[Storage] Migration error for ${key}:`, error);
-                    }
-                }
-            }
-
-            console.info(`[Storage] Migration complete: ${results.migrated} items migrated, ${results.errors} errors`);
-
-        } catch (error) {
-            console.error('[Storage] Migration failed:', error);
-        }
-
-        return results;
     }
 
     /**
