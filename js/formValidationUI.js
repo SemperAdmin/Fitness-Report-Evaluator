@@ -94,18 +94,20 @@
 
   function attachFieldListeners(field, opts){
     const wait = Number(opts?.debounceMs || 300);
-    const onInputDebounced = debounce(async () => {
+
+    // Shared validation logic - validate field, run server validation, and update UI
+    const validate = async () => {
       const res = validateField(field);
       const finalRes = await tryServerValidate(field, res, opts?.serverValidators);
       updateFieldUI(field, finalRes);
       if (opts?.onFieldValidated) opts.onFieldValidated(field, finalRes);
-    }, wait);
+    };
+
+    const onInputDebounced = debounce(validate, wait);
+
     field.addEventListener('blur', async () => {
       field.dataset.touched = 'true';
-      const res = validateField(field);
-      const finalRes = await tryServerValidate(field, res, opts?.serverValidators);
-      updateFieldUI(field, finalRes);
-      if (opts?.onFieldValidated) opts.onFieldValidated(field, finalRes);
+      await validate();
     });
     field.addEventListener('input', () => {
       if (field.dataset.touched !== 'true') return; // only after user interacts
