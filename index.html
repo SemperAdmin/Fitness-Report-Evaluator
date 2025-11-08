@@ -762,19 +762,18 @@
     <script>
         // Runtime API config
         // Trusted origins: include Render so cross-origin calls are allowed when overridden
-        window.TRUSTED_API_ORIGINS = [
-          'https://fitness-report-evaluator.onrender.com'
-        ];
-        // Allow runtime override via query param: ?api=render | local | http://host:port
+        const RENDER_URL = 'https://fitness-report-evaluator.onrender.com';
+        window.TRUSTED_API_ORIGINS = [RENDER_URL];
+
+        // Allow runtime override via query param: ?api=render | local | http://host:port | none
         (function() {
           const params = new URLSearchParams(window.location.search);
           const apiParam = (params.get('api') || '').trim().toLowerCase();
-          const RENDER_URL = 'https://fitness-report-evaluator.onrender.com';
 
           // Default selection based on hosting environment
           const isGhPages = window.location.origin.includes('semperadmin.github.io');
           const isStaticDev = window.location.port === '5500';
-          let override = '';
+          let override = null; // null means "no override specified yet"
 
           if (apiParam) {
             if (apiParam === 'render') {
@@ -784,12 +783,12 @@
             } else if (apiParam.startsWith('http')) {
               override = apiParam;
             } else if (apiParam === 'none') {
-              override = '';
+              override = ''; // Explicitly set to empty (no API)
             }
           }
 
-          // If no explicit query param override, choose sensible default
-          if (!override) {
+          // If no explicit query param override was processed, choose sensible default
+          if (override === null) {
             if (isGhPages || isStaticDev) {
               override = RENDER_URL;
             } else {
@@ -803,7 +802,7 @@
             const origin = new URL(override).origin;
             window.TRUSTED_API_ORIGINS = Array.from(new Set([origin, ...window.TRUSTED_API_ORIGINS]));
           } catch (_) {
-            // ignore invalid URLs (e.g., when override is empty)
+            // ignore invalid URLs (e.g., when override is empty for api=none)
           }
         })();
         // Disable client-side token assembly; backend should manage auth/secrets
