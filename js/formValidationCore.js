@@ -72,6 +72,23 @@
   const label = String(fieldLabel || 'Field');
   const name = rule?.name || 'required';
   const p = rule?.params || [];
+  // Prefer centralized messages when available
+  const messages = (typeof window !== 'undefined' && window.ValidationMessages) || null;
+  if (messages) {
+    try {
+      switch (name) {
+        case 'required': return messages.required(label);
+        case 'minLength': return messages.minLength(label, Number(p[0] || 0));
+        case 'maxLength': return messages.maxLength(label, Number(p[0] || 0));
+        case 'username': return messages.username(label);
+        case 'rankLabel': return messages.rankLabel(label);
+        case 'nameLabel': return messages.nameLabel(label);
+        case 'pattern': return messages.pattern(label);
+        default: return messages.default(label);
+      }
+    } catch (_) {}
+  }
+  // Fallback to built-in messages
   switch (name) {
     case 'required':
       return `${label} is required.`;

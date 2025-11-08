@@ -5,6 +5,7 @@
   const BASE_BACKDROP_Z = 1000;
   const BASE_MODAL_Z = 1010;
   const Z_STEP = 20; // gap between stacked layers
+  const modalRegistry = new Map(); // id -> config for reusable defaults
 
   class ModalStack {
     constructor(){
@@ -74,12 +75,70 @@
       this._bodyClassApplied = false;
     }
 
+    // Register reusable defaults and semantics for a modal id
+    register(id, config = {}){
+      if (!id) return;
+      modalRegistry.set(String(id), Object.assign({}, config));
+    }
+    getConfig(id){
+      return modalRegistry.get(String(id)) || {};
+    }
+
+    // Create a reusable modal element with standard structure and ARIA
+    create({ id, title = '', content, closeLabel = 'Close', className = 'sa-modal', describedBy, labelledBy, focusFirst, attributes = {} } = {}){
+      if (!id) throw new Error('ModalController.create requires an id');
+      if (typeof document === 'undefined') return null;
+      const existing = document.getElementById(id);
+      if (existing) return existing;
+
+      const wrapper = document.createElement('div');
+      wrapper.id = id;
+      wrapper.className = className + ' sa-modal-background';
+      wrapper.style.display = 'none';
+      wrapper.setAttribute('role', 'dialog');
+      wrapper.setAttribute('aria-modal', 'true');
+      const titleId = labelledBy || (id + 'Title');
+      const descId = describedBy || (id + 'Desc');
+      wrapper.setAttribute('aria-labelledby', titleId);
+      wrapper.setAttribute('aria-describedby', descId);
+      Object.entries(attributes || {}).forEach(([k,v]) => {
+        try { wrapper.setAttribute(k, String(v)); } catch(_) {}
+      });
+
+      const panel = document.createElement('div');
+      panel.className = 'sa-modal-panel';
+      panel.innerHTML = `
+        <div class="sa-modal-header">
+          <h3 id="${titleId}" class="sa-modal-title">${title}</h3>
+          <button type="button" class="sa-modal-close" aria-label="${closeLabel}">&times;</button>
+        </div>
+        <div class="sa-modal-body" id="${descId}"></div>
+        <div class="sa-modal-footer"></div>
+      `;
+      wrapper.appendChild(panel);
+      document.body.appendChild(wrapper);
+
+      const body = panel.querySelector('.sa-modal-body');
+      if (body) {
+        if (typeof content === 'string') body.innerHTML = content;
+        else if (content instanceof Node) body.appendChild(content);
+      }
+      const closeBtn = panel.querySelector('.sa-modal-close');
+      if (closeBtn) closeBtn.addEventListener('click', () => this.closeById(id));
+
+      // Register defaults for this modal
+      this.register(id, { labelledBy: titleId, describedBy: descId, focusFirst });
+      return wrapper;
+    }
+
     openById(id, options = {}){
       const modal = typeof document !== 'undefined' ? document.getElementById(id) : null;
       if (!modal) {
         console.warn('[ModalController] Modal not found:', id);
         return;
       }
+      const defaults = this.getConfig(id);
+      const opts = Object.assign({}, defaults, options);
       if (this.stack.has(id)) {
         // Already tracked; bring to top by removing and re-pushing
         this.stack.remove(id);
@@ -105,7 +164,7 @@
       // Focus management via A11y helper if available
       try {
         if (typeof window !== 'undefined' && window.A11y && typeof window.A11y.openDialog === 'function') {
-          const { labelledBy, describedBy, focusFirst } = options;
+          const { labelledBy, describedBy, focusFirst } = opts;
           window.A11y.openDialog(modal, { labelledBy, describedBy, focusFirst });
         } else if (typeof modal.focus === 'function') {
           // Fallback: focus first focusable
@@ -115,7 +174,7 @@
       } catch (_) {}
 
       // Backdrop click-to-close if enabled
-      const closeOnBackdrop = options.closeOnBackdrop !== false;
+      const closeOnBackdrop = opts.closeOnBackdrop !== false;
       if (closeOnBackdrop) {
         backdrop.addEventListener('click', () => this.closeById(id));
       }

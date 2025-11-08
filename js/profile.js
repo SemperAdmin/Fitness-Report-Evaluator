@@ -349,12 +349,19 @@ async function postJson(url, body) {
     const maxAttempts = 3;
     let attempt = 0;
     let lastError = null;
+    const isCrossOrigin = (typeof window !== 'undefined')
+        ? (resolvedUrl.origin !== window.location.origin)
+        : false;
     while (attempt < maxAttempts) {
         try {
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers,
-                credentials: 'include',
+                // For cross-origin requests, omit credentials to avoid strict CORS failures
+                // If cookies are required, server must enable CORS with credentials and SameSite=None
+                credentials: isCrossOrigin ? 'omit' : 'include',
+                mode: 'cors',
+                cache: 'no-store',
                 body: JSON.stringify(payload)
             });
             if (!resp.ok) {
@@ -378,6 +385,36 @@ async function postJson(url, body) {
             lastError = e;
             const msg = String(e?.message || '').toLowerCase();
             const retryable = /network|timeout|fetch|connection|reset/.test(msg);
+            // If we failed on a cross-origin call while including credentials, retry once without credentials
+            if (isCrossOrigin && attempt < maxAttempts - 1) {
+                try {
+                    const resp = await fetch(endpoint, {
+                        method: 'POST',
+                        headers,
+                        credentials: 'omit',
+                        mode: 'cors',
+                        cache: 'no-store',
+                        body: JSON.stringify(payload)
+                    });
+                    if (resp.ok) {
+                        try {
+                            const data = await resp.json();
+                            return { ok: true, ...data };
+                        } catch (_) { return { ok: true }; }
+                    }
+                    let error = `Request failed (${resp.status})`;
+                    try { const data = await resp.json(); error = data.error || error; } catch (_) {}
+                    if (attempt < maxAttempts - 1 && shouldRetryStatus(resp.status)) {
+                        const backoffMs = 250 * Math.pow(2, attempt);
+                        await new Promise(r => setTimeout(r, backoffMs));
+                        attempt++;
+                        continue;
+                    }
+                    return { ok: false, error, status: resp.status };
+                } catch (_) {
+                    // Fall through to generic retry logic below
+                }
+            }
             if (attempt >= maxAttempts - 1 || !retryable) break;
             const backoffMs = 250 * Math.pow(2, attempt);
             await new Promise(r => setTimeout(r, backoffMs));
@@ -415,6 +452,8 @@ function skipProfileLogin() {
         login.style.display = 'none'; // ensure login card is hidden
     }
 
+    // Restore global header chrome when leaving login
+    try { document.body.classList.remove('auth-login'); } catch (_) {}
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
     if (header) header.style.display = '';
@@ -481,6 +520,8 @@ function showProfileDashboard() {
         dash.classList.add('active');
     }
 
+    // Leaving login/home state; keep header hidden in dashboard but clear login/home classes
+    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
     if (header) header.style.display = 'none';
@@ -1494,6 +1535,8 @@ function continueStartNewEvaluation() {
         login.style.display = 'none';
     }
 
+    // Restore app chrome hidden by the dashboard; ensure login/home classes are cleared
+    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
     // Restore app chrome hidden by the dashboard
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
@@ -1972,6 +2015,11 @@ function continueLogoutProfile() {
         const warning = document.getElementById('dataWarning');
         const mode = document.getElementById('modeSelectionCard');
 
+        // Restore app chrome and clear login class; set home-mode
+        try {
+            document.body.classList.remove('auth-login');
+            document.body.classList.add('home-mode');
+        } catch (_) {}
         // Restore app chrome
         if (header) header.style.display = '';
         if (warning) warning.style.display = '';
@@ -1995,7 +2043,12 @@ function continueLogoutProfile() {
             }
         });
 
-        // Show the welcome Mode Selection card
+        // Show the welcome Mode Selection card via centralized exclusive toggle
+        try {
+            if (window.UIStates && typeof window.UIStates.toggleExclusive === 'function') {
+                window.UIStates.toggleExclusive('modeSelectionCard','profileLoginCard');
+            }
+        } catch (_) {}
         if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
 
         window.scrollTo({ top: 0, behavior: 'auto' });
@@ -2270,7 +2323,11 @@ function showProfileDashboardOnLoad() {
     const loginSource = sessionStorage.getItem('login_source'); // session-scoped, not persistent
     if (!hasProfile || loginSource !== 'form') {
         // Default to Mode Selection on initial load
-        if (modeCard) { modeCard.classList.add('active'); modeCard.style.display = 'block'; }
+        if (modeCard) {
+            modeCard.classList.add('active');
+            modeCard.style.display = 'block';
+            try { document.body.classList.add('home-mode'); } catch (_) {}
+        }
         loginCard.classList.remove('active');
         loginCard.style.display = 'none';
         dashboardCard.classList.remove('active');

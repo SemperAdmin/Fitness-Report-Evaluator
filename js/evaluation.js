@@ -437,11 +437,22 @@ function showJustificationModal() {
     }
     
     updateWordCount();
-    modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
     try {
-        if (window.A11y) A11y.openDialog(modal, { labelledBy: 'justificationTitle', describedBy: 'justificationDesc', focusFirst: '#justificationText' });
-    } catch (_) {}
+        if (window.ModalController) {
+            window.ModalController.register('justificationModal', { labelledBy: 'justificationTitle', describedBy: 'justificationDesc', focusFirst: '#justificationText' });
+            window.ModalController.openById('justificationModal');
+        } else if (window.A11y) {
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            A11y.openDialog(modal, { labelledBy: 'justificationTitle', describedBy: 'justificationDesc', focusFirst: '#justificationText' });
+        } else {
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+    } catch (_) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
     document.getElementById('justificationText').focus();
 }
 
@@ -527,9 +538,19 @@ function cancelJustification() {
     }
     
     const modal = document.getElementById('justificationModal');
-    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
-    modal.classList.remove('active');
-    modal.setAttribute('aria-hidden', 'true');
+    try {
+        if (window.ModalController) {
+            window.ModalController.closeById('justificationModal');
+        } else {
+            if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+    } catch (_) {
+        if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
     pendingEvaluation = null;
 }
 
@@ -683,22 +704,24 @@ function showReevaluationModal(trait, traitKey) {
     
     // Display current evaluation without showing the grade
     const currentEvalDisplay = document.getElementById('currentEvalDisplay');
-    currentEvalDisplay.innerHTML = `
+    const displayHtml = `
         <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin: 15px 0;">
             <div class="grade-display ${getGradeClass(currentResult.grade)}" style="padding: 15px; margin: 0;">
                 <strong>Current Evaluation</strong>
             </div>
         </div>
     `;
+    try { if (window.Rendering) window.Rendering.renderHTML(currentEvalDisplay, displayHtml); else currentEvalDisplay.innerHTML = displayHtml; } catch(_) { currentEvalDisplay.innerHTML = displayHtml; }
     
     // Display current criteria
     const currentEvalCriteria = document.getElementById('currentEvalCriteria');
     const gradeDescription = getGradeDescription(currentResult.grade);
-    currentEvalCriteria.innerHTML = `
+    const criteriaHtml = `
         <div class="criteria-meets">
             <strong>Selected Standard:</strong> ${gradeDescription}
         </div>
     `;
+    try { if (window.Rendering) window.Rendering.renderHTML(currentEvalCriteria, criteriaHtml); else currentEvalCriteria.innerHTML = criteriaHtml; } catch(_) { currentEvalCriteria.innerHTML = criteriaHtml; }
     
     // Display current justification
     const currentEvalJustification = document.getElementById('currentEvalJustification');
@@ -709,18 +732,36 @@ function showReevaluationModal(trait, traitKey) {
     modal.dataset.sectionKey = trait.sectionKey;
     modal.dataset.traitKeyPart = trait.traitKey;
     
-    modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
     try {
-        if (window.A11y) A11y.openDialog(modal, { labelledBy: 'reevaluateTitle', describedBy: 'reevaluateDesc', focusFirst: '.reevaluate-buttons .btn-meets' });
-    } catch (_) {}
+        if (window.ModalController) {
+            window.ModalController.register('reevaluateModal', { labelledBy: 'reevaluateTitle', describedBy: 'reevaluateDesc', focusFirst: '.reevaluate-buttons .btn-meets' });
+            window.ModalController.openById('reevaluateModal');
+        } else {
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            if (window.A11y) A11y.openDialog(modal, { labelledBy: 'reevaluateTitle', describedBy: 'reevaluateDesc', focusFirst: '.reevaluate-buttons .btn-meets' });
+        }
+    } catch (_) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
 }
 
 function cancelReevaluation() {
     const modal = document.getElementById('reevaluateModal');
-    if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
-    modal.classList.remove('active');
-    modal.setAttribute('aria-hidden', 'true');
+    try {
+        if (window.ModalController) {
+            window.ModalController.closeById('reevaluateModal');
+        } else {
+            if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+    } catch (_) {
+        if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
 }
 
 function startReevaluation() {

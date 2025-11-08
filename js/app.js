@@ -101,6 +101,8 @@ function startStandaloneMode() {
 
 // Login-first routing helper
 function showRSLoginFirst() {
+    // Hide global header chrome while on the login card
+    try { document.body.classList.add('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
     const login = document.getElementById('profileLoginCard');
     const loginFields = document.getElementById('loginFields');
     const createSection = document.getElementById('createAccountSection');
@@ -125,9 +127,12 @@ function showRSLoginFirst() {
         el.style.display = 'none';
     });
 
+    // Centralize the swap between Mode Selection and Login card
+    try { if (window.UIStates && typeof window.UIStates.toggleExclusive === 'function') { window.UIStates.toggleExclusive('profileLoginCard','modeSelectionCard'); } } catch (_) {}
+
     if (login) {
         login.classList.add('active');
-        login.style.display = 'block'; // show the login card only when RS Dashboard is chosen
+        login.style.display = 'block';
 
         // Ensure a clean login state: show fields, hide create-account and animation
         if (typewriter) typewriter.style.display = 'none';

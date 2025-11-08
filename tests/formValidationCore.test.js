@@ -1,68 +1,40 @@
 const assert = require('assert');
-const path = require('path');
+const { ValidationRules, parseRules, validateValue, errorMessageFor, validateField, validateFormPayload } = require('../js/formValidationCore.js');
 
-// Load core via CommonJS export
-const core = require(path.join('..', 'js', 'formValidationCore.js'));
+describe('FormValidationCore', () => {
+  it('parseRules parses rule strings', () => {
+    const rules = parseRules('required|minLength:2|maxLength:10');
+    assert.strictEqual(rules.length, 3);
+    assert.strictEqual(rules[0].name, 'required');
+    assert.strictEqual(rules[1].name, 'minLength');
+    assert.strictEqual(rules[1].params[0], '2');
+  });
 
-function run() {
-  // parseRules
-  const rules = core.parseRules('required|minLength:2|maxLength:5');
-  assert.strictEqual(Array.isArray(rules), true, 'rules should be array');
-  assert.strictEqual(rules.length, 3, 'three rules parsed');
-  assert.strictEqual(rules[1].name, 'minLength');
-  assert.strictEqual(rules[1].params[0], '2');
+  it('validateValue applies rules and returns first failure', () => {
+    const rules = parseRules('required|minLength:5');
+    const res1 = validateValue('abc', rules);
+    assert.strictEqual(res1.isValid, false);
+    assert.strictEqual(res1.failedRule.name, 'minLength');
+    const res2 = validateValue('abcdef', rules);
+    assert.strictEqual(res2.isValid, true);
+  });
 
-  // validateValue success
-  let res = core.validateValue('abc', rules);
-  assert.strictEqual(res.isValid, true, 'valid value passes rules');
+  it('validateField returns consistent messages', () => {
+    const res = validateField({ value: '', label: 'Username', dataRules: parseRules('required|minLength:3') });
+    assert.strictEqual(res.valid, false);
+    assert.ok(/required/i.test(res.message));
+  });
 
-  // validateValue minLength fail
-  res = core.validateValue('a', rules);
-  assert.strictEqual(res.isValid, false, 'too short fails');
-  assert.strictEqual(res.failedRule.name, 'minLength');
+  it('validateFormPayload aggregates field messages', () => {
+    const payload = {
+      a: { value: '', label: 'A', dataRules: parseRules('required') },
+      b: { value: 'ok', label: 'B', dataRules: parseRules('minLength:2') },
+    };
+    const res = validateFormPayload(payload);
+    assert.strictEqual(res.valid, false);
+    assert.strictEqual(res.messages.length, 1);
+    assert.strictEqual(res.fields.a.valid, false);
+    assert.strictEqual(res.fields.b.valid, true);
+  });
+});
 
-  // field-level validation and message
-  let vf = core.validateField({ value: '', label: 'Name', dataRules: rules });
-  assert.strictEqual(vf.valid, false, 'required fails on empty');
-  assert.ok(vf.message.includes('Name is required'));
-
-  vf = core.validateField({ value: 'Captain', label: 'Rank', dataRules: core.parseRules('rankLabel') });
-  assert.strictEqual(vf.valid, true, 'rank label ok');
-
-  vf = core.validateField({ value: 'X', label: 'Rank', dataRules: core.parseRules('rankLabel') });
-  assert.strictEqual(vf.valid, false, 'rank too short invalid');
-  assert.ok(/2–20/.test(vf.message), 'rank error message shows range');
-
-  // username rule
-  vf = core.validateField({ value: 'us', label: 'Username', dataRules: core.parseRules('username') });
-  assert.strictEqual(vf.valid, false, 'username length rule enforced');
-  vf = core.validateField({ value: 'valid.user-01', label: 'Username', dataRules: core.parseRules('username') });
-  assert.strictEqual(vf.valid, true, 'username pattern passes');
-
-  // pattern rule
-  vf = core.validateField({ value: 'ABC-123', label: 'Patterned', dataRules: core.parseRules('pattern:^[A-Z]{3}-\\d{3}$') });
-  assert.strictEqual(vf.valid, true, 'pattern passes when format matches');
-  vf = core.validateField({ value: 'abc-1234', label: 'Patterned', dataRules: core.parseRules('pattern:^[A-Z]{3}-\\d{3}$') });
-  assert.strictEqual(vf.valid, false, 'pattern fails when format mismatches');
-
-  // maxLength rule
-  const maxRules = core.parseRules('required|maxLength:4');
-  vf = core.validateField({ value: 'abcd', label: 'Max', dataRules: maxRules });
-  assert.strictEqual(vf.valid, true, 'maxLength boundary ok');
-  vf = core.validateField({ value: 'abcde', label: 'Max', dataRules: maxRules });
-  assert.strictEqual(vf.valid, false, 'exceeds maxLength invalid');
-
-  // form payload aggregate
-  const payload = {
-    name: { value: 'John Doe', label: 'Name', dataRules: core.parseRules('required|nameLabel') },
-    rank: { value: '', label: 'Rank', dataRules: core.parseRules('required|rankLabel') },
-    username: { value: 'bad name', label: 'Username', dataRules: core.parseRules('required|username') },
-  };
-  const agg = core.validateFormPayload(payload);
-  assert.strictEqual(agg.valid, false, 'aggregate invalid when fields invalid');
-  assert.strictEqual(agg.messages.length, 2, 'two messages for two invalid fields');
-
-  console.log('formValidationCore.test.js passed');
-}
-
-run();

@@ -69,6 +69,15 @@
   // Expose globally
   window.UIStates = {
     setLoading, setDisabled, withLoading,
-    initDirtyTracking, markDirty, clearDirty, hasUnsavedChanges, guardNavigation
+    initDirtyTracking, markDirty, clearDirty, hasUnsavedChanges, guardNavigation,
+    // Lightweight visibility helper: show A and hide B in one call
+    toggleExclusive: function(aId, bId) {
+      try {
+        const a = document.getElementById(aId);
+        const b = document.getElementById(bId);
+        if (a) { a.style.display = 'block'; a.classList.add('active'); }
+        if (b) { b.style.display = 'none'; b.classList.remove('active'); }
+      } catch (_) {}
+    }
   };
 })();

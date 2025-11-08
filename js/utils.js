@@ -254,9 +254,17 @@ function openHelpModal() {
     const modal = document.getElementById('helpModal');
     const trigger = document.getElementById('helpButton');
     if (!modal) return;
+    if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    try {
+        if (window.ModalController && typeof window.ModalController.openById === 'function') {
+            window.ModalController.register('helpModal', { labelledBy: 'helpModalTitle', focusFirst: '.help-close' });
+            window.ModalController.openById('helpModal');
+            return;
+        }
+    } catch (_) {}
+    // Fallback to previous behavior
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
-    if (trigger) trigger.setAttribute('aria-expanded', 'true');
     A11y.openDialog(modal, { labelledBy: 'helpModalTitle', focusFirst: '.help-close' });
 }
 
@@ -264,9 +272,19 @@ function closeHelpModal() {
     const modal = document.getElementById('helpModal');
     const trigger = document.getElementById('helpButton');
     if (!modal) return;
-    A11y.closeDialog(modal);
-    modal.classList.remove('active');
-    modal.setAttribute('aria-hidden', 'true');
+    try {
+        if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+            window.ModalController.closeById('helpModal');
+        } else {
+            A11y.closeDialog(modal);
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+    } catch (_) {
+        A11y.closeDialog(modal);
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
     if (trigger) trigger.setAttribute('aria-expanded', 'false');
 }
 

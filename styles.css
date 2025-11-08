@@ -238,6 +238,13 @@ body {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Auth login route: hide header and any global warning while login is active */
+.auth-login .header { display: none !important; }
+.auth-login #dataWarning { display: none !important; }
+
+/* Home Mode Selection: hide header for a clean landing view */
+.home-mode .header { display: none !important; }
+
 /* ---------------------------------------------
    Feedback Widget Styles (light + dark-friendly)
 ---------------------------------------------- */
