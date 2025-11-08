@@ -203,6 +203,7 @@ function saveProgressToStorage() {
         lastSavedSnapshot = sessionData;
         return true;
     } catch (error) {
+        try { ErrorLogger && ErrorLogger.logError(error, { module: 'persistence', action: 'saveProgressToStorage' }, 'error'); } catch (_) {}
         // Detect quota exceeded and attempt compact fallback
         const isQuota = (() => {
             try {
@@ -225,9 +226,11 @@ function saveProgressToStorage() {
                 return true;
             } catch (e2) {
                 console.error('Compact save failed:', e2);
+                try { ErrorLogger && ErrorLogger.logError(e2, { module: 'persistence', action: 'saveProgressToStorage', stage: 'compact' }, 'warn'); } catch (_) {}
             }
         }
         console.error('Failed to save progress:', error);
+        try { ErrorLogger && ErrorLogger.logError(error, { module: 'persistence', action: 'saveProgressToStorage', stage: 'final' }, 'error'); } catch (_) {}
         // Cache for recovery and queue if offline
         try { saveQueue.push({ ts: Date.now(), data: buildSessionData(true) }); } catch(_){}
         persistQueue();
@@ -252,6 +255,7 @@ function loadProgressFromStorage() {
         return sessionData;
     } catch (error) {
         console.error('Failed to load progress:', error);
+        try { ErrorLogger && ErrorLogger.logError(error, { module: 'persistence', action: 'loadProgressFromStorage' }, 'error'); } catch (_) {}
         return null;
     }
 }
@@ -330,6 +334,7 @@ function restoreSession(sessionData) {
         return true;
     } catch (error) {
         console.error('Failed to restore session:', error);
+        try { ErrorLogger && ErrorLogger.logError(error, { module: 'persistence', action: 'restoreSession' }, 'error'); } catch (_) {}
         showToast('Failed to restore session. Starting fresh.', 'error');
         return false;
     }
@@ -357,6 +362,7 @@ function saveToSessionHistory(sessionData) {
         localStorage.setItem(STORAGE_KEYS.sessionHistory, JSON.stringify(history));
     } catch (error) {
         console.error('Failed to save to session history:', error);
+        try { ErrorLogger && ErrorLogger.logError(error, { module: 'persistence', action: 'saveToSessionHistory' }, 'warn'); } catch (_) {}
     }
 }
 
@@ -365,6 +371,7 @@ function getSessionHistory() {
         return JSON.parse(localStorage.getItem(STORAGE_KEYS.sessionHistory) || '[]');
     } catch (error) {
         console.error('Failed to load session history:', error);
+        try { ErrorLogger && ErrorLogger.logError(error, { module: 'persistence', action: 'getSessionHistory' }, 'error'); } catch (_) {}
         return [];
     }
 }
@@ -477,6 +484,7 @@ function importFromJSON(file) {
             }
         } catch (error) {
             console.error('Import failed:', error);
+            try { ErrorLogger && ErrorLogger.logError(error, { module: 'persistence', action: 'importFromJSON' }, 'error'); } catch (_) {}
             showToast('Failed to import file. Please check the file format.', 'error');
         }
     };
@@ -567,6 +575,7 @@ async function flushSaveQueue() {
             localStorage.setItem(STORAGE_KEYS.currentSession, JSON.stringify(item.data));
         } catch (e) {
             console.warn('Queue flush failed; requeue', e);
+            try { ErrorLogger && ErrorLogger.logError(e, { module: 'persistence', action: 'flushSaveQueue' }, 'warn'); } catch (_) {}
             saveQueue.push(item);
         }
     }
