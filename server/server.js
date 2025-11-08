@@ -658,7 +658,9 @@ app.post('/api/account/login', authRateLimit, async (req, res) => {
     // Issue HttpOnly session cookie and CSRF cookie
     try {
       const now = Date.now();
-      const payload = { u: sanitizePrefix(username), iat: now, exp: now + SESSION_TTL_MS };
+      // Include isAdmin flag if user has admin privileges
+      const isAdmin = !!(user && user.isAdmin === true);
+      const payload = { u: sanitizePrefix(username), isAdmin, iat: now, exp: now + SESSION_TTL_MS };
       const sessionToken = signSessionPayload(payload);
       const csrfToken = crypto.randomBytes(32).toString('hex');
       const cookies = [
@@ -1591,6 +1593,15 @@ app.get('/api/debug/github', (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Admin routes (must come before static file serving)
+try {
+  const adminRoutes = require('./server/admin-routes');
+  app.use('/api/admin', adminRoutes);
+  console.log('[admin] Admin routes registered at /api/admin');
+} catch (err) {
+  console.warn('[admin] Admin routes not available:', err.message);
+}
 
 // Start server if executed directly
 if (require.main === module) {

@@ -2,6 +2,7 @@
   "rsEmail": "semperadmin",
   "rsName": "Semper Admin",
   "rsRank": "Admin",
+  "isAdmin": true,
   "passwordHash": "$2a$12$HRTl/ZzX0VpSQMgGJTWtp.LgrEN7m9aEspXfLgWRLvlHlwO63Cwue",
   "evaluationFiles": [],
   "evaluations": [],

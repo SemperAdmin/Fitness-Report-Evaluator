@@ -11,12 +11,43 @@ const LOCAL_BASE_DIR = process.env.LOCAL_DATA_DIR || path.join(__dirname, 'local
 const LOCAL_DATA_DIR = path.join(LOCAL_BASE_DIR, 'users');
 
 // Admin guard: requires session and isAdmin flag
-function requireAdmin(req, res, next) {
+// Adapted to work with server.js custom session system (req.sessionUser)
+async function requireAdmin(req, res, next) {
   try {
-    if (req.session && req.session.isAdmin === true) return next();
-    return res.status(403).json({ error: 'Forbidden' });
-  } catch (_) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    const username = req.sessionUser;
+    if (!username) {
+      return res.status(401).json({ error: 'Unauthorized - Please login first' });
+    }
+
+    // Load user profile to check admin flag
+    const prefix = username.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+    let userProfile = null;
+
+    // Try local filesystem first
+    const localPath = path.join(LOCAL_DATA_DIR, `${prefix}.json`);
+    try {
+      const str = await fsp.readFile(localPath, 'utf8');
+      userProfile = JSON.parse(str);
+    } catch (_) {
+      // User profile not found locally
+    }
+
+    // Check admin flag
+    if (!userProfile || userProfile.isAdmin !== true) {
+      return res.status(403).json({ error: 'Forbidden - Admin access required' });
+    }
+
+    // Create req.session for compatibility with existing admin-routes code
+    req.session = {
+      user: userProfile,
+      isAdmin: true,
+      username: username
+    };
+
+    next();
+  } catch (err) {
+    console.error('[admin] requireAdmin error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
