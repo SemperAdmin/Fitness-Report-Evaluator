@@ -14,6 +14,10 @@
     "lint": "eslint .",
     "lint:docs": "eslint . --max-warnings=0",
     "docs:coverage": "node scripts/jsdoc-coverage.js",
-    "docs:report": "node scripts/jsdoc-coverage.js --report"
+    "docs:report": "node scripts/jsdoc-coverage.js --report",
+    "start": "node server/server.js",
+    "render:build": "node scripts/render-build-wrapper.js",
+    "render:start": "node scripts/render-start-wrapper.js",
+    "test:issue": "node scripts/test-issue.js"
   }
 }

@@ -182,9 +182,15 @@
         const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : '';
         const FEEDBACK_ROUTE = (window.CONSTANTS?.ROUTES?.API?.FEEDBACK) || '/api/feedback';
         const url = base ? new URL(FEEDBACK_ROUTE, base).toString() : FEEDBACK_ROUTE;
+        // Include CSRF token when a session exists (set on login)
+        const m = (typeof document !== 'undefined') ? document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/) : null;
+        const csrf = m ? decodeURIComponent(m[1]) : '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrf) headers['X-CSRF-Token'] = csrf;
         const resp = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
+          credentials: 'include',
           body: JSON.stringify(payload)
         });
         if (!resp.ok) {

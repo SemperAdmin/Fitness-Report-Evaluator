@@ -253,8 +253,8 @@ app.use((req, res, next) => {
       "style-src 'self' 'unsafe-inline'",
       // Allow images from self and data URLs; https for external icons if any
       "img-src 'self' data: https:",
-      // Allow API calls to same-origin, GitHub API, and Render backend used in production
-      "connect-src 'self' https://api.github.com https://fitness-report-evaluator.onrender.com",
+      // Allow API calls to same-origin, GitHub API, Render backend, and jsDelivr (source maps, optional fetches)
+      "connect-src 'self' https://api.github.com https://fitness-report-evaluator.onrender.com https://cdn.jsdelivr.net",
       // Encourage HTTPS when available; harmless in HTTP during local dev
       'upgrade-insecure-requests'
     ].join('; ');
