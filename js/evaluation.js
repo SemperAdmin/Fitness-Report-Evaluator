@@ -198,11 +198,14 @@ function startEvaluation() {
     
     isReportingSenior = (selection === 'yes');
     initializeTraits();
-    
-    document.getElementById('setupCard').style.display = 'none';
-    document.getElementById('howItWorksCard').style.display = 'none';
-    document.getElementById('dataWarning').style.display = 'none';
-    
+
+    const setupCard = document.getElementById('setupCard');
+    const howItWorksCard = document.getElementById('howItWorksCard');
+    const dataWarning = document.getElementById('dataWarning');
+    if (setupCard) setupCard.style.display = 'none';
+    if (howItWorksCard) howItWorksCard.style.display = 'none';
+    if (dataWarning) dataWarning.style.display = 'none';
+
     // Ensure the evaluation UI becomes visible
     try {
         if (typeof jumpToStep === 'function' && typeof STEPS !== 'undefined') {
