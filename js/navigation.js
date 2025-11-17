@@ -325,6 +325,12 @@ function updateRSSetupDisplay() {
         }
     } else {
         // No profile: fill combined from meta/header if available; keep originals hidden
+        // Access evaluationMeta through the Evaluation API module's state object
+        const evalState = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.state)
+            ? window.Evaluation.state
+            : {};
+        const evaluationMeta = evalState.evaluationMeta || {};
+
         if (rsDisplay) {
             rsDisplay.textContent = '';
             rsDisplay.style.display = UI.DISPLAY.HIDE;
@@ -464,105 +470,13 @@ function showDirectedCommentsScreen() {
 
 function showSectionIGeneration() {
     showSectionIStep();
-    
+
     // Update progress indicator
     document.getElementById('progressText').textContent = 'Section I Comment Generation';
-    
+
     // Initialize the analysis
     const analysis = analyzeTraitEvaluations();
     updateAnalysisDisplay(analysis);
-}
-
-function showSummary() {
-    showSummaryStep();
-    
-    const fitrepAverage = calculateFitrepAverage();
-    document.getElementById('fitrepAverage').textContent = 
-        `FITREP Average: ${fitrepAverage}`;
-    
-    const metaDiv = document.getElementById('evaluationMeta');
-    metaDiv.innerHTML = `
-        <strong>Marine:</strong> ${evaluationMeta.marineName} | 
-        <strong>Period:</strong> ${evaluationMeta.fromDate} to ${evaluationMeta.toDate} | 
-        <strong>Reporting Senior:</strong> ${evaluationMeta.evaluatorName} | 
-        <strong>Completed:</strong> ${new Date().toLocaleDateString()}
-    `;
-    
-    const summaryGrid = document.getElementById('summaryGrid');
-    summaryGrid.innerHTML = '';
-    
-    // Add trait evaluations
-    Object.keys(evaluationResults).forEach(key => {
-        const result = evaluationResults[key];
-        const item = document.createElement('div');
-        item.className = 'summary-item';
-        item.innerHTML = `
-            <div class="summary-trait">${result.section}: ${result.trait}</div>
-            <div class="summary-grade">Grade: ${result.grade} (${result.gradeNumber})</div>
-            <div class="summary-justification">${result.justification}</div>
-        `;
-        summaryGrid.appendChild(item);
-    });
-    
-    // Add Section I comments if present
-    if (evaluationMeta.sectionIComments && evaluationMeta.sectionIComments.trim()) {
-        const sectionIItem = document.createElement('div');
-        sectionIItem.className = 'summary-item';
-        sectionIItem.style.gridColumn = '1 / -1'; // Span full width
-        sectionIItem.style.background = '#e8f5e8';
-        sectionIItem.innerHTML = `
-            <div class="summary-trait">Section I - Narrative Comments</div>
-            <div class="summary-justification" style="max-height: none; font-size: 13px; line-height: 1.4; white-space: pre-line;">
-                ${evaluationMeta.sectionIComments}
-            </div>
-        `;
-        summaryGrid.appendChild(sectionIItem);
-    }
-    
-    // Add directed comments if present
-    if (evaluationMeta.directedComments && evaluationMeta.directedComments.trim()) {
-        const directedCommentsItem = document.createElement('div');
-        directedCommentsItem.className = 'summary-item';
-        directedCommentsItem.style.gridColumn = '1 / -1'; // Span full width
-        directedCommentsItem.style.background = '#f0f7ff';
-        directedCommentsItem.innerHTML = `
-            <div class="summary-trait">Section I - Directed Comments</div>
-            <div class="summary-justification" style="max-height: none; font-size: 13px; line-height: 1.4; white-space: pre-line;">
-                ${evaluationMeta.directedComments}
-            </div>
-        `;
-        summaryGrid.appendChild(directedCommentsItem);
-    }
-}
-
-// Edit Functions
-function editPreviousEvaluations() {
-    if (confirm('This will take you back to edit your trait evaluations. Continue?')) {
-        // Save current progress
-        saveProgressToStorage();
-        
-        // Reset to evaluation step
-        currentTraitIndex = 0;
-        currentEvaluationLevel = 'B';
-        
-        jumpToStep(STEPS.evaluation);
-        showToast('You can now edit your evaluations. Use navigation to jump between completed traits.', 'info');
-    }
-}
-
-function editSummaryEvaluation() {
-    if (confirm('This will take you back to the beginning to edit this evaluation. Continue?')) {
-        // Save current progress first
-        saveProgressToStorage();
-        
-        // Reset to setup but keep the data for easy restoration
-        jumpToStep(STEPS.setup);
-        showToast('You can now edit your evaluation from the beginning.', 'info');
-    }
-}
-
-function editEvaluation() {
-    editSummaryEvaluation();
 }
 
 // Mobile-friendly touch handlers
