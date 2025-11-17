@@ -986,7 +986,7 @@ function sanitizeString(str) {
  * @returns {Promise<string|null>} Actual filename with correct case, or null if not found.
  */
 async function findUserFilenameCaseInsensitive(username) {
-  const token = FITREP_DATA_TOKEN;
+  const token = process.env.FITREP_DATA || '';
   if (!token) return null; // No GitHub access, can't do case-insensitive lookup
 
   try {
@@ -1027,7 +1027,7 @@ async function findUserFilenameCaseInsensitive(username) {
  * @returns {Promise<string|null>} Actual directory name with correct case, or null if not found.
  */
 async function findUserDirectoryCaseInsensitive(username) {
-  const token = FITREP_DATA_TOKEN;
+  const token = process.env.FITREP_DATA || '';
   if (!token) return null;
 
   try {
