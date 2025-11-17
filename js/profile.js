@@ -411,9 +411,9 @@ async function postJson(url, body) {
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers,
-                // For cross-origin requests, omit credentials to avoid strict CORS failures
-                // If cookies are required, server must enable CORS with credentials and SameSite=None
-                credentials: isCrossOrigin ? 'omit' : 'include',
+                // Include credentials for all requests to support session cookies
+                // Server supports credentialed cross-origin requests with proper CORS headers
+                credentials: 'include',
                 mode: 'cors',
                 cache: 'no-store',
                 body: JSON.stringify(payload)
@@ -461,36 +461,7 @@ async function postJson(url, body) {
             } catch (_) { /* best-effort */ }
             const msg = String(e?.message || '').toLowerCase();
             const retryable = /network|timeout|fetch|connection|reset/.test(msg);
-            // If we failed on a cross-origin call while including credentials, retry once without credentials
-            if (isCrossOrigin && attempt < maxAttempts - 1) {
-                try {
-                    const resp = await fetch(endpoint, {
-                        method: 'POST',
-                        headers,
-                        credentials: 'omit',
-                        mode: 'cors',
-                        cache: 'no-store',
-                        body: JSON.stringify(payload)
-                    });
-                    if (resp.ok) {
-                        try {
-                            const data = await resp.json();
-                            return { ok: true, ...data };
-                        } catch (_) { return { ok: true }; }
-                    }
-                    let error = `Request failed (${resp.status})`;
-                    try { const data = await resp.json(); error = data.error || error; } catch (_) {}
-                    if (attempt < maxAttempts - 1 && shouldRetryStatus(resp.status)) {
-                        const backoffMs = 250 * Math.pow(2, attempt);
-                        await new Promise(r => setTimeout(r, backoffMs));
-                        attempt++;
-                        continue;
-                    }
-                    return { ok: false, error, status: resp.status };
-                } catch (_) {
-                    // Fall through to generic retry logic below
-                }
-            }
+            // Retry on transient network errors with exponential backoff
             if (attempt >= maxAttempts - 1 || !retryable) break;
             const backoffMs = 250 * Math.pow(2, attempt);
             await new Promise(r => setTimeout(r, backoffMs));
@@ -534,7 +505,8 @@ async function postForm(url, body) {
         const resp = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            credentials: isCrossOrigin ? 'omit' : 'include',
+            // Include credentials for all requests to support session cookies
+            credentials: 'include',
             mode: 'cors',
             cache: 'no-store',
             body: payload.toString()
