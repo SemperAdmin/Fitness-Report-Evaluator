@@ -373,9 +373,14 @@ function showEvaluationStep() {
     hideAllCards();
     const container = document.getElementById('evaluationContainer');
     if (container) {
+        container.classList.add(UI.CSS.ACTIVE);
         container.style.display = UI.DISPLAY.SHOW;
-        renderCurrentTrait();
+        if (typeof renderCurrentTrait === 'function') {
+            renderCurrentTrait();
+        }
         try { container.setAttribute('tabindex','-1'); container.focus(); } catch (_) {}
+    } else {
+        console.error('evaluationContainer not found in showEvaluationStep');
     }
 }
 

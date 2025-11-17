@@ -274,7 +274,12 @@ function initializeTraits() {
 
 function renderCurrentTrait() {
     const container = document.getElementById('evaluationContainer');
-    
+
+    if (!container) {
+        console.error('evaluationContainer not found in DOM');
+        return;
+    }
+
     if (currentTraitIndex >= allTraits.length && !traitBeingReevaluated) {
         container.innerHTML = '';
         showReviewScreen();
@@ -282,7 +287,15 @@ function renderCurrentTrait() {
     }
 
     const trait = traitBeingReevaluated || allTraits[currentTraitIndex];
-    
+
+    if (!trait) {
+        console.error('No trait found at index:', currentTraitIndex);
+        console.error('allTraits length:', allTraits.length);
+        console.error('allTraits:', allTraits);
+        container.innerHTML = '<div class="evaluation-card"><p style="color: red; padding: 20px;">Error: No traits available. Please refresh and try again.</p></div>';
+        return;
+    }
+
     // Debug logging
     console.log('Current trait:', trait);
     console.log('Current evaluation level:', currentEvaluationLevel);
