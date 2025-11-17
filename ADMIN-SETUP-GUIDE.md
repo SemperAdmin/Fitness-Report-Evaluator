@@ -219,9 +219,10 @@ Upon successful access, you'll see:
 ### Available Actions
 
 - **View User:** See profile and recent evaluations
-- **Edit User:** Update name, username, rank
 - **Soft Delete:** Mark user as deleted (preserves data)
 - **Hard Delete:** Permanently remove user and all evaluations (creates audit trail)
+
+**Note:** User editing (update name, username, rank) is planned for a future release.
 
 ---
 
