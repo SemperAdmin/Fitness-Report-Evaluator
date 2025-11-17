@@ -1725,9 +1725,9 @@ async function deleteEvaluation(evalId) {
 
     // Delete from IndexedDB if available
     try {
-        if (window.idbStore && currentProfile.rsEmail) {
+        if (window.unifiedStorage && currentProfile.rsEmail) {
             const key = `${currentProfile.rsEmail}:${evalId}`;
-            await window.idbStore.delete('evaluations', key);
+            await window.unifiedStorage.removeItem('evaluations', key);
         }
     } catch (err) {
         console.warn('Failed to delete from IndexedDB:', err);
@@ -1742,7 +1742,7 @@ async function deleteEvaluation(evalId) {
             const DELETE_ROUTE = (window.CONSTANTS && window.CONSTANTS.ROUTES && window.CONSTANTS.ROUTES.API && window.CONSTANTS.ROUTES.API.EVALUATION_DELETE) || '/api/evaluation/delete';
 
             const response = await fetch(DELETE_ROUTE, {
-                method: 'DELETE',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': csrfToken
