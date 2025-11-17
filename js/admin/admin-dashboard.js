@@ -86,13 +86,13 @@ window.AdminDashboard = (function() {
     // Default or persisted tab when authenticated
     if (authenticated) {
       const saved = localStorage.getItem('adminActivePanel');
-      const valid = saved === 'overviewPanel' || saved === 'usersPanel' || saved === 'analyticsPanel' ? saved : 'overviewPanel';
+      const valid = saved === 'overviewPanel' || saved === 'usersPanel' || saved === 'analyticsPanel' ? saved : 'usersPanel';
       show(valid);
       const tabMap = { overviewPanel: 'tabOverview', usersPanel: 'tabUsers', analyticsPanel: 'tabAnalytics' };
       setActiveTab(tabMap[valid]);
     } else {
-      show('overviewPanel');
-      setActiveTab('tabOverview');
+      show('usersPanel');
+      setActiveTab('tabUsers');
     }
   }
 
