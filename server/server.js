@@ -728,10 +728,22 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
     let user = null;
     try {
       const token = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
-      const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      let filename = `${prefix}.json`; // Try lowercase first
+      let apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${filename}`;
       const headers = { 'Accept': 'application/vnd.github+json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const resp = await fetch(apiUrl, { headers });
+      let resp = await fetch(apiUrl, { headers });
+
+      // If 404, try case-insensitive lookup for legacy mixed-case files
+      if (resp.status === 404) {
+        const actualFilename = await findUserFilenameCaseInsensitive(prefix);
+        if (actualFilename) {
+          filename = actualFilename;
+          apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${actualFilename}`;
+          resp = await fetch(apiUrl, { headers });
+        }
+      }
+
       if (resp.status === 200) {
         const data = await resp.json();
         const fileContentBase64 = data.content;
@@ -928,6 +940,89 @@ function sanitizePrefix(username) {
 function sanitizeString(str) {
   const s = String(str || '');
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
+
+/**
+ * Find the actual filename in GitHub repo that matches the given username case-insensitively.
+ * This handles legacy data where files were created with mixed case (e.g., Furby203824.json)
+ * but the system expects lowercase (e.g., furby203824).
+ *
+ * @param {string} username - Sanitized lowercase username.
+ * @returns {Promise<string|null>} Actual filename with correct case, or null if not found.
+ */
+async function findUserFilenameCaseInsensitive(username) {
+  const token = FITREP_DATA_TOKEN;
+  if (!token) return null; // No GitHub access, can't do case-insensitive lookup
+
+  try {
+    const listUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
+    const resp = await fetch(listUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!resp.ok) return null;
+
+    const items = await resp.json();
+    if (!Array.isArray(items)) return null;
+
+    const files = items.filter(i => i.type === 'file' && String(i.name || '').toLowerCase().endsWith('.json'));
+    const targetFilename = `${username}.json`.toLowerCase();
+
+    // Find file that matches case-insensitively
+    const match = files.find(f => String(f.name || '').toLowerCase() === targetFilename);
+    if (match) {
+      return match.name; // Return actual filename with correct case
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('[case-insensitive-lookup] Failed:', err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * Find the actual directory name for a user in GitHub repo case-insensitively.
+ * Similar to findUserFilenameCaseInsensitive but for directories.
+ *
+ * @param {string} username - Sanitized lowercase username.
+ * @returns {Promise<string|null>} Actual directory name with correct case, or null if not found.
+ */
+async function findUserDirectoryCaseInsensitive(username) {
+  const token = FITREP_DATA_TOKEN;
+  if (!token) return null;
+
+  try {
+    const listUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
+    const resp = await fetch(listUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!resp.ok) return null;
+
+    const items = await resp.json();
+    if (!Array.isArray(items)) return null;
+
+    const dirs = items.filter(i => i.type === 'dir');
+    const targetDirname = username.toLowerCase();
+
+    // Find directory that matches case-insensitively
+    const match = dirs.find(d => String(d.name || '').toLowerCase() === targetDirname);
+    if (match) {
+      return match.name; // Return actual directory name with correct case
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('[case-insensitive-dir-lookup] Failed:', err?.message || err);
+    return null;
+  }
 }
 
 // Simple input validation helpers
@@ -1420,17 +1515,35 @@ app.get('/api/evaluations/list', requireAuth, async (req, res) => {
 
     const fitrepToken = process.env.FITREP_DATA || '';
     const prefix = sanitizePrefix(username);
-    const dirPath = `users/${prefix}/evaluations`;
+    let userDir = prefix; // Try lowercase first
+    let dirPath = `users/${userDir}/evaluations`;
 
     // Attempt listing via GitHub Contents API when token available
     if (fitrepToken) {
-      const listUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${dirPath}`;
-      const resp = await fetch(listUrl, {
+      let listUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${dirPath}`;
+      let resp = await fetch(listUrl, {
         headers: {
           'Authorization': `Bearer ${fitrepToken}`,
           'Accept': 'application/vnd.github.v3+json'
         }
       });
+
+      // If 404, try case-insensitive lookup for legacy mixed-case directories
+      if (resp.status === 404) {
+        const actualDirName = await findUserDirectoryCaseInsensitive(prefix);
+        if (actualDirName) {
+          userDir = actualDirName;
+          dirPath = `users/${actualDirName}/evaluations`;
+          listUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${dirPath}`;
+          resp = await fetch(listUrl, {
+            headers: {
+              'Authorization': `Bearer ${fitrepToken}`,
+              'Accept': 'application/vnd.github.v3+json'
+            }
+          });
+        }
+      }
+
       if (resp.status === 404) {
         return res.json({ ok: true, evaluations: [] });
       }
