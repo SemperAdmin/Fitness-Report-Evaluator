@@ -111,17 +111,31 @@ function jumpToStep(step) {
 }
 
 function isStepAccessible(step) {
+    // Access evaluationMeta through the Evaluation API module
+    const evalMeta = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.evaluationMeta)
+        ? window.Evaluation.evaluationMeta
+        : {};
+    const evalResults = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.evaluationResults)
+        ? window.Evaluation.evaluationResults
+        : {};
+    const traits = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.allTraits)
+        ? window.Evaluation.allTraits
+        : [];
+    const traitIndex = (typeof window !== 'undefined' && window.Evaluation && typeof window.Evaluation.currentTraitIndex === 'number')
+        ? window.Evaluation.currentTraitIndex
+        : 0;
+
     switch(step) {
         case STEPS.setup:
             return true;
         case STEPS.evaluation:
-            return evaluationMeta.marineName; // Setup completed
+            return !!(evalMeta && evalMeta.marineName); // Setup completed
         case STEPS.comments:
-            return Object.keys(evaluationResults).length > 0; // Some evaluations completed
+            return Object.keys(evalResults).length > 0; // Some evaluations completed
         case STEPS.sectionI:
-            return currentTraitIndex >= allTraits.length; // All evaluations completed
+            return traitIndex >= traits.length; // All evaluations completed
         case STEPS.summary:
-            return evaluationMeta.sectionIComments !== undefined; // Section I completed
+            return evalMeta && evalMeta.sectionIComments !== undefined; // Section I completed
         default:
             return false;
     }
@@ -432,7 +446,7 @@ function hideAllCards() {
         'setupCard', 'howItWorksCard', 'evaluationContainer',
         'directedCommentsCard', 'sectionIGenerationCard', 'summaryCard'
     ];
-    
+
     cards.forEach(cardId => {
         const card = document.getElementById(cardId);
         if (card) {
@@ -442,35 +456,7 @@ function hideAllCards() {
     });
 }
 
-function jumpToStep(step) {
-    // Validate if step is accessible
-    if (!isStepAccessible(step)) {
-        showToast('Please complete previous steps first', 'warning');
-        return;
-    }
-    
-    // Navigate to step
-    switch(step) {
-        case STEPS.setup:
-            showSetupCard();
-            break;
-        case STEPS.evaluation:
-            showEvaluationStep();
-            break;
-        case STEPS.comments:
-            showDirectedCommentsStep();
-            break;
-        case STEPS.sectionI:
-            showSectionIStep();
-            break;
-        case STEPS.summary:
-            showSummaryStep();
-            break;
-    }
-    
-    updateNavigationState(step);
-    toggleMenu(); // Close menu after navigation
-}
+// Note: jumpToStep is defined earlier in this file at line 79
 
 // Update the original functions to use the new step functions
 function showDirectedCommentsScreen() {
