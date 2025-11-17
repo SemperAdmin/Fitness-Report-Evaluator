@@ -1534,6 +1534,110 @@ app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) =>
   }
 });
 
+// Delete a single evaluation file from GitHub or local storage
+// Path: users/{email_local}/evaluations/{evaluationId}.json
+app.delete('/api/evaluation/delete', saveRateLimit, requireAuth, async (req, res) => {
+  try {
+    const { evaluationId, userEmail } = req.body || {};
+    if (!evaluationId) {
+      return res.status(400).json({ error: 'Missing evaluationId' });
+    }
+    if (!userEmail || !isValidUsername(userEmail)) {
+      return res.status(400).json({ error: 'Invalid or missing username' });
+    }
+    // Enforce that the request user matches the authenticated session
+    try {
+      const reqUser = sanitizePrefix(userEmail);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
+
+    const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
+
+    // Helper: safe local-part for directory naming and file names
+    const prefix = sanitizePrefix(userEmail);
+    const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const filePath = `users/${prefix}/evaluations/${evalIdSafe}.json`;
+
+    // Attempt delete via GitHub Contents API when token available
+    if (fitrepToken) {
+      const apiBase = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
+
+      // Need to get the file SHA first
+      const getResp = await fetch(apiBase, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (getResp.status === 404) {
+        // File doesn't exist, consider it successfully deleted
+        return res.json({ ok: true, message: 'Evaluation not found (already deleted)', method: 'github' });
+      }
+
+      if (!getResp.ok) {
+        const text = await getResp.text();
+        console.error('delete evaluation: get SHA failed:', text);
+        return res.status(502).json({ error: `Read failed: ${text}` });
+      }
+
+      const existing = await getResp.json();
+      const sha = existing.sha || '';
+
+      if (!sha) {
+        return res.status(502).json({ error: 'Could not retrieve file SHA' });
+      }
+
+      // Delete the file using GitHub API
+      const deleteResp = await fetch(apiBase, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: `Delete evaluation ${evaluationId} for ${userEmail}`,
+          sha: sha,
+          branch: 'main'
+        })
+      });
+
+      if (!deleteResp.ok) {
+        const text = await deleteResp.text();
+        console.error('delete evaluation: GitHub delete failed:', text);
+        return res.status(502).json({ error: `Delete failed: ${text}` });
+      }
+
+      return res.json({ ok: true, message: 'Evaluation deleted from GitHub', method: 'github' });
+    }
+
+    // Fallback to local file deletion
+    try {
+      const evalDir = path.join(LOCAL_DATA_DIR, prefix, 'evaluations');
+      const localFilePath = path.join(evalDir, `${evalIdSafe}.json`);
+
+      // Check if file exists
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+        return res.json({ ok: true, message: 'Evaluation deleted locally', method: 'local' });
+      } else {
+        // File doesn't exist, consider it successfully deleted
+        return res.json({ ok: true, message: 'Evaluation not found (already deleted)', method: 'local' });
+      }
+    } catch (err) {
+      console.error('delete evaluation: local delete failed:', err);
+      return res.status(500).json({ error: 'Local delete failed' });
+    }
+  } catch (err) {
+    console.error('delete evaluation error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // List evaluations for a user. Uses server token when available; falls back to local storage.
 app.get('/api/evaluations/list', requireAuth, async (req, res) => {
   try {
