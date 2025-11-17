@@ -1478,8 +1478,8 @@ app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) =>
         // Continue without blocking unique file save
       }
 
-      const bodyObj = buildUpdatedUserAggregate(userEmail, evaluation, existingUser, filePath);
       const now = new Date().toISOString();
+      const bodyObj = buildUpdatedUserAggregate(userEmail, evaluation, existingUser, filePath, now);
       const bodyStr = JSON.stringify(bodyObj, null, 2);
       const bodyB64 = Buffer.from(bodyStr, 'utf8').toString('base64');
       const aggMsg = userSha ? `Update profile via Server - ${now}` : `Create profile via Server - ${now}`;
@@ -1521,7 +1521,7 @@ app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) =>
       // Update aggregate local user file
       const existingUser = await readLocalUser(prefix);
       const localEvalPath = `local:${prefix}/evaluations/${evalIdSafe}.json`;
-      const bodyObj = buildUpdatedUserAggregate(userEmail, evaluation, existingUser, localEvalPath);
+      const bodyObj = buildUpdatedUserAggregate(userEmail, evaluation, existingUser, localEvalPath, now);
       await writeLocalUser(prefix, bodyObj);
 
       return res.json({ ok: true, path: `local:${prefix}/evaluations/${evalIdSafe}.json`, method: 'local' });
