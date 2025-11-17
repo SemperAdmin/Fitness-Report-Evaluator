@@ -111,18 +111,16 @@ function jumpToStep(step) {
 }
 
 function isStepAccessible(step) {
-    // Access evaluationMeta through the Evaluation API module
-    const evalMeta = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.evaluationMeta)
-        ? window.Evaluation.evaluationMeta
+    // Access evaluationMeta through the Evaluation API module's state object
+    const evalState = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.state)
+        ? window.Evaluation.state
         : {};
-    const evalResults = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.evaluationResults)
-        ? window.Evaluation.evaluationResults
-        : {};
-    const traits = (typeof window !== 'undefined' && window.Evaluation && window.Evaluation.allTraits)
-        ? window.Evaluation.allTraits
-        : [];
-    const traitIndex = (typeof window !== 'undefined' && window.Evaluation && typeof window.Evaluation.currentTraitIndex === 'number')
-        ? window.Evaluation.currentTraitIndex
+
+    const evalMeta = evalState.evaluationMeta || {};
+    const evalResults = evalState.evaluationResults || {};
+    const traits = evalState.allTraits || [];
+    const traitIndex = typeof evalState.currentTraitIndex === 'number'
+        ? evalState.currentTraitIndex
         : 0;
 
     switch(step) {

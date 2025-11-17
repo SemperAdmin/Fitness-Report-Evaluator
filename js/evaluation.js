@@ -199,12 +199,13 @@ function startEvaluation() {
     isReportingSenior = (selection === 'yes');
     initializeTraits();
 
-    const setupCard = document.getElementById('setupCard');
-    const howItWorksCard = document.getElementById('howItWorksCard');
-    const dataWarning = document.getElementById('dataWarning');
-    if (setupCard) setupCard.style.display = 'none';
-    if (howItWorksCard) howItWorksCard.style.display = 'none';
-    if (dataWarning) dataWarning.style.display = 'none';
+    const cardIdsToHide = ['setupCard', 'howItWorksCard', 'dataWarning'];
+    cardIdsToHide.forEach(id => {
+        const card = document.getElementById(id);
+        if (card) {
+            card.style.display = 'none';
+        }
+    });
 
     // Ensure the evaluation UI becomes visible
     try {
@@ -292,7 +293,7 @@ function renderCurrentTrait() {
         console.error('No trait found at index:', currentTraitIndex);
         console.error('allTraits length:', allTraits.length);
         console.error('allTraits:', allTraits);
-        container.innerHTML = '<div class="evaluation-card"><p style="color: red; padding: 20px;">Error: No traits available. Please refresh and try again.</p></div>';
+        container.innerHTML = '<div class="evaluation-card"><p class="evaluation-error-message">Error: No traits available. Please refresh and try again.</p></div>';
         return;
     }
 

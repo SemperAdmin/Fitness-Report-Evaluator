@@ -398,6 +398,12 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Error message styling for evaluation errors */
+.evaluation-error-message {
+    color: #dc2626;
+    padding: 20px;
+}
+
 /* Decorative Typewriter Animation (Uiverse.io by Nawsome) */
 .typewriter-wrapper {
     display: flex;
