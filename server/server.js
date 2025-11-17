@@ -1765,7 +1765,7 @@ app.get('/api/debug/github', (req, res) => {
 // Mount admin routes at /api/admin/* - protected by requireAdmin middleware
 // Admin routes use existing HMAC token auth (req.sessionUser) and check ADMIN_USERNAME env var
 try {
-  const adminRouter = require('./server/admin-routes');
+  const adminRouter = require('./admin-routes');
   app.use('/api/admin', adminRouter);
   console.log('[admin] Admin routes mounted at /api/admin');
 } catch (err) {
