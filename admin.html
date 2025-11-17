@@ -16,12 +16,12 @@
   <main class="admin-main">
     <!-- Admin dashboard relies on normal app login/session; no separate admin login form. -->
     <div class="tabs" id="adminTabs" style="display:flex;gap:8px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">
-      <button id="tabOverview" class="tab active" style="padding:8px 12px;border:none;border-bottom:2px solid #2563eb;background:none;cursor:pointer;">Overview</button>
-      <button id="tabUsers" class="tab" style="padding:8px 12px;border:none;background:none;cursor:pointer;">Users</button>
+      <button id="tabOverview" class="tab" style="padding:8px 12px;border:none;background:none;cursor:pointer;">Overview</button>
+      <button id="tabUsers" class="tab active" style="padding:8px 12px;border:none;border-bottom:2px solid #2563eb;background:none;cursor:pointer;">Users</button>
       <button id="tabAnalytics" class="tab" style="padding:8px 12px;border:none;background:none;cursor:pointer;">Analytics</button>
     </div>
 
-    <section class="panel" id="overviewPanel">
+    <section class="panel" id="overviewPanel" style="display:none;">
       <h2>Overview</h2>
       <div class="grid metrics-grid">
         <div class="card"><div class="label">Total Users</div><div class="value" id="metricTotalUsers">—</div></div>
@@ -87,7 +87,7 @@
       </div>
     </section>
 
-    <section class="panel" id="usersPanel">
+    <section class="panel" id="usersPanel" style="display:block;">
       <h2>Users</h2>
       <div class="toolbar">
         <input id="searchInput" type="search" placeholder="Search name or username" />
