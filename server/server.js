@@ -771,6 +771,14 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
   if (!ok) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+
+    // Debug logging for successful login
+    console.log('[login] Success:', {
+      originalUsername: username,
+      sanitizedUsername: sanitizePrefix(username),
+      foundFile: filename || 'local'
+    });
+
     // Issue HttpOnly session cookie and CSRF cookie
     try {
       const now = Date.now();
@@ -1508,6 +1516,16 @@ app.get('/api/evaluations/list', requireAuth, async (req, res) => {
     try {
       const reqUser = sanitizePrefix(username);
       const sessUser = sanitizePrefix(req.sessionUser || '');
+
+      // Debug logging to diagnose 403 errors
+      console.log('[evaluations/list] Debug:', {
+        requestedUsername: username,
+        sanitizedReqUser: reqUser,
+        sessionUser: req.sessionUser,
+        sanitizedSessUser: sessUser,
+        match: reqUser === sessUser
+      });
+
       if (!sessUser || reqUser !== sessUser) {
         return res.status(403).json({ error: 'Forbidden: user mismatch' });
       }
