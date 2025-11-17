@@ -2483,15 +2483,20 @@ function showProfileDashboardOnLoad() {
         rsEmail: stored.rsEmail,
         rsRank: stored.rsRank,
         totalEvaluations: (stored.evaluations || []).length,
-        lastUpdated: stored.lastUpdated || new Date().toISOString()
+        lastUpdated: stored.lastUpdated || new Date().toISOString(),
+        isAdmin: stored.isAdmin || false
     };
     window.profileEvaluations = stored.evaluations || [];
 
-    showProfileDashboard();
-
-    // Prefer showing Dashboard instead of login/setup when a profile exists
-    loginCard.style.display = 'none';
-    dashboardCard.style.display = 'block';
+    // Check if user is admin and show appropriate dashboard
+    if (stored.isAdmin === true) {
+        showAdminDashboard();
+    } else {
+        showProfileDashboard();
+        // Prefer showing Dashboard instead of login/setup when a profile exists
+        loginCard.style.display = 'none';
+        dashboardCard.style.display = 'block';
+    }
 
     const setupCard = document.getElementById('setupCard');
     if (setupCard) setupCard.style.display = 'none';
@@ -3293,12 +3298,18 @@ function openProfileDashboardFromLogin() {
         rsEmail: stored.rsEmail,
         rsRank: stored.rsRank,
         totalEvaluations: (stored.evaluations || []).length,
-        lastUpdated: stored.lastUpdated || new Date().toISOString()
+        lastUpdated: stored.lastUpdated || new Date().toISOString(),
+        isAdmin: stored.isAdmin || false
     };
     window.profileEvaluations = stored.evaluations || [];
 
     // Render consistently via the dashboard entrypoint
-    showProfileDashboard();
+    // Check if user is admin and show appropriate dashboard
+    if (stored.isAdmin === true) {
+        showAdminDashboard();
+    } else {
+        showProfileDashboard();
+    }
 }
 
 // Auto-open Dashboard on load if a profile exists
@@ -3335,15 +3346,20 @@ function showProfileDashboardOnLoad() {
         rsEmail: stored.rsEmail,
         rsRank: stored.rsRank,
         totalEvaluations: (stored.evaluations || []).length,
-        lastUpdated: stored.lastUpdated || new Date().toISOString()
+        lastUpdated: stored.lastUpdated || new Date().toISOString(),
+        isAdmin: stored.isAdmin || false
     };
     window.profileEvaluations = stored.evaluations || [];
 
-    showProfileDashboard();
-
-    // Prefer showing Dashboard instead of login/setup when a profile exists
-    loginCard.style.display = 'none';
-    dashboardCard.style.display = 'block';
+    // Check if user is admin and show appropriate dashboard
+    if (stored.isAdmin === true) {
+        showAdminDashboard();
+    } else {
+        showProfileDashboard();
+        // Prefer showing Dashboard instead of login/setup when a profile exists
+        loginCard.style.display = 'none';
+        dashboardCard.style.display = 'block';
+    }
 
     const setupCard = document.getElementById('setupCard');
     if (setupCard) setupCard.style.display = 'none';
@@ -3844,15 +3860,93 @@ function viewUserDetails(username) {
 }
 
 function adminLogout() {
+    // Ensure any open modals/overlays are closed so interactions aren't blocked
+    try {
+        if (window.ModalController && typeof window.ModalController.closeAll === 'function') {
+            window.ModalController.closeAll();
+        } else {
+            document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch(_) {} });
+            document.body.classList.remove('sa-modal-open');
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+        }
+        const navOverlay = document.getElementById('navMenuOverlay');
+        if (navOverlay) navOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+    } catch (_) { /* ignore cleanup errors */ }
+
+    // Attempt to clear server-side session cookies
+    try {
+        const LOGOUT_ROUTE = (window.CONSTANTS && window.CONSTANTS.ROUTES && window.CONSTANTS.ROUTES.API && window.CONSTANTS.ROUTES.API.ACCOUNT_LOGOUT) || '/api/account/logout';
+        fetch(LOGOUT_ROUTE, { method: 'POST', credentials: 'include' }).catch(function() {});
+    } catch (_) { /* ignore */ }
+
     currentProfile = null;
     profileEvaluations = [];
+
+    // Clear session snapshot and login flags
     localStorage.removeItem('current_profile');
     localStorage.removeItem('current_evaluations');
     localStorage.removeItem('has_profile');
-    sessionStorage.removeItem('login_source');
+    localStorage.removeItem('login_source');
+    // Also clear the session-scoped login source to prevent auto-routing
+    try { sessionStorage.removeItem('login_source'); } catch (_) {}
 
-    const LOGOUT_ROUTE = (window.CONSTANTS && window.CONSTANTS.ROUTES && window.CONSTANTS.ROUTES.API && window.CONSTANTS.ROUTES.API.ACCOUNT_LOGOUT) || '/api/account/logout';
-    fetch(LOGOUT_ROUTE, { method: 'POST', credentials: 'include' }).catch(function() {});
+    // Hide admin dashboard
+    const adminDash = document.getElementById('adminDashboardCard');
+    if (adminDash) {
+        adminDash.classList.remove('active');
+        adminDash.style.display = 'none';
+    }
 
-    window.location.reload();
+    // Hide regular dashboard too (in case it's visible)
+    const dash = document.getElementById('profileDashboardCard');
+    if (dash) {
+        dash.classList.remove('active');
+        dash.style.display = 'none';
+    }
+
+    // Route back to the main Mode Selection home page
+    const header = document.querySelector('.header');
+    const warning = document.getElementById('dataWarning');
+    const mode = document.getElementById('modeSelectionCard');
+
+    // Restore app chrome and clear login class; set home-mode
+    try {
+        document.body.classList.remove('auth-login');
+        document.body.classList.add('home-mode');
+    } catch (_) {}
+    // Restore app chrome
+    if (header) header.style.display = '';
+    if (warning) warning.style.display = '';
+
+    // Hide all app cards
+    const cardsToHide = [
+        'profileLoginCard',
+        'setupCard',
+        'howItWorksCard',
+        'evaluationContainer',
+        'reviewCard',
+        'sectionIGenerationCard',
+        'directedCommentsCard',
+        'summaryCard'
+    ];
+    cardsToHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.classList.remove('active');
+            el.style.display = 'none';
+        }
+    });
+
+    // Show the welcome Mode Selection card via centralized exclusive toggle
+    try {
+        if (window.UIStates && typeof window.UIStates.toggleExclusive === 'function') {
+            window.UIStates.toggleExclusive('modeSelectionCard','profileLoginCard');
+        }
+    } catch (_) {}
+    if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
+
+    window.scrollTo({ top: 0, behavior: 'auto' });
 }
