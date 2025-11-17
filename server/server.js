@@ -15,6 +15,11 @@ let CONSTANTS;
 try { CONSTANTS = require('../js/constants.js'); } catch (_) { CONSTANTS = null; }
 
 const app = express();
+
+// Trust proxy for correct client IP detection behind reverse proxy/load balancer
+// Required for rate limiting to work correctly on Render, Vercel, etc.
+app.set('trust proxy', 1);
+
 app.use(express.json());
 // Accept URL-encoded bodies to enable simple cross-origin POST without preflight
 // This helps login work even if the browser blocks preflight on some devices/networks.
@@ -1755,6 +1760,18 @@ app.get('/api/debug/github', (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ===== ADMIN DASHBOARD ROUTES =====
+// Mount admin routes at /api/admin/* - protected by requireAdmin middleware
+// Admin routes use existing HMAC token auth (req.sessionUser) and check ADMIN_USERNAME env var
+try {
+  const adminRouter = require('./admin-routes');
+  app.use('/api/admin', adminRouter);
+  console.log('[admin] Admin routes mounted at /api/admin');
+} catch (err) {
+  console.error('[admin] Failed to load admin routes:', err?.message || err);
+  console.error('[admin] Admin dashboard will not be available');
+}
 
 // Start server if executed directly
 if (require.main === module) {
