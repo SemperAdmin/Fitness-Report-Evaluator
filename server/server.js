@@ -1536,7 +1536,7 @@ app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) =>
 
 // Delete a single evaluation file from GitHub or local storage
 // Path: users/{email_local}/evaluations/{evaluationId}.json
-app.delete('/api/evaluation/delete', saveRateLimit, requireAuth, async (req, res) => {
+app.post('/api/evaluation/delete', saveRateLimit, requireAuth, async (req, res) => {
   try {
     const { evaluationId, userEmail } = req.body || {};
     if (!evaluationId) {
