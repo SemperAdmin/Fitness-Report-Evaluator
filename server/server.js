@@ -201,6 +201,16 @@ app.use((req, _res, next) => {
   req.cookies = parseCookies(req.headers.cookie || '');
   const tok = req.cookies['fitrep_session'] || '';
   const sess = verifySessionToken(tok);
+
+  // Debug logging to diagnose session user issues
+  console.log('[session-middleware] Debug:', {
+    hasCookieHeader: Boolean(req.headers.cookie),
+    hasSessionCookie: Boolean(tok),
+    sessionValid: Boolean(sess),
+    sessionUser: sess?.u || 'none',
+    willSetReqSessionUser: Boolean(sess && sess.u)
+  });
+
   if (sess && sess.u) {
     req.sessionUser = String(sess.u);
   }
@@ -796,6 +806,16 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
         serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
         serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
       ];
+
+      // Debug logging for cookie setting
+      console.log('[login] Setting cookies:', {
+        username: sanitizePrefix(username),
+        sessionUser: payload.u,
+        cookieSecure: COOKIE_SECURE,
+        cookieSameSite: COOKIE_SAMESITE,
+        cookieCount: cookies.length
+      });
+
       // Append cookies without clobbering existing headers
       res.setHeader('Set-Cookie', cookies);
     } catch (_) { /* cookie setting best-effort */ }
