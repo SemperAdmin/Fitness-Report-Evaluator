@@ -20,6 +20,7 @@ function createRateLimiter({ windowMs, limit, name }) {
   const hits = new Map();
 
   // Periodic cleanup to prevent memory leaks
+  // Run every half-window for better memory efficiency
   const cleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [ip, entry] of hits.entries()) {
@@ -27,7 +28,7 @@ function createRateLimiter({ windowMs, limit, name }) {
         hits.delete(ip);
       }
     }
-  }, windowMs * 2);
+  }, windowMs / 2);
 
   cleanupInterval.unref(); // Don't keep process alive
 
@@ -168,12 +169,8 @@ async function auditLog({ action, admin, target, ip, metadata, severity = 'info'
     metadata: metadata || {}
   };
 
-  // Always log to console
-  const severityPrefix = severity === 'critical' ? '🔴' : severity === 'warning' ? '⚠️' : 'ℹ️';
-  console.log(`[admin-audit] ${severityPrefix} ${timestamp} | ${admin} | ${action} | target: ${target || 'n/a'} | IP: ${ip || 'unknown'}`);
-  if (metadata && Object.keys(metadata).length > 0) {
-    console.log(`[admin-audit]   metadata:`, JSON.stringify(metadata));
-  }
+  // Always log to console as structured JSON for better observability
+  console.log(JSON.stringify({ ...logEntry, component: 'admin-audit' }));
 
   // Write to daily log file in production
   if (process.env.NODE_ENV === 'production' || process.env.AUDIT_LOG_FILE === 'true') {
@@ -192,7 +189,7 @@ async function auditLog({ action, admin, target, ip, metadata, severity = 'info'
   if (severity === 'critical') {
     try {
       const token = process.env.GITHUB_TOKEN || process.env.DISPATCH_TOKEN || '';
-      const repo = process.env.GITHUB_REPO || process.env.MAIN_REPO || 'SemperAdmin/Fitness-Report-Evaluator';
+      const repo = process.env.GITHUB_REPO || process.env.MAIN_REPO;
       if (token && repo) {
         const issueTitle = `[Admin Audit] Critical Action: ${action}`;
         const issueBody = [

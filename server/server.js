@@ -15,6 +15,11 @@ let CONSTANTS;
 try { CONSTANTS = require('../js/constants.js'); } catch (_) { CONSTANTS = null; }
 
 const app = express();
+
+// Trust proxy for correct client IP detection behind reverse proxy/load balancer
+// Required for rate limiting to work correctly on Render, Vercel, etc.
+app.set('trust proxy', 1);
+
 app.use(express.json());
 // Accept URL-encoded bodies to enable simple cross-origin POST without preflight
 // This helps login work even if the browser blocks preflight on some devices/networks.
