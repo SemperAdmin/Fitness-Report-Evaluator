@@ -3,6 +3,7 @@
   "rsName": "Semper Admin",
   "rsRank": "Admin",
   "passwordHash": "$2a$12$HRTl/ZzX0VpSQMgGJTWtp.LgrEN7m9aEspXfLgWRLvlHlwO63Cwue",
+  "isAdmin": true,
   "evaluationFiles": [],
   "evaluations": [],
   "createdDate": "2025-11-05T05:25:00.783Z",
