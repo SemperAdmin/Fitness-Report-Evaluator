@@ -292,7 +292,13 @@ async function accountLogin() {
 
         // Hide animation before transitioning to dashboard
         if (typewriter) typewriter.style.display = 'none';
-        showProfileDashboard();
+
+        // Check if user is admin and show appropriate dashboard
+        if (profile.isAdmin === true) {
+            showAdminDashboard();
+        } else {
+            showProfileDashboard();
+        }
 
         // Auto-sync any locally pending evaluations after successful login
         try {
@@ -3566,4 +3572,287 @@ function bindValidationHints() {
         if (caPwInput) caPwInput.addEventListener('input', updateConfirmPw);
         updateConfirmPw();
     }
+}
+
+// ========================================
+// Admin Dashboard Functions
+// ========================================
+let adminCurrentPage = 1;
+let adminPageSize = 20;
+let adminTotalItems = 0;
+let adminCurrentQuery = '';
+let adminCurrentSort = 'name';
+let adminCurrentRank = '';
+
+function showAdminDashboard() {
+    const login = document.getElementById('profileLoginCard');
+    const mode = document.getElementById('modeSelectionCard');
+    const dash = document.getElementById('profileDashboardCard');
+    const adminDash = document.getElementById('adminDashboardCard');
+
+    if (login) {
+        login.classList.remove('active');
+        login.style.display = 'none';
+    }
+    if (mode) {
+        mode.classList.remove('active');
+        mode.style.display = 'none';
+    }
+    if (dash) {
+        dash.style.display = 'none';
+        dash.classList.remove('active');
+    }
+    if (adminDash) {
+        adminDash.style.display = 'block';
+        adminDash.classList.add('active');
+    }
+
+    const header = document.querySelector('.header');
+    const warning = document.getElementById('dataWarning');
+    if (header) header.style.display = 'none';
+    if (warning) warning.style.display = 'none';
+
+    ['setupCard','howItWorksCard','evaluationContainer','reviewCard','sectionIGenerationCard','directedCommentsCard','summaryCard']
+        .forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.classList.remove('active'); el.style.display = 'none'; }
+        });
+
+    renderAdminHeader();
+    loadAdminUsers();
+    setupAdminEventListeners();
+
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
+}
+
+function renderAdminHeader() {
+    const nameEl = document.getElementById('adminHeaderName');
+    const emailEl = document.getElementById('adminHeaderEmail');
+
+    if (nameEl && currentProfile) {
+        nameEl.textContent = 'Admin Dashboard - ' + currentProfile.rsRank + ' ' + currentProfile.rsName;
+    }
+    if (emailEl && currentProfile) {
+        emailEl.textContent = currentProfile.rsEmail;
+    }
+}
+
+async function loadAdminUsers(page) {
+    if (typeof page === 'number') adminCurrentPage = Math.max(1, page);
+
+    try {
+        const q = encodeURIComponent(adminCurrentQuery);
+        const sort = encodeURIComponent(adminCurrentSort);
+        const rank = encodeURIComponent(adminCurrentRank);
+        const ADMIN_BASE = (window.CONSTANTS && window.CONSTANTS.ROUTES && window.CONSTANTS.ROUTES.API && window.CONSTANTS.ROUTES.API.ADMIN_BASE) || '/api/admin';
+        const path = ADMIN_BASE + '/users/list?page=' + adminCurrentPage + '&pageSize=' + adminPageSize + '&q=' + q + '&sort=' + sort + '&rank=' + rank;
+
+        const res = await fetch(path, { credentials: 'include' });
+        if (!res.ok) {
+            throw new Error('Failed to load users: ' + res.status);
+        }
+
+        const data = await res.json();
+        if (!data || data.ok !== true) {
+            throw new Error('Load failed');
+        }
+
+        adminTotalItems = data.total || 0;
+        const users = data.users || [];
+
+        renderAdminUsersTable(users);
+        renderAdminPagination();
+        updateAdminStats(data);
+    } catch (err) {
+        console.error('Failed to load admin users:', err);
+        renderAdminError('Failed to load users. Please try again.');
+    }
+}
+
+function renderAdminUsersTable(users) {
+    const tbody = document.getElementById('adminUsersTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!Array.isArray(users) || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="padding: 20px; text-align: center; color: #999;">No users found</td></tr>';
+        return;
+    }
+
+    users.forEach(user => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #eee';
+
+        const createdDate = user.created ? new Date(user.created).toLocaleDateString() : '—';
+        const status = user.deleted ? 'Deleted' : 'Active';
+        const type = user.isAdmin ? 'Admin' : 'User';
+        const evalCount = typeof user.evalCount === 'number' ? user.evalCount : 0;
+
+        const rankTd = document.createElement('td');
+        rankTd.style.padding = '12px';
+        rankTd.textContent = user.rank || '—';
+
+        const nameTd = document.createElement('td');
+        nameTd.style.padding = '12px';
+        nameTd.textContent = user.name || '—';
+
+        const usernameTd = document.createElement('td');
+        usernameTd.style.padding = '12px';
+        usernameTd.textContent = user.username || '—';
+
+        const createdTd = document.createElement('td');
+        createdTd.style.padding = '12px';
+        createdTd.textContent = createdDate;
+
+        const evalTd = document.createElement('td');
+        evalTd.style.padding = '12px';
+        evalTd.textContent = String(evalCount);
+
+        const statusTd = document.createElement('td');
+        statusTd.style.padding = '12px';
+        statusTd.textContent = status;
+
+        const typeTd = document.createElement('td');
+        typeTd.style.padding = '12px';
+        typeTd.textContent = type;
+
+        const actionsTd = document.createElement('td');
+        actionsTd.style.padding = '12px';
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn btn-secondary';
+        viewBtn.textContent = 'View';
+        viewBtn.onclick = function() { viewUserDetails(user.username || ''); };
+        actionsTd.appendChild(viewBtn);
+
+        tr.appendChild(rankTd);
+        tr.appendChild(nameTd);
+        tr.appendChild(usernameTd);
+        tr.appendChild(createdTd);
+        tr.appendChild(evalTd);
+        tr.appendChild(statusTd);
+        tr.appendChild(typeTd);
+        tr.appendChild(actionsTd);
+
+        tbody.appendChild(tr);
+    });
+}
+
+function renderAdminPagination() {
+    const pagination = document.getElementById('adminUsersPagination');
+    if (!pagination) return;
+
+    const totalPages = Math.max(1, Math.ceil(adminTotalItems / adminPageSize));
+    const prevDisabled = adminCurrentPage <= 1;
+    const nextDisabled = adminCurrentPage >= totalPages;
+
+    pagination.innerHTML = '';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '← Previous';
+    prevBtn.className = 'btn btn-secondary';
+    prevBtn.disabled = prevDisabled;
+    prevBtn.onclick = function() { loadAdminUsers(adminCurrentPage - 1); };
+
+    const info = document.createElement('span');
+    info.textContent = 'Page ' + adminCurrentPage + ' of ' + totalPages;
+    info.style.padding = '8px 15px';
+
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = 'Next →';
+    nextBtn.className = 'btn btn-secondary';
+    nextBtn.disabled = nextDisabled;
+    nextBtn.onclick = function() { loadAdminUsers(adminCurrentPage + 1); };
+
+    pagination.appendChild(prevBtn);
+    pagination.appendChild(info);
+    pagination.appendChild(nextBtn);
+}
+
+function renderAdminError(message) {
+    const tbody = document.getElementById('adminUsersTableBody');
+    if (!tbody) return;
+
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 8;
+    td.style.padding = '20px';
+    td.style.textAlign = 'center';
+    td.style.color = '#d32f2f';
+    td.textContent = message;
+    tr.appendChild(td);
+    tbody.innerHTML = '';
+    tbody.appendChild(tr);
+}
+
+function updateAdminStats(data) {
+    const totalUsersEl = document.getElementById('totalUsers');
+    const totalEvalsEl = document.getElementById('totalAdminEvaluations');
+
+    if (totalUsersEl) {
+        totalUsersEl.textContent = String(data.total || 0);
+    }
+    if (totalEvalsEl && data.totalEvaluations) {
+        totalEvalsEl.textContent = String(data.totalEvaluations || 0);
+    }
+}
+
+function setupAdminEventListeners() {
+    const searchInput = document.getElementById('adminSearchInput');
+    const sortSelect = document.getElementById('adminSortSelect');
+    const rankFilter = document.getElementById('adminRankFilter');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', debounceAdmin(function() {
+            adminCurrentQuery = (searchInput.value || '').trim();
+            adminCurrentPage = 1;
+            loadAdminUsers();
+        }, 300));
+    }
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            adminCurrentSort = sortSelect.value || 'name';
+            adminCurrentPage = 1;
+            loadAdminUsers();
+        });
+    }
+
+    if (rankFilter) {
+        rankFilter.addEventListener('change', function() {
+            adminCurrentRank = rankFilter.value || '';
+            adminCurrentPage = 1;
+            loadAdminUsers();
+        });
+    }
+}
+
+function debounceAdmin(fn, ms) {
+    let timeout;
+    return function() {
+        const args = arguments;
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(function() { fn.apply(context, args); }, ms);
+    };
+}
+
+function viewUserDetails(username) {
+    if (typeof showToast === 'function') {
+        showToast('Viewing details for user: ' + username, 'info');
+    }
+}
+
+function adminLogout() {
+    currentProfile = null;
+    profileEvaluations = [];
+    localStorage.removeItem('current_profile');
+    localStorage.removeItem('current_evaluations');
+    localStorage.removeItem('has_profile');
+    sessionStorage.removeItem('login_source');
+
+    const LOGOUT_ROUTE = (window.CONSTANTS && window.CONSTANTS.ROUTES && window.CONSTANTS.ROUTES.API && window.CONSTANTS.ROUTES.API.ACCOUNT_LOGOUT) || '/api/account/logout';
+    fetch(LOGOUT_ROUTE, { method: 'POST', credentials: 'include' }).catch(function() {});
+
+    window.location.reload();
 }

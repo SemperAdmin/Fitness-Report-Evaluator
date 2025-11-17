@@ -569,7 +569,78 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- Admin Dashboard Card -->
+    <div class="profile-card" id="adminDashboardCard" style="display: none;">
+        <div class="profile-header-section">
+            <div class="profile-info">
+                <div class="profile-name-row">
+                    <h2 id="adminHeaderName">Admin Dashboard</h2>
+                </div>
+                <p id="adminHeaderEmail">Administrator</p>
+            </div>
+            <div class="profile-stats">
+                <div class="stat-item">
+                    <span class="stat-value" id="totalUsers">0</span>
+                    <span class="stat-label">Total Users</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="totalAdminEvaluations">0</span>
+                    <span class="stat-label">Total Evaluations</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value status-dot offline"></span>
+                    <span class="stat-label" id="adminConnectionStatus">Offline - Changes saved locally</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Actions Bar -->
+        <div class="profile-actions-bar">
+            <button class="Btn" id="adminLogoutBtn" onclick="adminLogout()" data-tooltip="Logout and return to home" data-tooltip-delay="250" data-tooltip-hide-delay="100" data-tooltip-max-width="240" data-tooltip-pos="auto">
+                <div class="sign"><svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg></div>
+                <div class="text">Logout</div>
+            </button>
+        </div>
+
+        <!-- User List Section -->
+        <div class="admin-users-section">
+            <h3 style="color: #1e3c72; margin-bottom: 15px;">All Users</h3>
+            <div class="toolbar" style="margin-bottom: 15px;">
+                <input id="adminSearchInput" type="search" placeholder="Search by name or username" style="padding: 8px; border: 1px solid #ccc; border-radius: 6px; width: 250px;" />
+                <select id="adminSortSelect" style="padding: 8px; border: 1px solid #ccc; border-radius: 6px; margin-left: 10px;">
+                    <option value="name">Sort by Name</option>
+                    <option value="username">Sort by Username</option>
+                    <option value="evalCount">Sort by Evaluations</option>
+                    <option value="created">Sort by Date Created</option>
+                </select>
+                <select id="adminRankFilter" style="padding: 8px; border: 1px solid #ccc; border-radius: 6px; margin-left: 10px;">
+                    <option value="">All Ranks</option>
+                </select>
+            </div>
+            <div class="table-responsive" style="overflow-x: auto;">
+                <table class="table sticky" id="adminUsersTable" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+                            <th style="padding: 12px; text-align: left;">Rank</th>
+                            <th style="padding: 12px; text-align: left;">Name</th>
+                            <th style="padding: 12px; text-align: left;">Username</th>
+                            <th style="padding: 12px; text-align: left;">Created</th>
+                            <th style="padding: 12px; text-align: left;">Evaluations</th>
+                            <th style="padding: 12px; text-align: left;">Status</th>
+                            <th style="padding: 12px; text-align: left;">Type</th>
+                            <th style="padding: 12px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminUsersTableBody">
+                        <tr><td colspan="8" style="padding: 20px; text-align: center; color: #999;">Loading users...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="adminUsersPagination" style="margin-top: 15px; display: flex; justify-content: center; gap: 10px;"></div>
+        </div>
+    </div>
+
     <div class="profile-card" id="profileDashboardCard" style="display: none;">
         <!-- Breadcrumb Navigation -->
         <div class="breadcrumb-nav" id="breadcrumbNav">
