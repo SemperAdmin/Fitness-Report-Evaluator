@@ -1711,17 +1711,65 @@ function continueStartNewEvaluation() {
     }
 }
 
-function deleteEvaluation(evalId) {
+async function deleteEvaluation(evalId) {
     if (!confirm('Delete this evaluation? This cannot be undone.')) {
         return;
     }
 
+    // Remove from local array immediately for responsive UI
+    const evaluation = profileEvaluations.find(e => e.evaluationId === evalId);
     profileEvaluations = profileEvaluations.filter(e => e.evaluationId !== evalId);
 
     const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
     saveEvaluationsToLocal(profileKey, profileEvaluations);
 
+    // Delete from IndexedDB if available
+    try {
+        if (window.idbStore && currentProfile.rsEmail) {
+            const key = `${currentProfile.rsEmail}:${evalId}`;
+            await window.idbStore.delete('evaluations', key);
+        }
+    } catch (err) {
+        console.warn('Failed to delete from IndexedDB:', err);
+    }
+
     renderEvaluationsList();
+
+    // Call backend API to delete from GitHub/server storage
+    if (navigator.onLine && currentProfile.rsEmail) {
+        try {
+            const csrfToken = document.cookie.split('; ').find(row => row.startsWith('fitrep_csrf='))?.split('=')[1] || '';
+            const DELETE_ROUTE = (window.CONSTANTS && window.CONSTANTS.ROUTES && window.CONSTANTS.ROUTES.API && window.CONSTANTS.ROUTES.API.EVALUATION_DELETE) || '/api/evaluation/delete';
+
+            const response = await fetch(DELETE_ROUTE, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    evaluationId: evalId,
+                    userEmail: currentProfile.rsEmail
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.ok) {
+                console.log('Evaluation deleted from backend:', result.message);
+                showToast('Evaluation deleted successfully', 'success');
+            } else {
+                console.error('Failed to delete from backend:', result.error);
+                showToast('Warning: Deleted locally but backend deletion failed', 'warning');
+            }
+        } catch (err) {
+            console.error('Error calling delete API:', err);
+            showToast('Warning: Deleted locally but could not sync to backend', 'warning');
+        }
+    } else if (!navigator.onLine) {
+        showToast('Offline: Evaluation deleted locally. Will sync when online.', 'info');
+    }
 }
 
 function exportEvaluation(evalId) {
