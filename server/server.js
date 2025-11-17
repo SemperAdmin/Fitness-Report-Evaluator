@@ -826,6 +826,7 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
         rsName: user.rsName,
         rsEmail: user.rsEmail,
         rsRank: user.rsRank,
+        isAdmin: user.isAdmin || false,
         lastUpdated: user.lastUpdated || new Date().toISOString()
       },
       // evaluations removed; per-evaluation files are now used
