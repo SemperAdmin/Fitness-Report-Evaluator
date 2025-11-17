@@ -726,9 +726,10 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
     const prefix = sanitizePrefix(username);
     // Try GitHub first. Use server token if present; otherwise accept client-provided token; else anonymous for public.
     let user = null;
+    let filename = `${prefix}.json`; // Declare outside try block for logging
     try {
       const token = process.env.FITREP_DATA || req.headers['x-github-token'] || req.body?.token || '';
-      let filename = `${prefix}.json`; // Try lowercase first
+      filename = `${prefix}.json`; // Try lowercase first
       let apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${filename}`;
       const headers = { 'Accept': 'application/vnd.github+json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
