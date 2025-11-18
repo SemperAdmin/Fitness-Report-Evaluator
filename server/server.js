@@ -212,13 +212,31 @@ app.use((req, res, next) => {
   if (path === ((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_LOGIN) || '/api/account/login')) return next();
     // Only enforce when a session exists
     if (!req.sessionUser) return next();
+
     const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'] || '';
     const cookieToken = req.cookies['fitrep_csrf'] || '';
+    const origin = req.get('origin') || '';
+    const isCrossOrigin = origin && !origin.includes(req.hostname);
+
+    // For cross-origin requests from allowlisted origins, cookie may be blocked by browser
+    // Validate header token exists and origin is trusted
+    if (isCrossOrigin && CORS_ORIGINS.includes(origin)) {
+      if (!headerToken) {
+        console.warn('[csrf] Cross-origin request missing header token from', origin);
+        return res.status(403).json({ error: 'CSRF token invalid' });
+      }
+      // Token exists in header and origin is trusted - allow request
+      return next();
+    }
+
+    // For same-origin requests, enforce double-submit cookie pattern
     if (!headerToken || !cookieToken || String(headerToken) !== String(cookieToken)) {
+      console.warn('[csrf] Same-origin CSRF validation failed - header:', !!headerToken, 'cookie:', !!cookieToken, 'match:', headerToken === cookieToken);
       return res.status(403).json({ error: 'CSRF token invalid' });
     }
     next();
   } catch (e) {
+    console.error('[csrf] CSRF check exception:', e);
     return res.status(403).json({ error: 'CSRF check failed' });
   }
 });
