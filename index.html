@@ -247,7 +247,6 @@
             
             <div class="review-actions">
                 <div class="button-row">
-                    <button class="btn btn-secondary" onclick="goBackToLastTrait()">← Back to Traits</button>
                     <button class="btn btn-meets" onclick="proceedToDirectedComments()">Continue to Directed Comments</button>
                 </div>
             </div>
@@ -299,7 +298,6 @@
             </div>
             
             <div class="button-row">
-                <button class="btn btn-secondary" onclick="skipSectionI()">Skip Section I</button>
                 <button class="btn btn-meets" onclick="finalizeSectionI()">Continue to Summary</button>
             </div>
         </div>
@@ -321,7 +319,6 @@
             </div>
             
             <div class="button-row">
-                <button class="btn btn-secondary" onclick="skipDirectedComments()">Skip Directed Comments</button>
                 <button class="btn btn-meets" onclick="finalizeDirectedComments()">Continue to Section I</button>
             </div>
         </div>
@@ -805,7 +802,7 @@
           const isGhPages = window.location.origin.includes('semperadmin.github.io');
           const hostname = window.location.hostname.toLowerCase();
           const port = Number(window.location.port || 0);
-          const KNOWN_BACKEND_PORTS = [5173, 5174, 8081, 8080];
+          const KNOWN_BACKEND_PORTS = [5173, 5174, 8081, 8080, 10000];
           const isLocalHost = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1');
           const isKnownBackendPort = KNOWN_BACKEND_PORTS.includes(port);
           const isStaticDev = isLocalHost && !isKnownBackendPort; // treat any other local port as static

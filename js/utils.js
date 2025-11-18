@@ -24,18 +24,6 @@ function updateWordCount() {
     }
 }
 
-function updateProgress() {
-    const progress = (currentTraitIndex / allTraits.length) * 100;
-    document.getElementById('progressFill').style.width = progress + '%';
-    
-    if (currentTraitIndex < allTraits.length) {
-        const currentTrait = allTraits[currentTraitIndex];
-        document.getElementById('progressText').textContent = 
-            `${currentTrait.sectionTitle}: ${currentTrait.name} (${currentTraitIndex + 1} of ${allTraits.length})`;
-    } else {
-        document.getElementById('progressText').textContent = 'Directed Comments Selection';
-    }
-}
 
 function calculateFitrepAverage() {
     // Excel-style aliases for the 13/14 attributes
