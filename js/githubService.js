@@ -1529,6 +1529,11 @@ class GitHubDataService {
 // Create singleton instance
 const githubService = new GitHubDataService();
 
+// Expose to window for use by other scripts (e.g., profile.js)
+if (typeof window !== 'undefined') {
+    window.githubService = githubService;
+}
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { GitHubDataService, githubService, GITHUB_CONFIG };
