@@ -227,6 +227,14 @@ async function accountLogin() {
             rsRank: res.rsRank,
             lastUpdated: new Date().toISOString()
         };
+        try {
+            const remember = !!document.getElementById('rememberMeInput')?.checked;
+            if (remember) {
+                localStorage.setItem('remembered_username', email);
+            } else {
+                localStorage.removeItem('remembered_username');
+            }
+        } catch (_) {}
         // Fetch per-user evaluation files to populate events list
         // Always attempt to load evaluations; githubService will use backend fallback when no token
         let evaluations = [];
@@ -409,16 +417,14 @@ async function postJson(url, body) {
         : false;
     while (attempt < maxAttempts) {
         try {
-            const resp = await fetch(endpoint, {
-                method: 'POST',
-                headers,
-                // For cross-origin requests, omit credentials to avoid strict CORS failures
-                // If cookies are required, server must enable CORS with credentials and SameSite=None
-                credentials: isCrossOrigin ? 'omit' : 'include',
-                mode: 'cors',
-                cache: 'no-store',
-                body: JSON.stringify(payload)
-            });
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers,
+                    credentials: 'include',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    body: JSON.stringify(payload)
+                });
             if (!resp.ok) {
                 let error = `Request failed (${resp.status})`;
                 try { const data = await resp.json(); error = data.error || error; } catch (_) {}
@@ -454,7 +460,7 @@ async function postJson(url, body) {
                         endpoint: endpoint,
                         pageOrigin,
                         endpointOrigin,
-                        credentials: (isCrossOrigin ? 'omit' : 'include')
+                        credentials: 'include'
                     };
                 } else if (typeof window !== 'undefined') {
                     window.__lastApiError = { type: 'network', message: String(e && e.message || e) };
@@ -535,7 +541,7 @@ async function postForm(url, body) {
         const resp = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            credentials: isCrossOrigin ? 'omit' : 'include',
+            credentials: 'include',
             mode: 'cors',
             cache: 'no-store',
             body: payload.toString()
@@ -567,7 +573,7 @@ async function postForm(url, body) {
                     endpoint: endpoint,
                     pageOrigin,
                     endpointOrigin,
-                    credentials: (isCrossOrigin ? 'omit' : 'include')
+                    credentials: 'include'
                 };
             } else if (typeof window !== 'undefined') {
                 window.__lastApiError = { type: 'network', message: String(err && err.message || err) };
@@ -1647,7 +1653,7 @@ function closePendingSyncModal() {
         modal.classList.remove('active');
         modal.style.display = 'none';
         // Fallback cleanup for when ModalController is unavailable or fails
-        try { document.querySelectorAll('.sa-modal-backdrop[data-modal-id="pendingSyncModal"]').forEach(el => el.remove()); } catch (err) { console.warn('Error removing pendingSync backdrop:', err); }
+        try { document.querySelectorAll(`.sa-modal-backdrop[data-modal-id="${modal.id}"]`).forEach(el => el.remove()); } catch (err) { console.warn('Error removing pendingSync backdrop:', err); }
         try { document.body.classList.remove('sa-modal-open'); document.body.style.position=''; document.body.style.top=''; document.body.style.width=''; } catch (err) { /* ignore */ }
     }
     const nextEl = document.getElementById('pendingSyncNextAction');
