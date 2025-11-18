@@ -403,17 +403,50 @@ async function postJson(url, body) {
     const maxAttempts = 3;
     let attempt = 0;
     let lastError = null;
+
+    // Determine credentials mode using allowlist-aware logic
+    // Matches githubService._getFetchCredentials to ensure session cookies are sent
+    // to allowlisted cross-origin endpoints (e.g., Render backend from GitHub Pages)
+    const getCredentialsMode = (endpointUrl) => {
+        try {
+            const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
+            const pageProtocol = (typeof window !== 'undefined' && window.location?.protocol) || '';
+            const url = new URL(endpointUrl);
+            const endpointOrigin = url.origin;
+            const endpointProtocol = url.protocol;
+
+            // Same-origin: always include credentials
+            if (pageOrigin && endpointOrigin === pageOrigin) {
+                return 'include';
+            }
+
+            // Cross-origin: check allowlist and require HTTPS for both origins
+            const allowlist = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
+                ? window.API_ALLOWED_ORIGINS
+                : [];
+            const isSecureContext = (pageProtocol === 'https:' && endpointProtocol === 'https:');
+            if (allowlist.includes(endpointOrigin) && isSecureContext) {
+                return 'include';
+            }
+
+            // Default: omit credentials for untrusted cross-origin requests
+            return 'omit';
+        } catch (_) {
+            return 'omit';
+        }
+    };
+
+    const credentialsMode = getCredentialsMode(endpoint);
     const isCrossOrigin = (typeof window !== 'undefined')
         ? (resolvedUrl.origin !== window.location.origin)
         : false;
+
     while (attempt < maxAttempts) {
         try {
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers,
-                // For cross-origin requests, omit credentials to avoid strict CORS failures
-                // If cookies are required, server must enable CORS with credentials and SameSite=None
-                credentials: isCrossOrigin ? 'omit' : 'include',
+                credentials: credentialsMode,
                 mode: 'cors',
                 cache: 'no-store',
                 body: JSON.stringify(payload)
