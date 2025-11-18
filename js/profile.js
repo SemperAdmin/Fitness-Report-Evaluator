@@ -232,14 +232,12 @@ async function accountLogin() {
         if (res.csrfToken) {
             try {
                 sessionStorage.setItem('fitrep_csrf_token', res.csrfToken);
-                if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
-                    console.log('[csrf] Stored CSRF token from login response');
-                }
+                debugLog('[csrf] Stored CSRF token from login response:', res.csrfToken.substring(0, 8) + '...');
             } catch (_) {
-                if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
-                    console.warn('[csrf] Failed to store CSRF token in sessionStorage');
-                }
+                debugWarn('[csrf] Failed to store CSRF token in sessionStorage');
             }
+        } else {
+            debugWarn('[csrf] No CSRF token in login response - backend may not have been updated');
         }
 
         // Fetch per-user evaluation files to populate events list
@@ -386,16 +384,7 @@ async function postJson(url, body) {
     const headers = { 'Content-Type': 'application/json' };
     // Include CSRF token: try sessionStorage first (for cross-origin), then cookie (for same-origin)
     try {
-        let csrf = null;
-        // Cross-origin: use token from sessionStorage (set during login)
-        try {
-            csrf = sessionStorage.getItem('fitrep_csrf_token');
-        } catch (_) { /* sessionStorage may not be available */ }
-        // Same-origin fallback: read from cookie
-        if (!csrf) {
-            const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
-            csrf = m ? decodeURIComponent(m[1]) : null;
-        }
+        const csrf = getCsrfToken();
         if (csrf) headers['X-CSRF-Token'] = csrf;
     } catch (_) { /* ignore */ }
     let assembledToken = null;

@@ -854,6 +854,8 @@
     <!-- Centralized constants: load early so subsequent modules can reference them -->
     <script src="js/constants.js"></script>
     <script src="js/data.js"></script>
+    <!-- Utils must load before githubService and profile for helper functions -->
+    <script src="js/utils.js"></script>
     <script src="js/githubService.js"></script>
     <!-- Legacy IndexedDB (deprecated) -->
     <script src="js/idbStore.js"></script>
@@ -862,7 +864,6 @@
     <script src="js/unifiedStorage.js"></script>
     <script src="js/storageHelpers.js"></script>
     <script src="js/voice.js"></script>
-    <script src="js/utils.js"></script>
     <!-- Redux via jsDelivr for non-React usage -->
     <script src="https://cdn.jsdelivr.net/npm/redux@4.2.1/dist/redux.min.js" crossorigin="anonymous"></script>
     <!-- Form state core and store wiring -->

@@ -1,5 +1,60 @@
 // Utility Functions
 
+/**
+ * Debug logging utilities - only log when DEBUG_CREDENTIALS flag is enabled
+ */
+function debugLog(...args) {
+    if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+        console.log(...args);
+    }
+}
+
+function debugWarn(...args) {
+    if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+        console.warn(...args);
+    }
+}
+
+/**
+ * Get CSRF token for API requests
+ * Tries sessionStorage first (cross-origin), then document.cookie (same-origin)
+ *
+ * @returns {string|null} CSRF token or null if not found
+ */
+function getCsrfToken() {
+    let csrf = null;
+    try {
+        // Try sessionStorage first for cross-origin scenarios
+        if (typeof sessionStorage !== 'undefined') {
+            csrf = sessionStorage.getItem('fitrep_csrf_token');
+            if (csrf && typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                console.log('[csrf] Retrieved from sessionStorage:', csrf.substring(0, 8) + '...');
+            }
+        }
+    } catch (_) {
+        // sessionStorage may not be available or accessible
+    }
+
+    // Fallback to cookie for same-origin scenarios
+    if (!csrf && typeof document !== 'undefined') {
+        try {
+            const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
+            csrf = m ? decodeURIComponent(m[1]) : null;
+            if (csrf && typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                console.log('[csrf] Retrieved from cookie:', csrf.substring(0, 8) + '...');
+            }
+        } catch (_) {
+            // Ignore cookie parsing errors
+        }
+    }
+
+    if (!csrf && typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+        console.warn('[csrf] No CSRF token found in sessionStorage or cookies');
+    }
+
+    return csrf;
+}
+
 function getGradeNumber(grade) {
     const gradeNumbers = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 0 };
     return gradeNumbers[grade];
