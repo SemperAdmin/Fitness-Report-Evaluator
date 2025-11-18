@@ -1060,6 +1060,16 @@ global.editJustification = EvaluationAPI.editJustification;
 global.handleGradeAction = EvaluationAPI.handleGradeAction;
 global.evaluationShowSummary = EvaluationAPI.showSummary;
 global.evaluationResults = evaluationResults;
-global.allTraits = allTraits;
+// Expose allTraits and evaluationMeta as getters so they always return the current value
+Object.defineProperty(global, 'allTraits', {
+    get: function() { return allTraits; },
+    enumerable: true,
+    configurable: true
+});
+Object.defineProperty(global, 'evaluationMeta', {
+    get: function() { return evaluationMeta; },
+    enumerable: true,
+    configurable: true
+});
 
 })(typeof window !== 'undefined' ? window : globalThis);
