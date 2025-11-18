@@ -195,10 +195,11 @@ async function accountLogin() {
     try {
         // Send explicit username for clarity; keep email for compatibility
         const LOGIN_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_LOGIN) || '/api/account/login';
-        let res = await postJson(LOGIN_ROUTE, { email, username: email, password });
+        const remember = !!document.getElementById('rememberMeInput')?.checked;
+        let res = await postJson(LOGIN_ROUTE, { email, username: email, password, remember });
         // If network/CORS failed, retry using URL-encoded to avoid preflight
         if (!res || (!res.ok && res.status === 0)) {
-            res = await postForm(LOGIN_ROUTE, { email, username: email, password });
+            res = await postForm(LOGIN_ROUTE, { email, username: email, password, remember });
         }
         if (!res || !res.ok) {
             // Restore UI when login fails
@@ -3357,22 +3358,16 @@ function showProfileDashboardOnLoad() {
     const modeCard = document.getElementById('modeSelectionCard');
     if (!loginCard || !dashboardCard) return;
 
-    // Only auto-open if the user explicitly logged in in THIS SESSION
     const hasProfile = localStorage.getItem('has_profile') === 'true';
-    const loginSource = sessionStorage.getItem('login_source'); // session-scoped, not persistent
-    if (!hasProfile || loginSource !== 'form') {
-        // Default to Mode Selection on initial load
+    if (!hasProfile) {
+        // No persisted profile; show mode selection
         if (modeCard) { modeCard.classList.add('active'); modeCard.style.display = 'block'; }
         loginCard.classList.remove('active');
         loginCard.style.display = 'none';
         dashboardCard.classList.remove('active');
         dashboardCard.style.display = 'none';
-        
         const setupCard = document.getElementById('setupCard');
-        if (setupCard) {
-            setupCard.classList.remove('active');
-            setupCard.style.display = 'none';
-        }
+        if (setupCard) { setupCard.classList.remove('active'); setupCard.style.display = 'none'; }
         return;
     }
 

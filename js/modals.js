@@ -6,7 +6,7 @@
   const DISPLAY = (C.UI_SETTINGS && C.UI_SETTINGS.DISPLAY) || { BLOCK: 'block', NONE: 'none' };
   const CSS = (C.UI_SETTINGS && C.UI_SETTINGS.CSS) || { ACTIVE: 'active' };
   const BASE_BACKDROP_Z = 1000;
-  const BASE_MODAL_Z = 1010;
+  const BASE_MODAL_Z = 2000;
   const Z_STEP = 20; // gap between stacked layers
   const modalRegistry = new Map(); // id -> config for reusable defaults
 
@@ -157,19 +157,7 @@
 
       // Modal visuals and semantics
       modal.style.zIndex = String(entry.zIndexModal);
-      // Use flex centering for app overlay modals
-      if (modal.classList.contains('justification-modal') || modal.classList.contains('help-modal') || modal.classList.contains('reevaluate-modal')) {
-        modal.style.display = 'flex';
-        try {
-          modal.style.position = 'fixed';
-          modal.style.top = '0';
-          modal.style.left = '0';
-          modal.style.width = '100%';
-          modal.style.height = '100%';
-          modal.style.alignItems = 'center';
-          modal.style.justifyContent = 'center';
-        } catch (_) {}
-      } else {
+      if (!(modal.classList.contains('justification-modal') || modal.classList.contains('help-modal') || modal.classList.contains('reevaluate-modal'))) {
         modal.style.display = DISPLAY.BLOCK;
       }
       modal.classList.add(CSS.ACTIVE);

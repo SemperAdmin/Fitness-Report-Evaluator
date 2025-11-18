@@ -646,24 +646,23 @@ function populateReviewScreen() {
             const safeGradeDesc = escapeHtml(gradeDescription);
             const safeJustification = fullText ? nl2br(fullText) : '<em>No justification provided</em>';
 
-             return ` 
-                 <div class="review-trait-item" id="review-item-${trait.key}"> 
-                     <div class="review-trait-header"> 
-                         <div class="review-trait-name">${safeTraitName}</div> 
-                     </div> 
-                     <div class="review-trait-criteria"> 
-                         <div class="criteria-meets"> 
-                             <strong>Selected Standard:</strong> ${safeGradeDesc} 
-                         </div> 
-                     </div> 
-                     <div class="review-trait-justification" style="white-space: pre-line;"> 
-                         ${safeJustification} 
-                     </div> 
-                     <div class="button-row" style="margin-top: 10px;"> 
-                         <button class="btn btn-meets" onclick="editTrait('${trait.key}')">Re-evaluate Trait</button> 
-                     </div> 
-                 </div> 
-             `; 
+             return `
+<div class="review-trait-item" id="review-item-${trait.key}">
+  <div class="review-trait-header">
+    <div class="review-trait-name">${safeTraitName}</div>
+  </div>
+  <div class="review-trait-criteria">
+    <div class="criteria-meets">
+      <strong>Selected Standard:</strong> ${safeGradeDesc}
+    </div>
+  </div>
+  <div class="review-trait-justification" style="white-space: pre-line;">
+    ${safeJustification}
+  </div>
+  <div class="button-row" style="margin-top: 10px;">
+    <button class="btn btn-meets" onclick="editTrait('${trait.key}')">Re-evaluate Trait</button>
+  </div>
+</div>`; 
         }).join('');
 
         const sectionDiv = document.createElement('div');
