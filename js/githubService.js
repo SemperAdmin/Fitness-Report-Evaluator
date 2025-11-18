@@ -130,11 +130,10 @@ class GitHubDataService {
      * Mobile browsers enforce strict CORS; use credentials for same-origin
      * and HTTPS allowlisted cross-origins.
      *
-     * @private
      * @param {string} endpointUrl Full URL of the endpoint.
      * @returns {('include'|'omit')} Credentials mode.
      */
-    _getFetchCredentials(endpointUrl) {
+    getFetchCredentials(endpointUrl) {
         try {
             const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
             const pageProtocol = (typeof window !== 'undefined' && window.location?.protocol) || '';
@@ -723,7 +722,7 @@ class GitHubDataService {
                 }
 
                 // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
-                const credentials = this._getFetchCredentials(endpoint.url);
+                const credentials = this.getFetchCredentials(endpoint.url);
                 const sameOrigin = (typeof window !== 'undefined' && window.location?.origin)
                     ? (new URL(endpoint.url).origin === window.location.origin)
                     : false;
@@ -1154,7 +1153,7 @@ class GitHubDataService {
                     : { userData: normalized };
 
                 // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
-                const credentials = this._getFetchCredentials(endpoint.url);
+                const credentials = this.getFetchCredentials(endpoint.url);
 
                 // Simple retry/backoff for transient failures
                 const shouldRetryStatus = (s) => [429, 502, 503, 504].includes(Number(s));
@@ -1308,7 +1307,7 @@ class GitHubDataService {
                 urlObj.searchParams.set('email', userEmail);
 
                 // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
-                const credentials = this._getFetchCredentials(urlObj.toString());
+                const credentials = this.getFetchCredentials(urlObj.toString());
                 const resp = await fetch(urlObj.toString(), { credentials });
                 if (resp.ok) {
                     const data = await resp.json();
@@ -1453,7 +1452,7 @@ class GitHubDataService {
             }
 
             // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
-            const credentials = this._getFetchCredentials(ep.url);
+            const credentials = this.getFetchCredentials(ep.url);
 
             const resp = await fetch(ep.url, {
                 method: 'POST',
