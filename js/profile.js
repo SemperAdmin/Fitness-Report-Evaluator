@@ -1633,13 +1633,20 @@ function openPendingSyncModal(nextAction) {
 function closePendingSyncModal() {
     const modal = document.getElementById('pendingSyncModal');
     if (!modal) return;
+    let closedByController = false;
     if (window.ModalController && typeof window.ModalController.closeById === 'function') {
-        try { window.ModalController.closeById('pendingSyncModal'); } catch (err) { console.warn('ModalController close failed:', err); }
-    } else {
+        try {
+            window.ModalController.closeById('pendingSyncModal');
+            closedByController = true;
+        } catch (err) {
+            console.warn('ModalController close failed, falling back to manual cleanup:', err);
+        }
+    }
+    if (!closedByController) {
         try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
         modal.classList.remove('active');
         modal.style.display = 'none';
-        // Fallback cleanup only when ModalController is unavailable
+        // Fallback cleanup for when ModalController is unavailable or fails
         try { document.querySelectorAll('.sa-modal-backdrop[data-modal-id="pendingSyncModal"]').forEach(el => el.remove()); } catch (err) { console.warn('Error removing pendingSync backdrop:', err); }
         try { document.body.classList.remove('sa-modal-open'); document.body.style.position=''; document.body.style.top=''; document.body.style.width=''; } catch (err) { /* ignore */ }
     }
@@ -2179,6 +2186,8 @@ function continueLogoutProfile() {
         localStorage.removeItem('current_evaluations');
         localStorage.removeItem('has_profile');
         localStorage.removeItem('login_source');
+        localStorage.removeItem('remembered_username');
+        try { document.cookie = 'fitrep_user=; Max-Age=0; Path=/'; } catch (_) {}
         // Also clear the session-scoped login source to prevent auto-routing
         try { sessionStorage.removeItem('login_source'); } catch (_) {}
         
