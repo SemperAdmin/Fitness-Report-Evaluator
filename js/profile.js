@@ -1645,6 +1645,8 @@ function closePendingSyncModal() {
         modal.classList.remove('active');
         modal.style.display = 'none';
     }
+    try { document.querySelectorAll('.sa-modal-backdrop[data-modal-id="pendingSyncModal"]').forEach(el => el.remove()); } catch (err) { console.warn('Error removing pendingSync backdrop:', err); }
+    try { document.body.classList.remove('sa-modal-open'); document.body.style.position=''; document.body.style.top=''; document.body.style.width=''; } catch (err) { /* ignore */ }
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (nextEl) nextEl.value = '';
 }
