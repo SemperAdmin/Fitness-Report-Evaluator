@@ -70,7 +70,7 @@ class GitHubDataService {
         }
         const origin = endpointUrl.origin;
         try {
-            const allowed = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
+            const allowed = (typeof window !== 'undefined' && Array.isArray(window.API_ALLOWED_ORIGINS))
                 ? window.API_ALLOWED_ORIGINS
                 : [origin];
             const isLocal = (() => { try { const h = new URL(origin).hostname.toLowerCase(); return (h === 'localhost' || h === '127.0.0.1' || h === '::1'); } catch (_) { return false; } })();
@@ -147,7 +147,7 @@ class GitHubDataService {
 
             // Allow credentials for allowlisted cross-origin endpoints ONLY in secure (HTTPS) contexts
             // Browsers block cross-site cookies on insecure HTTP; avoid 'include' to prevent CORS failures
-            const allowlist = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
+            const allowlist = (typeof window !== 'undefined' && Array.isArray(window.API_ALLOWED_ORIGINS))
                 ? window.API_ALLOWED_ORIGINS
                 : [];
             const isSecureContext = (pageProtocol === 'https:' && endpointProtocol === 'https:');
