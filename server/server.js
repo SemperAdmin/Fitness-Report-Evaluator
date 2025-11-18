@@ -36,19 +36,20 @@ const CORS_ALLOW_ALL = CORS_ORIGINS.includes('*') || CORS_ORIGINS.length === 0;
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const defaultOrigin = `http://localhost:${process.env.PORT || (CONSTANTS && CONSTANTS.API_CONFIG && CONSTANTS.API_CONFIG.DEFAULT_LOCAL_PORT) || 5173}`;
-  // Include GitHub Pages origin by default to support static hosting
-  const pagesOrigin = 'https://semperadmin.github.io';
+  // Include common static hosting origins by default when an allowlist is present
   const allowedOrigins = CORS_ALLOW_ALL
     ? ['*']
-    : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, pagesOrigin])) : [defaultOrigin, pagesOrigin]);
+    : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS])) : [defaultOrigin]);
 
-  // Treat GitHub Pages and any localhost as explicitly allowed for credentialed requests
-  const originIsGhPages = Boolean(origin && origin.replace(/\/$/, '') === pagesOrigin);
+  // Treat any *.github.io and any localhost as explicitly allowed for credentialed requests
+  let originIsGhPages = false;
   let originIsLocalhost = false;
   try {
-    const h = new URL(origin).hostname.toLowerCase();
+    const u = new URL(origin);
+    const h = u.hostname.toLowerCase();
     originIsLocalhost = (h === 'localhost' || h === '127.0.0.1' || h === '::1');
-  } catch (_) { originIsLocalhost = false; }
+    originIsGhPages = (u.protocol === 'https:' && h.endsWith('github.io'));
+  } catch (_) { originIsLocalhost = false; originIsGhPages = false; }
   const isAllowed = originIsLocalhost || originIsGhPages || (!CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin)));
 
   // Always set standard CORS method allowances
