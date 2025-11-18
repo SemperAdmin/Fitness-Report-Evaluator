@@ -1,0 +1,152 @@
+name: Save Evaluation as YAML to Data Repo
+
+on:
+  repository_dispatch:
+    types: [save-evaluation]
+
+permissions:
+  contents: read
+
+jobs:
+  save_evaluation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show event payload
+        run: |
+          echo '${{ toJson(github.event.client_payload) }}' > payload.json
+          jq . payload.json || true
+
+      - name: Validate payload
+        run: |
+          set -e
+          id=$(jq -r '.evaluation.evaluationId // empty' payload.json)
+          email=$(jq -r '.createdBy.email // .evaluation.rsInfo.rsEmail // empty' payload.json)
+          if [ -z "$id" ]; then echo "Missing evaluationId in payload.evaluation" >&2; exit 1; fi
+          if [ -z "$email" ]; then echo "Missing createdBy.email or evaluation.rsInfo.rsEmail" >&2; exit 1; fi
+
+      - name: Set up Node.js and dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install js-yaml
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install js-yaml >/dev/null 2>&1
+
+      - name: Build YAML content and determine file path
+        id: build
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const yaml = require('js-yaml');
+
+          const payload = JSON.parse(fs.readFileSync('payload.json', 'utf8')) || {};
+          const evaluation = payload.evaluation || payload.userData?.evaluation || {};
+          const createdBy = payload.createdBy || {
+            name: payload.rsName,
+            email: payload.rsEmail,
+            rank: payload.rsRank,
+          };
+
+          if (!evaluation || !evaluation.evaluationId) {
+            console.error('Missing evaluationId in payload.evaluation');
+            process.exit(1);
+          }
+          if (!createdBy || !createdBy.email) {
+            console.error('Missing createdBy.email in payload or evaluation.rsInfo.rsEmail');
+            process.exit(1);
+          }
+
+          const email = createdBy.email;
+          const prefix = (email.split('@')[0] || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const safeId = String(evaluation.evaluationId).replace(/[^a-zA-Z0-9_.-]/g, '_');
+          const filePath = `users/${prefix}/evaluations/${safeId}.yml`;
+
+          const now = new Date().toISOString();
+
+          const doc = {
+            version: '1.0',
+            id: evaluation.evaluationId,
+            occasion: evaluation.occasion || null,
+            completedDate: evaluation.completedDate || null,
+            fitrepAverage: evaluation.fitrepAverage ?? null,
+            marine: {
+              name: evaluation.marineInfo?.name || null,
+              rank: evaluation.marineInfo?.rank || null,
+              evaluationPeriod: evaluation.marineInfo?.evaluationPeriod || null,
+            },
+            rs: {
+              name: evaluation.rsInfo?.rsName || createdBy.name || null,
+              email: evaluation.rsInfo?.rsEmail || createdBy.email || null,
+              rank: evaluation.rsInfo?.rsRank || createdBy.rank || null,
+            },
+            sectionIComments: evaluation.sectionIComments || null,
+            directedComments: evaluation.directedComments || null,
+            traitEvaluations: evaluation.traitEvaluations || [],
+            createdAt: now,
+            createdBy: {
+              name: createdBy.name || null,
+              email: createdBy.email || null,
+              rank: createdBy.rank || null,
+            },
+            profileRef: `users/${prefix}.json`,
+            source: {
+              application: 'Fitness-Report-Evaluator',
+              workflow: 'save-evaluation',
+            }
+          };
+
+          const yamlStr = yaml.dump(doc, { noRefs: true });
+          fs.writeFileSync('evaluation.yml', yamlStr, 'utf8');
+          fs.writeFileSync('filePath.txt', filePath, 'utf8');
+          console.log('Prepared YAML and path:', filePath);
+          NODE
+
+          echo "filePath=$(cat filePath.txt)" >> $GITHUB_OUTPUT
+
+      - name: Encode YAML to Base64 (GitHub Contents API requirement)
+        id: encode
+        run: |
+          base64 -w0 evaluation.yml > evaluation.b64
+          echo "b64=$(cat evaluation.b64)" >> $GITHUB_OUTPUT
+
+      - name: Get existing file SHA (if any)
+        id: getsha
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          url="https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/${{ steps.build.outputs.filePath }}"
+          status=$(curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.v3+json" "$url" -o resp.json -w "%{http_code}")
+          if [ "$status" = "200" ]; then
+            sha=$(jq -r '.sha' resp.json)
+            echo "sha=$sha" >> $GITHUB_OUTPUT
+          else
+            echo "sha=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or update YAML file in data repo
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          msg="Update evaluation via Actions - $(date -Iseconds)"
+          if [ -z "${{ steps.getsha.outputs.sha }}" ]; then
+            msg="Create evaluation via Actions - $(date -Iseconds)"
+          fi
+
+          body=$(jq -n \
+            --arg message "$msg" \
+            --arg content "${{ steps.encode.outputs.b64 }}" \
+            --arg branch "main" \
+            --arg sha "${{ steps.getsha.outputs.sha }}" \
+            'if $sha == "" then {message:$message, content:$content, branch:$branch} else {message:$message, content:$content, branch:$branch, sha:$sha} end')
+
+          curl -sS -f -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/${{ steps.build.outputs.filePath }}" \
+            -d "$body"
+

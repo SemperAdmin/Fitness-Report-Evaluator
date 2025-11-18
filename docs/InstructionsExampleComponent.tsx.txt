@@ -1,0 +1,87 @@
+// -----------------------------------------------------------------------------
+// CONVENTION GUIDE: ButtonComponent.tsx (Next.js, Tailwind CSS, TypeScript)
+// -----------------------------------------------------------------------------
+
+import React from 'react';
+
+// 1. TYPING: Always use explicit, precise TypeScript interfaces.
+//    - Props should be clearly defined.
+//    - Utilize native HTML attributes via React.ComponentProps<'button'> for standard elements.
+interface ButtonProps extends React.ComponentProps<'button'> {
+  // Appearance (variant) is strictly controlled by a union type.
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  // Size is optional and defaults to 'md'.
+  size?: 'sm' | 'md' | 'lg';
+  // Use explicit boolean for loading state.
+  isLoading?: boolean;
+  // All children are React.ReactNode.
+  children: React.ReactNode;
+}
+
+// 2. STYLING: Tailwind is always handled by a single function/variable.
+const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-lg transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
+
+// 3. LOGIC: Use a dedicated function to manage complex conditional styles (like variants).
+const getVariantStyles = (variant: ButtonProps['variant']): string => {
+  switch (variant) {
+    case 'primary':
+      return 'bg-blue-600 hover:bg-blue-700 text-white border border-transparent';
+    case 'secondary':
+      return 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-300';
+    case 'danger':
+      return 'bg-red-600 hover:bg-red-700 text-white border border-transparent';
+    case 'ghost':
+      return 'bg-transparent hover:bg-gray-100 text-gray-600 border border-transparent shadow-none';
+    default:
+      return getVariantStyles('primary'); // Ensure a default is always returned.
+  }
+};
+
+const getSizeStyles = (size: ButtonProps['size']): string => {
+  switch (size) {
+    case 'sm':
+      return 'px-3 py-1.5 text-sm';
+    case 'md':
+      return 'px-4 py-2 text-base';
+    case 'lg':
+      return 'px-6 py-3 text-lg';
+    default:
+      return getSizeStyles('md');
+  }
+};
+
+
+// 4. COMPONENT: Use explicit function component syntax (const ComponentName: React.FC<Props>).
+const ButtonComponent: React.FC<ButtonProps> = ({
+  variant = 'primary',
+  size = 'md',
+  isLoading = false,
+  className = '', // Ensure any external class names are merged last.
+  children,
+  ...rest
+}) => {
+
+  const variantClasses = getVariantStyles(variant);
+  const sizeClasses = getSizeStyles(size);
+  
+  // 5. STRUCTURE: Logic is minimal inside the return. Use helper functions for complexity.
+  //    - Use simple ternary operators for conditional rendering (e.g., loading spinner).
+  return (
+    <button
+      className={`${baseStyles} ${variantClasses} ${sizeClasses} ${className}`}
+      disabled={rest.disabled || isLoading} // Disable button if already disabled or loading.
+      {...rest}
+    >
+      {isLoading && (
+        // LOADING INDICATOR: Always use a simple loading spinner pattern.
+        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      )}
+      {children}
+    </button>
+  );
+};
+
+export default ButtonComponent;

@@ -1,0 +1,189 @@
+name: Save User Data to Private Repo
+
+on:
+  repository_dispatch:
+    types: [save-user-data]
+
+permissions:
+  contents: read
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show event payload
+        run: |
+          echo '${{ toJson(github.event.client_payload) }}' > payload.json
+          jq . payload.json || true
+
+      - name: Prepare content and file path
+        id: prep
+        run: |
+          set -e
+          # Extract required fields with defaults
+          email=$(jq -r '.userData.rsEmail // ""' payload.json)
+          name=$(jq -r '.userData.rsName // ""' payload.json)
+          rank=$(jq -r '.userData.rsRank // ""' payload.json)
+          prevEmail=$(jq -r '.userData.previousEmail // ""' payload.json)
+
+          if [ -z "$email" ] || [ "$email" = "null" ]; then
+            echo "rsEmail is required in client_payload.userData" >&2
+            exit 1
+          fi
+
+          # users/<emailPrefix>.json (sanitize non-alnum to underscore)
+          # Always write to the NEW email path; use previousEmail only for migration
+          prefix=$(echo "$email" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
+          filePath="users/${prefix}.json"
+
+          echo "filePath=$filePath" >> $GITHUB_OUTPUT
+
+      - name: Get existing file (if any) and preserve fields
+        id: get_existing
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          url="https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/${{ steps.prep.outputs.filePath }}"
+          status=$(curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.v3+json" "$url" -o resp.json -w "%{http_code}")
+          if [ "$status" = "200" ]; then
+            sha=$(jq -r '.sha' resp.json)
+            content_b64=$(jq -r '.content' resp.json)
+            echo "$content_b64" | base64 -d > existing.json || echo '{}' > existing.json
+            created=$(jq -r '.createdDate // ""' existing.json)
+            pwhash=$(jq -r '.passwordHash // ""' existing.json)
+            echo "sha=$sha" >> $GITHUB_OUTPUT
+            echo "createdDate=$created" >> $GITHUB_OUTPUT
+            echo "passwordHash=$pwhash" >> $GITHUB_OUTPUT
+          else
+            echo "sha=" >> $GITHUB_OUTPUT
+            echo "createdDate=" >> $GITHUB_OUTPUT
+            echo "passwordHash=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get previous user file for migration (if applicable)
+        id: get_previous
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          prevEmail=$(jq -r '.userData.previousEmail // ""' payload.json)
+          if [ -n "$prevEmail" ] && [ "$prevEmail" != "null" ]; then
+            prevPrefix=$(echo "$prevEmail" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
+            prevUrl="https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/users/${prevPrefix}.json"
+            status=$(curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.v3+json" "$prevUrl" -o prev.json -w "%{http_code}")
+            if [ "$status" = "200" ]; then
+              prev_b64=$(jq -r '.content' prev.json)
+              echo "$prev_b64" | base64 -d > prev_existing.json || echo '{}' > prev_existing.json
+              prev_created=$(jq -r '.createdDate // ""' prev_existing.json)
+              prev_pwhash=$(jq -r '.passwordHash // ""' prev_existing.json)
+              echo "prevCreatedDate=$prev_created" >> $GITHUB_OUTPUT
+              echo "prevPasswordHash=$prev_pwhash" >> $GITHUB_OUTPUT
+            else
+              echo "prevCreatedDate=" >> $GITHUB_OUTPUT
+              echo "prevPasswordHash=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "prevCreatedDate=" >> $GITHUB_OUTPUT
+            echo "prevPasswordHash=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build minimal profile content (metadata-only)
+        id: build_content
+        run: |
+          set -e
+          now=$(date -Iseconds)
+          # Prefer existing createdDate/passwordHash when present
+          created="${{ steps.get_existing.outputs.createdDate }}"
+          pwhash="${{ steps.get_existing.outputs.passwordHash }}"
+          if [ -z "$pwhash" ]; then pwhash="${{ steps.get_previous.outputs.prevPasswordHash }}"; fi
+          if [ -z "$created" ]; then created="${{ steps.get_previous.outputs.prevCreatedDate }}"; fi
+          if [ -z "$created" ]; then created="$now"; fi
+          email=$(jq -r '.userData.rsEmail // ""' payload.json)
+          name=$(jq -r '.userData.rsName // ""' payload.json)
+          rank=$(jq -r '.userData.rsRank // ""' payload.json)
+
+          jq -n \
+            --arg email "$email" \
+            --arg name "$name" \
+            --arg rank "$rank" \
+            --arg created "$created" \
+            --arg lastUpdated "$now" \
+            --arg passwordHash "$pwhash" \
+            '{
+              rsEmail:$email,
+              rsName:$name,
+              rsRank:$rank,
+              createdDate:$created,
+              lastUpdated:$lastUpdated
+            } | (.passwordHash = ($passwordHash | select(length>0)))' > content.json
+
+      - name: Encode content to Base64 (GitHub Contents API requirement)
+        id: encode
+        run: |
+          base64 -w0 content.json > content.b64
+          echo "b64=$(cat content.b64)" >> $GITHUB_OUTPUT
+
+      - name: Get existing file SHA (if any)
+        id: getsha
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          url="https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/${{ steps.prep.outputs.filePath }}"
+          status=$(curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.v3+json" "$url" -o resp.json -w "%{http_code}")
+          if [ "$status" = "200" ]; then
+            sha=$(jq -r '.sha' resp.json)
+            echo "sha=$sha" >> $GITHUB_OUTPUT
+          else
+            echo "sha=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or update file in data repo
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          msg="Update profile via Actions - $(date -Iseconds)"
+          if [ -z "${{ steps.getsha.outputs.sha }}" ]; then
+            msg="Create profile via Actions - $(date -Iseconds)"
+          fi
+
+          body=$(jq -n \
+            --arg message "$msg" \
+            --arg content "${{ steps.encode.outputs.b64 }}" \
+            --arg branch "main" \
+            --arg sha "${{ steps.getsha.outputs.sha }}" \
+            'if $sha == "" then {message:$message, content:$content, branch:$branch} else {message:$message, content:$content, branch:$branch, sha:$sha} end')
+
+          curl -sS -f -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/${{ steps.prep.outputs.filePath }}" \
+            -d "$body"
+
+      - name: Delete previous file when email changed (cleanup)
+        env:
+          TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          set -e
+          prevEmail=$(jq -r '.userData.previousEmail // ""' payload.json)
+          email=$(jq -r '.userData.rsEmail // ""' payload.json)
+          if [ -n "$prevEmail" ] && [ "$prevEmail" != "null" ] && [ "$prevEmail" != "$email" ]; then
+            prevPrefix=$(echo "$prevEmail" | cut -d'@' -f1 | tr -c '[:alnum:]' '_' )
+            # Get SHA of previous file
+            url="https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/users/${prevPrefix}.json"
+            status=$(curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.v3+json" "$url" -o prev.json -w "%{http_code}")
+            if [ "$status" = "200" ]; then
+              sha=$(jq -r '.sha' prev.json)
+              msg="Remove old profile after email change - $(date -Iseconds)"
+              body=$(jq -n --arg message "$msg" --arg sha "$sha" --arg branch "main" '{message:$message, sha:$sha, branch:$branch}')
+              curl -sS -f -X DELETE \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                -H "Content-Type: application/json" \
+                "https://api.github.com/repos/SemperAdmin/Fitness-Report-Evaluator-Data/contents/users/${prevPrefix}.json" \
+                -d "$body" || true
+            fi
+          fi
