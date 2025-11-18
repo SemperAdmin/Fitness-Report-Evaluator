@@ -23,33 +23,61 @@ function debugWarn(...args) {
  */
 function getCsrfToken() {
     let csrf = null;
+    let source = null;
+    let cookieToken = null;
+    let storageToken = null;
+
     try {
         // Try sessionStorage first for cross-origin scenarios
         if (typeof sessionStorage !== 'undefined') {
-            csrf = sessionStorage.getItem('fitrep_csrf_token');
-            if (csrf && typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
-                console.log('[csrf] Retrieved from sessionStorage:', csrf.substring(0, 8) + '...');
+            storageToken = sessionStorage.getItem('fitrep_csrf_token');
+            if (storageToken) {
+                csrf = storageToken;
+                source = 'sessionStorage';
+                debugLog('[csrf] Retrieved from sessionStorage:', csrf.substring(0, 16) + '...');
             }
         }
-    } catch (_) {
+    } catch (e) {
         // sessionStorage may not be available or accessible
+        debugWarn('[csrf] Failed to access sessionStorage:', e);
     }
 
-    // Fallback to cookie for same-origin scenarios
-    if (!csrf && typeof document !== 'undefined') {
+    // Also check cookie to compare (for debugging)
+    if (typeof document !== 'undefined') {
         try {
             const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
-            csrf = m ? decodeURIComponent(m[1]) : null;
-            if (csrf && typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
-                console.log('[csrf] Retrieved from cookie:', csrf.substring(0, 8) + '...');
+            cookieToken = m ? decodeURIComponent(m[1]) : null;
+            if (cookieToken) {
+                debugLog('[csrf] Found in cookie:', cookieToken.substring(0, 16) + '...');
             }
-        } catch (_) {
-            // Ignore cookie parsing errors
+        } catch (e) {
+            debugWarn('[csrf] Failed to parse cookie:', e);
         }
     }
 
-    if (!csrf && typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
-        console.warn('[csrf] No CSRF token found in sessionStorage or cookies');
+    // Compare sessionStorage and cookie tokens
+    if (storageToken && cookieToken) {
+        if (storageToken === cookieToken) {
+            debugLog('[csrf] ✓ sessionStorage and cookie tokens MATCH');
+        } else {
+            debugWarn('[csrf] ✗ MISMATCH! sessionStorage:', storageToken.substring(0, 16) + '...', 'cookie:', cookieToken.substring(0, 16) + '...');
+            debugWarn('[csrf] This will cause 403 CSRF errors! Need to re-login.');
+        }
+    }
+
+    // Fallback to cookie for same-origin scenarios (if no sessionStorage token)
+    if (!csrf && cookieToken) {
+        csrf = cookieToken;
+        source = 'cookie';
+        debugLog('[csrf] Using token from cookie (no sessionStorage)');
+    }
+
+    if (!csrf) {
+        debugWarn('[csrf] No CSRF token found in sessionStorage or cookies');
+        debugLog('[csrf] Checked sessionStorage:', typeof sessionStorage !== 'undefined');
+        debugLog('[csrf] Checked document.cookie:', typeof document !== 'undefined' ? document.cookie : 'N/A');
+    } else {
+        debugLog('[csrf] Final: Using token from', source);
     }
 
     return csrf;

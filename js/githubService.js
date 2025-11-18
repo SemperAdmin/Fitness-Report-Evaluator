@@ -1158,10 +1158,13 @@ class GitHubDataService {
 
                 // Build headers; include CSRF token and optionally assembled token when enabled
                 const headers = { 'Content-Type': 'application/json' };
-                try {
-                    const csrf = getCsrfToken();
-                    if (csrf) headers['X-CSRF-Token'] = csrf;
-                } catch (_) {}
+                const csrf = getCsrfToken();
+                if (csrf) {
+                    headers['X-CSRF-Token'] = csrf;
+                    debugLog('[csrf] Set X-CSRF-Token header for saveUserData:', csrf.substring(0, 16) + '...');
+                } else {
+                    debugWarn('[csrf] No CSRF token available for saveUserData');
+                }
                 let assembledToken = null;
                 try {
                     if (typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
@@ -1459,10 +1462,13 @@ class GitHubDataService {
             }
 
             const headers = { 'Content-Type': 'application/json' };
-            try {
-                const csrf = getCsrfToken();
-                if (csrf) headers['X-CSRF-Token'] = csrf;
-            } catch (_) {}
+            const csrf = getCsrfToken();
+            if (csrf) {
+                headers['X-CSRF-Token'] = csrf;
+                debugLog('[csrf] Set X-CSRF-Token header for saveEvaluation:', csrf.substring(0, 16) + '...');
+            } else {
+                debugWarn('[csrf] No CSRF token available for saveEvaluation');
+            }
             // Dev-only optional header token if present and explicitly allowed
             let assembledToken = null;
             try {

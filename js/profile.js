@@ -383,10 +383,13 @@ async function postJson(url, body) {
     // Build headers; include token when enabled
     const headers = { 'Content-Type': 'application/json' };
     // Include CSRF token: try sessionStorage first (for cross-origin), then cookie (for same-origin)
-    try {
-        const csrf = getCsrfToken();
-        if (csrf) headers['X-CSRF-Token'] = csrf;
-    } catch (_) { /* ignore */ }
+    const csrf = getCsrfToken();
+    if (csrf) {
+        headers['X-CSRF-Token'] = csrf;
+        debugLog('[csrf] Set X-CSRF-Token header:', csrf.substring(0, 16) + '...');
+    } else {
+        debugWarn('[csrf] No CSRF token available to set in header for endpoint:', endpoint);
+    }
     let assembledToken = null;
     try {
         let token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
