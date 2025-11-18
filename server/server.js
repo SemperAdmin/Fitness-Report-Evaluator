@@ -145,6 +145,7 @@ function serializeCookie(name, value, opts = {}) {
 }
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
+const SESSION_REMEMBER_TTL_MS = Number(process.env.SESSION_REMEMBER_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 // Prefer secure cookies in hosted environments; allow explicit override via env.
 const inferredHostedSecure = (
   process.env.COOKIE_SECURE === 'true' ||
@@ -716,6 +717,8 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
 app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_LOGIN) || '/api/account/login'), authRateLimit, async (req, res) => {
   try {
     const { email, password, username: rawUsername } = req.body || {};
+    const remember = String((req.body && req.body.remember) || '').toLowerCase();
+    const rememberFlag = (remember === 'true' || remember === '1' || remember === 'yes' || remember === 'on');
     const username = String(rawUsername || email || '').trim();
     if (!username || !password) {
       return res.status(400).json({ error: 'Missing fields: username, password' });
@@ -762,13 +765,14 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
     // Issue HttpOnly session cookie and CSRF cookie
     try {
       const now = Date.now();
-      const payload = { u: sanitizePrefix(username), iat: now, exp: now + SESSION_TTL_MS };
+      const ttlMs = rememberFlag ? SESSION_REMEMBER_TTL_MS : SESSION_TTL_MS;
+      const payload = { u: sanitizePrefix(username), iat: now, exp: now + ttlMs };
       const sessionToken = signSessionPayload(payload);
       const csrfToken = crypto.randomBytes(32).toString('hex');
       const cookies = [
         // SameSite dynamically chosen: 'None' in prod (Secure=true), 'Lax' in local/dev
-        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
-        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
+        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: ttlMs / 1000 }),
+        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: ttlMs / 1000 })
       ];
       // Append cookies without clobbering existing headers
       res.setHeader('Set-Cookie', cookies);

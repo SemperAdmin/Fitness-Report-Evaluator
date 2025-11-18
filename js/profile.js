@@ -195,10 +195,11 @@ async function accountLogin() {
     try {
         // Send explicit username for clarity; keep email for compatibility
         const LOGIN_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_LOGIN) || '/api/account/login';
-        let res = await postJson(LOGIN_ROUTE, { email, username: email, password });
+        const remember = !!document.getElementById('rememberMeInput')?.checked;
+        let res = await postJson(LOGIN_ROUTE, { email, username: email, password, remember });
         // If network/CORS failed, retry using URL-encoded to avoid preflight
         if (!res || (!res.ok && res.status === 0)) {
-            res = await postForm(LOGIN_ROUTE, { email, username: email, password });
+            res = await postForm(LOGIN_ROUTE, { email, username: email, password, remember });
         }
         if (!res || !res.ok) {
             // Restore UI when login fails
@@ -1870,6 +1871,7 @@ function exportProfile() {
 }
 
 // Manage Data dropdown logic and CSV import/template export
+let __submenuOutsideHandler = null;
 function toggleSubMenu() {
     const menu = document.getElementById('subMenu');
     const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
@@ -1881,6 +1883,13 @@ function toggleSubMenu() {
         if (chevron) chevron.classList.remove('rotated');
         if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
         try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
+        // Remove outside click handler
+        try {
+            if (__submenuOutsideHandler) {
+                document.removeEventListener('click', __submenuOutsideHandler, true);
+                __submenuOutsideHandler = null;
+            }
+        } catch (_) {}
     } else {
         menu.classList.add('active');
         if (chevron) chevron.classList.add('rotated');
@@ -1889,6 +1898,25 @@ function toggleSubMenu() {
         const firstItem = menu.querySelector('button');
         try { if (firstItem) firstItem.focus(); } catch (_) {}
         try { if (window.A11y) A11y.announce('Manage data menu expanded'); } catch (_) {}
+        // Close menu when clicking outside
+        try {
+            __submenuOutsideHandler = (e) => {
+                const btn = document.getElementById('mainToggleButton');
+                const m = document.getElementById('subMenu');
+                if (!m) return;
+                const clickInsideMenu = m.contains(e.target);
+                const clickOnButton = btn && btn.contains(e.target);
+                if (!clickInsideMenu && !clickOnButton) {
+                    m.classList.remove('active');
+                    if (chevron) chevron.classList.remove('rotated');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                    document.removeEventListener('click', __submenuOutsideHandler, true);
+                    __submenuOutsideHandler = null;
+                    try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
+                }
+            };
+            document.addEventListener('click', __submenuOutsideHandler, true);
+        } catch (_) {}
     }
 }
 
@@ -3330,22 +3358,16 @@ function showProfileDashboardOnLoad() {
     const modeCard = document.getElementById('modeSelectionCard');
     if (!loginCard || !dashboardCard) return;
 
-    // Only auto-open if the user explicitly logged in in THIS SESSION
     const hasProfile = localStorage.getItem('has_profile') === 'true';
-    const loginSource = sessionStorage.getItem('login_source'); // session-scoped, not persistent
-    if (!hasProfile || loginSource !== 'form') {
-        // Default to Mode Selection on initial load
+    if (!hasProfile) {
+        // No persisted profile; show mode selection
         if (modeCard) { modeCard.classList.add('active'); modeCard.style.display = 'block'; }
         loginCard.classList.remove('active');
         loginCard.style.display = 'none';
         dashboardCard.classList.remove('active');
         dashboardCard.style.display = 'none';
-        
         const setupCard = document.getElementById('setupCard');
-        if (setupCard) {
-            setupCard.classList.remove('active');
-            setupCard.style.display = 'none';
-        }
+        if (setupCard) { setupCard.classList.remove('active'); setupCard.style.display = 'none'; }
         return;
     }
 

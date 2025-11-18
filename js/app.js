@@ -168,10 +168,12 @@ function showTooltip(event, tooltipId) {
         const left = rect.left;
         tip.style.top = `${top}px`;
         tip.style.left = `${left}px`;
-        const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+        const baseUI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
             ? window.CONSTANTS.UI_SETTINGS
-            : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
+            : { DISPLAY: { BLOCK: 'block', NONE: 'none' }, CSS: { ACTIVE: 'active' } };
+        const UI = { DISPLAY: Object.assign({}, baseUI.DISPLAY, { SHOW: baseUI.DISPLAY.BLOCK, HIDE: baseUI.DISPLAY.NONE }), CSS: baseUI.CSS };
         tip.style.display = UI.DISPLAY.SHOW;
+        try { tip.classList.add('active'); } catch (_) {}
 
         // Clear previous timer and set a new auto-hide
         if (__tooltipHideTimer) clearTimeout(__tooltipHideTimer);
@@ -192,10 +194,14 @@ function showTooltip(event, tooltipId) {
 
 function hideTooltip(tooltipId) {
     const tip = document.getElementById(tooltipId);
-    const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+    const baseUI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
         ? window.CONSTANTS.UI_SETTINGS
-        : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
-    if (tip) tip.style.display = UI.DISPLAY.HIDE;
+        : { DISPLAY: { BLOCK: 'block', NONE: 'none' }, CSS: { ACTIVE: 'active' } };
+    const UI = { DISPLAY: Object.assign({}, baseUI.DISPLAY, { SHOW: baseUI.DISPLAY.BLOCK, HIDE: baseUI.DISPLAY.NONE }), CSS: baseUI.CSS };
+    if (tip) {
+        tip.style.display = UI.DISPLAY.HIDE;
+        try { tip.classList.remove('active'); } catch (_) {}
+    }
     if (__tooltipHideTimer) {
         clearTimeout(__tooltipHideTimer);
         __tooltipHideTimer = null;
