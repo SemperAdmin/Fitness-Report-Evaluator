@@ -406,7 +406,7 @@ async function postJson(url, body) {
 
     // Use shared credentials logic from githubService to ensure consistent behavior
     // for session cookies sent to allowlisted cross-origin endpoints (e.g., Render backend from GitHub Pages)
-    const credentialsMode = (typeof window !== 'undefined' && window.githubService)
+    const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
         ? window.githubService.getFetchCredentials(endpoint)
         : 'omit';
     const isCrossOrigin = (typeof window !== 'undefined')
