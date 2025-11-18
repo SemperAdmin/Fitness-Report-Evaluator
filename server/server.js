@@ -760,11 +760,12 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
     return res.status(401).json({ error: 'Invalid credentials' });
   }
     // Issue HttpOnly session cookie and CSRF cookie
+    let csrfToken = null;
     try {
       const now = Date.now();
       const payload = { u: sanitizePrefix(username), iat: now, exp: now + SESSION_TTL_MS };
       const sessionToken = signSessionPayload(payload);
-      const csrfToken = crypto.randomBytes(32).toString('hex');
+      csrfToken = crypto.randomBytes(32).toString('hex');
       const cookies = [
         // SameSite dynamically chosen: 'None' in prod (Secure=true), 'Lax' in local/dev
         serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
@@ -782,6 +783,8 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
         rsRank: user.rsRank,
         lastUpdated: user.lastUpdated || new Date().toISOString()
       },
+      // Return CSRF token in response body for cross-origin scenarios where JavaScript cannot read cookies
+      csrfToken: csrfToken,
       // evaluations removed; per-evaluation files are now used
     });
   } catch (err) {

@@ -153,7 +153,9 @@ class GitHubDataService {
 
             // Include credentials for same-origin
             if (pageOrigin && endpointOrigin === pageOrigin) {
-                console.log('[credentials] same-origin detected, using include:', endpointUrl);
+                if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                    console.log('[credentials] same-origin detected, using include:', endpointUrl);
+                }
                 return 'include';
             }
 
@@ -164,27 +166,35 @@ class GitHubDataService {
                 : [];
             const isSecureContext = (pageProtocol === 'https:' && endpointProtocol === 'https:');
 
-            console.log('[credentials] cross-origin check:', {
-                endpointUrl,
-                endpointOrigin,
-                pageOrigin,
-                allowlist,
-                isSecureContext,
-                isInAllowlist: allowlist.includes(endpointOrigin)
-            });
+            if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                console.log('[credentials] cross-origin check:', {
+                    endpointUrl,
+                    endpointOrigin,
+                    pageOrigin,
+                    allowlist,
+                    isSecureContext,
+                    isInAllowlist: allowlist.includes(endpointOrigin)
+                });
+            }
 
             if (allowlist.includes(endpointOrigin) && isSecureContext) {
-                console.log('[credentials] allowlisted cross-origin + HTTPS, using include');
+                if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                    console.log('[credentials] allowlisted cross-origin + HTTPS, using include');
+                }
                 return 'include';
             }
 
             // Default to omit to avoid unintended CORS issues
-            console.log('[credentials] defaulting to omit (not in allowlist or not secure)');
+            if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                console.log('[credentials] defaulting to omit (not in allowlist or not secure)');
+            }
             return 'omit';
         } catch (e) {
             // Fallback for invalid URLs or non-browser environments
             // Use 'omit' as the safe default to avoid CORS issues
-            console.warn('[credentials] error determining credentials mode:', e);
+            if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                console.warn('[credentials] error determining credentials mode:', e);
+            }
             return 'omit';
         }
     }
@@ -1159,8 +1169,16 @@ class GitHubDataService {
                 // Build headers; include CSRF token and optionally assembled token when enabled
                 const headers = { 'Content-Type': 'application/json' };
                 try {
-                    const m = (typeof document !== 'undefined') ? document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/) : null;
-                    const csrf = m ? decodeURIComponent(m[1]) : '';
+                    let csrf = null;
+                    // Cross-origin: use token from sessionStorage (set during login)
+                    try {
+                        csrf = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('fitrep_csrf_token') : null;
+                    } catch (_) { /* sessionStorage may not be available */ }
+                    // Same-origin fallback: read from cookie
+                    if (!csrf && typeof document !== 'undefined') {
+                        const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
+                        csrf = m ? decodeURIComponent(m[1]) : null;
+                    }
                     if (csrf) headers['X-CSRF-Token'] = csrf;
                 } catch (_) {}
                 let assembledToken = null;
@@ -1461,8 +1479,16 @@ class GitHubDataService {
 
             const headers = { 'Content-Type': 'application/json' };
             try {
-                const m = (typeof document !== 'undefined') ? document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/) : null;
-                const csrf = m ? decodeURIComponent(m[1]) : '';
+                let csrf = null;
+                // Cross-origin: use token from sessionStorage (set during login)
+                try {
+                    csrf = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('fitrep_csrf_token') : null;
+                } catch (_) { /* sessionStorage may not be available */ }
+                // Same-origin fallback: read from cookie
+                if (!csrf && typeof document !== 'undefined') {
+                    const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
+                    csrf = m ? decodeURIComponent(m[1]) : null;
+                }
                 if (csrf) headers['X-CSRF-Token'] = csrf;
             } catch (_) {}
             // Dev-only optional header token if present and explicitly allowed
