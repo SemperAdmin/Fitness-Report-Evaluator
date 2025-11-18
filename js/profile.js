@@ -1870,6 +1870,7 @@ function exportProfile() {
 }
 
 // Manage Data dropdown logic and CSV import/template export
+let __submenuOutsideHandler = null;
 function toggleSubMenu() {
     const menu = document.getElementById('subMenu');
     const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
@@ -1881,6 +1882,13 @@ function toggleSubMenu() {
         if (chevron) chevron.classList.remove('rotated');
         if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
         try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
+        // Remove outside click handler
+        try {
+            if (__submenuOutsideHandler) {
+                document.removeEventListener('click', __submenuOutsideHandler, true);
+                __submenuOutsideHandler = null;
+            }
+        } catch (_) {}
     } else {
         menu.classList.add('active');
         if (chevron) chevron.classList.add('rotated');
@@ -1889,6 +1897,25 @@ function toggleSubMenu() {
         const firstItem = menu.querySelector('button');
         try { if (firstItem) firstItem.focus(); } catch (_) {}
         try { if (window.A11y) A11y.announce('Manage data menu expanded'); } catch (_) {}
+        // Close menu when clicking outside
+        try {
+            __submenuOutsideHandler = (e) => {
+                const btn = document.getElementById('mainToggleButton');
+                const m = document.getElementById('subMenu');
+                if (!m) return;
+                const clickInsideMenu = m.contains(e.target);
+                const clickOnButton = btn && btn.contains(e.target);
+                if (!clickInsideMenu && !clickOnButton) {
+                    m.classList.remove('active');
+                    if (chevron) chevron.classList.remove('rotated');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                    document.removeEventListener('click', __submenuOutsideHandler, true);
+                    __submenuOutsideHandler = null;
+                    try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
+                }
+            };
+            document.addEventListener('click', __submenuOutsideHandler, true);
+        } catch (_) {}
     }
 }
 
