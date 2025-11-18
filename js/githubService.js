@@ -70,7 +70,7 @@ class GitHubDataService {
         }
         const origin = endpointUrl.origin;
         try {
-            const allowed = (typeof window !== 'undefined' && Array.isArray(window.API_ALLOWED_ORIGINS))
+            const allowed = this._isApiOriginsDefined()
                 ? window.API_ALLOWED_ORIGINS
                 : [origin];
             const isLocal = (() => { try { const h = new URL(origin).hostname.toLowerCase(); return (h === 'localhost' || h === '127.0.0.1' || h === '::1'); } catch (_) { return false; } })();
@@ -126,6 +126,17 @@ class GitHubDataService {
     }
 
     /**
+     * Check if API_ALLOWED_ORIGINS is defined and is an array.
+     * Helper to avoid duplicating this check throughout the class.
+     *
+     * @private
+     * @returns {boolean} True if API_ALLOWED_ORIGINS is available.
+     */
+    _isApiOriginsDefined() {
+        return typeof window !== 'undefined' && Array.isArray(window.API_ALLOWED_ORIGINS);
+    }
+
+    /**
      * Determine fetch credentials based on origin detection.
      * Mobile browsers enforce strict CORS; use credentials for same-origin
      * and HTTPS allowlisted cross-origins.
@@ -142,24 +153,38 @@ class GitHubDataService {
 
             // Include credentials for same-origin
             if (pageOrigin && endpointOrigin === pageOrigin) {
+                console.log('[credentials] same-origin detected, using include:', endpointUrl);
                 return 'include';
             }
 
             // Allow credentials for allowlisted cross-origin endpoints ONLY in secure (HTTPS) contexts
             // Browsers block cross-site cookies on insecure HTTP; avoid 'include' to prevent CORS failures
-            const allowlist = (typeof window !== 'undefined' && Array.isArray(window.API_ALLOWED_ORIGINS))
+            const allowlist = this._isApiOriginsDefined()
                 ? window.API_ALLOWED_ORIGINS
                 : [];
             const isSecureContext = (pageProtocol === 'https:' && endpointProtocol === 'https:');
+
+            console.log('[credentials] cross-origin check:', {
+                endpointUrl,
+                endpointOrigin,
+                pageOrigin,
+                allowlist,
+                isSecureContext,
+                isInAllowlist: allowlist.includes(endpointOrigin)
+            });
+
             if (allowlist.includes(endpointOrigin) && isSecureContext) {
+                console.log('[credentials] allowlisted cross-origin + HTTPS, using include');
                 return 'include';
             }
 
             // Default to omit to avoid unintended CORS issues
+            console.log('[credentials] defaulting to omit (not in allowlist or not secure)');
             return 'omit';
-        } catch (_) {
+        } catch (e) {
             // Fallback for invalid URLs or non-browser environments
             // Use 'omit' as the safe default to avoid CORS issues
+            console.warn('[credentials] error determining credentials mode:', e);
             return 'omit';
         }
     }
