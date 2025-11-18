@@ -226,6 +226,22 @@ async function accountLogin() {
             rsRank: res.rsRank,
             lastUpdated: new Date().toISOString()
         };
+
+        // Store CSRF token from login response for cross-origin requests
+        // (JavaScript cannot read cross-domain cookies via document.cookie)
+        if (res.csrfToken) {
+            try {
+                sessionStorage.setItem('fitrep_csrf_token', res.csrfToken);
+                if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                    console.log('[csrf] Stored CSRF token from login response');
+                }
+            } catch (_) {
+                if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
+                    console.warn('[csrf] Failed to store CSRF token in sessionStorage');
+                }
+            }
+        }
+
         // Fetch per-user evaluation files to populate events list
         // Always attempt to load evaluations; githubService will use backend fallback when no token
         let evaluations = [];
@@ -368,10 +384,18 @@ async function postJson(url, body) {
 
     // Build headers; include token when enabled
     const headers = { 'Content-Type': 'application/json' };
-    // Include CSRF token from cookie when available
+    // Include CSRF token: try sessionStorage first (for cross-origin), then cookie (for same-origin)
     try {
-        const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
-        const csrf = m ? decodeURIComponent(m[1]) : '';
+        let csrf = null;
+        // Cross-origin: use token from sessionStorage (set during login)
+        try {
+            csrf = sessionStorage.getItem('fitrep_csrf_token');
+        } catch (_) { /* sessionStorage may not be available */ }
+        // Same-origin fallback: read from cookie
+        if (!csrf) {
+            const m = document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/);
+            csrf = m ? decodeURIComponent(m[1]) : null;
+        }
         if (csrf) headers['X-CSRF-Token'] = csrf;
     } catch (_) { /* ignore */ }
     let assembledToken = null;
@@ -2158,8 +2182,11 @@ function continueLogoutProfile() {
         localStorage.removeItem('current_evaluations');
         localStorage.removeItem('has_profile');
         localStorage.removeItem('login_source');
-        // Also clear the session-scoped login source to prevent auto-routing
-        try { sessionStorage.removeItem('login_source'); } catch (_) {}
+        // Also clear the session-scoped login source and CSRF token
+        try {
+            sessionStorage.removeItem('login_source');
+            sessionStorage.removeItem('fitrep_csrf_token');
+        } catch (_) {}
         
         // Hide dashboard
         const dash = document.getElementById('profileDashboardCard');
