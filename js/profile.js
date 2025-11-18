@@ -1633,20 +1633,16 @@ function openPendingSyncModal(nextAction) {
 function closePendingSyncModal() {
     const modal = document.getElementById('pendingSyncModal');
     if (!modal) return;
-    try {
-        if (window.ModalController && typeof window.ModalController.closeById === 'function') {
-            window.ModalController.closeById('pendingSyncModal');
-        } else {
-            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
-            modal.classList.remove('active');
-            modal.style.display = 'none';
-        }
-    } catch (_) {
+    if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+        try { window.ModalController.closeById('pendingSyncModal'); } catch (err) { console.warn('ModalController close failed:', err); }
+    } else {
+        try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
         modal.classList.remove('active');
         modal.style.display = 'none';
+        // Fallback cleanup only when ModalController is unavailable
+        try { document.querySelectorAll('.sa-modal-backdrop[data-modal-id="pendingSyncModal"]').forEach(el => el.remove()); } catch (err) { console.warn('Error removing pendingSync backdrop:', err); }
+        try { document.body.classList.remove('sa-modal-open'); document.body.style.position=''; document.body.style.top=''; document.body.style.width=''; } catch (err) { /* ignore */ }
     }
-    try { document.querySelectorAll('.sa-modal-backdrop[data-modal-id="pendingSyncModal"]').forEach(el => el.remove()); } catch (err) { console.warn('Error removing pendingSync backdrop:', err); }
-    try { document.body.classList.remove('sa-modal-open'); document.body.style.position=''; document.body.style.top=''; document.body.style.width=''; } catch (err) { /* ignore */ }
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (nextEl) nextEl.value = '';
 }
