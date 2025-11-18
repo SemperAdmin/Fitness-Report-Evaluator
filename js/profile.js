@@ -1394,8 +1394,8 @@ async function toggleEvaluation(header) {
 // Removed: showSaveToProfilePrompt (modal no longer used in streamlined flow)
 
 async function confirmSaveToProfile() {
-    const occasionEl = document.getElementById('evaluationOccasion');
-    const occasion = occasionEl ? occasionEl.value : (evaluationMeta?.occasionType || '');
+    // Get occasion from evaluationMeta (captured during setup in evaluation.js)
+    const occasion = evaluationMeta?.occasionType || '';
 
     const storedPref = localStorage.getItem('pref_syncGitHub');
     const shouldSyncToGitHub = storedPref === 'true';
