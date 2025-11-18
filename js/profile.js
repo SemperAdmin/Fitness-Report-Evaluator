@@ -412,9 +412,9 @@ async function postJson(url, body) {
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers,
-                // For cross-origin requests, omit credentials to avoid strict CORS failures
-                // If cookies are required, server must enable CORS with credentials and SameSite=None
-                credentials: isCrossOrigin ? 'omit' : 'include',
+                // Include credentials for all allowed origins (same-origin or trusted cross-origin)
+                // This enables session cookie exchange with the backend
+                credentials: 'include',
                 mode: 'cors',
                 cache: 'no-store',
                 body: JSON.stringify(payload)
@@ -535,7 +535,9 @@ async function postForm(url, body) {
         const resp = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            credentials: isCrossOrigin ? 'omit' : 'include',
+            // Include credentials for all allowed origins (same-origin or trusted cross-origin)
+            // This enables session cookie exchange with the backend
+            credentials: 'include',
             mode: 'cors',
             cache: 'no-store',
             body: payload.toString()
@@ -567,7 +569,7 @@ async function postForm(url, body) {
                     endpoint: endpoint,
                     pageOrigin,
                     endpointOrigin,
-                    credentials: (isCrossOrigin ? 'omit' : 'include')
+                    credentials: 'include'
                 };
             } else if (typeof window !== 'undefined') {
                 window.__lastApiError = { type: 'network', message: String(err && err.message || err) };
