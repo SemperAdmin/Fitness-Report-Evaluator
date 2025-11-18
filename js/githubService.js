@@ -722,9 +722,13 @@ class GitHubDataService {
                     return [];
                 }
 
+                const headers = {};
+                try {
+                    if (this.token) headers['X-GitHub-Token'] = this.token;
+                } catch (_) {}
                 const fetchOpts = forceFresh
-                    ? { method: 'GET', cache: 'no-store', credentials: 'include', mode: 'cors' }
-                    : { method: 'GET', credentials: 'include', mode: 'cors' };
+                    ? { method: 'GET', cache: 'no-store', credentials: 'include', mode: 'cors', headers }
+                    : { method: 'GET', credentials: 'include', mode: 'cors', headers };
 
                 const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {

@@ -39,16 +39,17 @@ app.use((req, res, next) => {
   // Include common static hosting origins by default when an allowlist is present
   const allowedOrigins = CORS_ALLOW_ALL
     ? ['*']
-    : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS])) : [defaultOrigin]);
+    : (CORS_ORIGINS.length ? Array.from(new Set([...CORS_ORIGINS, defaultOrigin])) : [defaultOrigin]);
 
   // Treat any *.github.io and any localhost as explicitly allowed for credentialed requests
+  const pagesOrigin = 'https://semperadmin.github.io';
   let originIsGhPages = false;
   let originIsLocalhost = false;
   try {
     const u = new URL(origin);
     const h = u.hostname.toLowerCase();
     originIsLocalhost = (h === 'localhost' || h === '127.0.0.1' || h === '::1');
-    originIsGhPages = (u.protocol === 'https:' && h.endsWith('github.io'));
+    originIsGhPages = (u.origin === pagesOrigin);
   } catch (_) { originIsLocalhost = false; originIsGhPages = false; }
   const isAllowed = originIsLocalhost || originIsGhPages || (!CORS_ALLOW_ALL && (origin && allowedOrigins.includes(origin)));
 
@@ -1423,7 +1424,7 @@ app.get('/api/evaluations/list', requireAuth, async (req, res) => {
       }
     } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
 
-    const fitrepToken = process.env.FITREP_DATA || '';
+  const fitrepToken = process.env.FITREP_DATA || req.headers['x-github-token'] || req.query.token || '';
     const prefix = sanitizePrefix(username);
     const dirPath = `users/${prefix}/evaluations`;
 
