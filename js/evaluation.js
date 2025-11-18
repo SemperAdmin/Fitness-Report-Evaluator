@@ -184,7 +184,13 @@ function startEvaluation() {
         return;
     }
 
-    evaluationMeta = {
+    // Update evaluationMeta properties instead of reassigning to preserve object reference
+    // Clear existing properties first
+    for (const key in evaluationMeta) {
+        delete evaluationMeta[key];
+    }
+    // Set new properties
+    Object.assign(evaluationMeta, {
         marineName,
         marineRank, // capture selected rank
         fromDate,
@@ -194,7 +200,7 @@ function startEvaluation() {
         occasionType,
         // Track whether this eval was started from RS profile
         startedFromProfile: !!window.currentProfile
-    };
+    });
     
     isReportingSenior = (selection === 'yes');
     initializeTraits();
@@ -228,8 +234,9 @@ function startEvaluation() {
 }
 
 function initializeTraits() {
-    allTraits = [];
-    
+    // Clear array without reassigning to preserve object reference
+    allTraits.length = 0;
+
     // Debug logging
     console.log('firepData:', firepData);
     console.log('firepData.sections:', firepData.sections);
@@ -1025,7 +1032,6 @@ const EvaluationAPI = {
     getGradeDescription,
     goBackToLastTrait,
     proceedToDirectedComments,
-    showSectionIGeneration,
     showSummary,
     /**
      * Read-only view of internal state for debugging.
@@ -1050,7 +1056,6 @@ global.Evaluation = EvaluationAPI;
 global.startEvaluation = EvaluationAPI.startEvaluation;
 global.goBackToLastTrait = EvaluationAPI.goBackToLastTrait;
 global.proceedToDirectedComments = EvaluationAPI.proceedToDirectedComments;
-global.showSectionIGeneration = EvaluationAPI.showSectionIGeneration;
 global.saveJustification = EvaluationAPI.saveJustification;
 global.cancelJustification = EvaluationAPI.cancelJustification;
 global.cancelReevaluation = EvaluationAPI.cancelReevaluation;
@@ -1059,17 +1064,10 @@ global.editTrait = EvaluationAPI.editTrait;
 global.editJustification = EvaluationAPI.editJustification;
 global.handleGradeAction = EvaluationAPI.handleGradeAction;
 global.evaluationShowSummary = EvaluationAPI.showSummary;
+// Expose mutable state objects that other modules need to read/write
+// These are object references that get mutated (not reassigned), so direct export is safe
 global.evaluationResults = evaluationResults;
-// Expose allTraits and evaluationMeta as getters so they always return the current value
-Object.defineProperty(global, 'allTraits', {
-    get: function() { return allTraits; },
-    enumerable: true,
-    configurable: true
-});
-Object.defineProperty(global, 'evaluationMeta', {
-    get: function() { return evaluationMeta; },
-    enumerable: true,
-    configurable: true
-});
+global.evaluationMeta = evaluationMeta;
+global.allTraits = allTraits;
 
 })(typeof window !== 'undefined' ? window : globalThis);

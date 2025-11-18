@@ -201,19 +201,20 @@ function exportToClipboard() {
 
 function resetEvaluation() {
     if (confirm('Are you sure you want to start over? All progress will be lost.')) {
-        // Reset all state variables
+        // Reset all state variables (clear objects/arrays without reassigning to preserve references)
         currentTraitIndex = 0;
         currentEvaluationLevel = 'B';
-        evaluationResults = {};
-        allTraits = [];
+        // Clear objects by deleting properties instead of reassigning
+        for (const key in evaluationResults) delete evaluationResults[key];
+        allTraits.length = 0;
         isReportingSenior = false;
         pendingEvaluation = null;
-        evaluationMeta = {};
+        for (const key in evaluationMeta) delete evaluationMeta[key];
         selectedDirectedComments = [];
         directedCommentsData = {};
         generatedSectionI = '';
         currentGenerationStyle = 'comprehensive';
-        
+
         location.reload();
     }
 }
