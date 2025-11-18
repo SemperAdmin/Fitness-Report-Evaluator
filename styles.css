@@ -1504,7 +1504,7 @@ body {
 }
 
 /* Modal Styles */
-.justification-modal, .help-modal {
+.justification-modal, .help-modal, .reevaluate-modal {
     display: none;
     position: fixed;
     top: 0;
@@ -1515,7 +1515,7 @@ body {
     z-index: 1000;
 }
 
-.justification-modal.active, .help-modal.active {
+.justification-modal.active, .help-modal.active, .reevaluate-modal.active {
     display: flex;
     align-items: center;
     justify-content: center;

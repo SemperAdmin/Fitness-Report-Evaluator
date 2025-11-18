@@ -14,13 +14,14 @@ const STEPS = {
     summary: 'summary'
 };
 
-// Centralized UI constants with safe fallbacks
-const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+// Centralized UI constants with safe fallbacks and SHOW/HIDE aliases
+const baseUI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
     ? window.CONSTANTS.UI_SETTINGS
-    : {
-        DISPLAY: { SHOW: 'block', HIDE: 'none' },
-        CSS: { ACTIVE: 'active' }
-      };
+    : { DISPLAY: { BLOCK: 'block', NONE: 'none', FLEX: 'flex', INLINE_BLOCK: 'inline-block' }, CSS: { ACTIVE: 'active' } };
+const UI = {
+    DISPLAY: Object.assign({}, baseUI.DISPLAY, { SHOW: baseUI.DISPLAY.BLOCK, HIDE: baseUI.DISPLAY.NONE }),
+    CSS: baseUI.CSS
+};
 
 // Navigation Functions
 function updateNavigationState(step) {
@@ -115,7 +116,15 @@ function isStepAccessible(step) {
         case STEPS.setup:
             return true;
         case STEPS.evaluation:
-            return evaluationMeta.marineName; // Setup completed
+            try {
+                const name = document.getElementById('marineNameInput')?.value?.trim();
+                const from = document.getElementById('fromDateInput')?.value;
+                const to = document.getElementById('toDateInput')?.value;
+                const rank = document.getElementById('marineRankSelect')?.value;
+                const occasion = document.getElementById('evaluationOccasionSetup')?.value;
+                const rsSel = document.getElementById('reportingSeniorSelect')?.value;
+                return Boolean((evaluationMeta && evaluationMeta.marineName) || (name && from && to && rank && occasion && rsSel));
+            } catch (_) { return Boolean(evaluationMeta && evaluationMeta.marineName); }
         case STEPS.comments:
             return Object.keys(evaluationResults).length > 0; // Some evaluations completed
         case STEPS.sectionI:

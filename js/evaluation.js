@@ -179,8 +179,8 @@ function startEvaluation() {
         ? document.getElementById('evaluationOccasionSetup').value 
         : '';
 
-    if (!marineName || !fromDate || !toDate || !selection || !evaluatorName) {
-        alert('Please complete all required fields before beginning the evaluation.');
+    if (!marineName || !fromDate || !toDate || !selection || !marineRank || !occasionType) {
+        alert('Please complete Marine info, dates, rank, and occasion before beginning the evaluation.');
         return;
     }
 
@@ -199,9 +199,12 @@ function startEvaluation() {
     isReportingSenior = (selection === 'yes');
     initializeTraits();
     
-    document.getElementById('setupCard').style.display = 'none';
-    document.getElementById('howItWorksCard').style.display = 'none';
-    document.getElementById('dataWarning').style.display = 'none';
+    const setupEl = document.getElementById('setupCard');
+    if (setupEl) setupEl.style.display = 'none';
+    const howItWorksEl = document.getElementById('howItWorksCard');
+    if (howItWorksEl) howItWorksEl.style.display = 'none';
+    const dataWarningEl = document.getElementById('dataWarning');
+    if (dataWarningEl) dataWarningEl.style.display = 'none';
     
     // Ensure the evaluation UI becomes visible
     try {
@@ -438,20 +441,37 @@ function showJustificationModal() {
     
     updateWordCount();
     try {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        try {
+            modal.style.display = 'flex';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+        } catch (_) {}
         if (window.ModalController) {
             window.ModalController.register('justificationModal', { labelledBy: 'justificationTitle', describedBy: 'justificationDesc', focusFirst: '#justificationText' });
             window.ModalController.openById('justificationModal');
         } else if (window.A11y) {
-            modal.classList.add('active');
-            modal.setAttribute('aria-hidden', 'false');
             A11y.openDialog(modal, { labelledBy: 'justificationTitle', describedBy: 'justificationDesc', focusFirst: '#justificationText' });
-        } else {
-            modal.classList.add('active');
-            modal.setAttribute('aria-hidden', 'false');
         }
     } catch (_) {
         modal.classList.add('active');
         modal.setAttribute('aria-hidden', 'false');
+        try {
+            modal.style.display = 'flex';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+        } catch (_) {}
     }
     document.getElementById('justificationText').focus();
 }
@@ -487,9 +507,15 @@ function saveJustification() {
     }
     
     const modal = document.getElementById('justificationModal');
+    try { if (window.ModalController) window.ModalController.closeById('justificationModal'); } catch (_) {}
+    try { if (window.ModalController) window.ModalController.closeById('reevaluateModal'); } catch (_) {}
     if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
     modal.classList.remove('active');
     modal.setAttribute('aria-hidden', 'true');
+    try { modal.style.display = 'none'; } catch (_) {}
+    try {
+        document.querySelectorAll('.sa-modal-backdrop[data-modal-id="justificationModal"]').forEach(b => { if (b && b.parentNode) b.parentNode.removeChild(b); });
+    } catch (_) {}
     pendingEvaluation = null;
     
     // Handle post-save navigation
@@ -545,12 +571,17 @@ function cancelJustification() {
             if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
+            try { modal.style.display = 'none'; } catch (_) {}
         }
     } catch (_) {
         if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
         modal.classList.remove('active');
         modal.setAttribute('aria-hidden', 'true');
+        try { modal.style.display = 'none'; } catch (_) {}
     }
+    try {
+        document.querySelectorAll('.sa-modal-backdrop[data-modal-id="justificationModal"]').forEach(b => { if (b && b.parentNode) b.parentNode.removeChild(b); });
+    } catch (_) {}
     pendingEvaluation = null;
 }
 
@@ -607,7 +638,7 @@ function populateReviewScreen() {
 
     sections.forEach(sectionTitle => {
         const traits = sectionGroups[sectionTitle];
-        const traitsHTML = traits.map(trait => {
+         const traitsHTML = traits.map(trait => {
             const gradeDescription = getGradeDescription(trait.grade);
             const fullText = String(trait.justification || '').trim();
 
@@ -615,26 +646,24 @@ function populateReviewScreen() {
             const safeGradeDesc = escapeHtml(gradeDescription);
             const safeJustification = fullText ? nl2br(fullText) : '<em>No justification provided</em>';
 
-            return `
-                <div class="review-trait-item" id="review-item-${trait.key}">
-                    <div class="review-trait-header">
-                        <div class="review-trait-name">${safeTraitName}</div>
-                        <!-- Grade removed -->
-                    </div>
-                    <div class="review-trait-criteria">
-                        <div class="criteria-meets">
-                            <strong>Selected Standard:</strong> ${safeGradeDesc}
-                        </div>
-                    </div>
-                    <div class="review-trait-justification" style="white-space: pre-line;">
-                        ${safeJustification}
-                    </div>
-                    <div class="button-row" style="margin-top: 10px;">
-                        <button class="btn btn-secondary" onclick="editJustification('${trait.key}')">Edit Justification</button>
-                        <button class="btn btn-meets" onclick="editTrait('${trait.key}')">Re-evaluate Trait</button>
-                    </div>
-                </div>
-            `;
+             return ` 
+                 <div class="review-trait-item" id="review-item-${trait.key}"> 
+                     <div class="review-trait-header"> 
+                         <div class="review-trait-name">${safeTraitName}</div> 
+                     </div> 
+                     <div class="review-trait-criteria"> 
+                         <div class="criteria-meets"> 
+                             <strong>Selected Standard:</strong> ${safeGradeDesc} 
+                         </div> 
+                     </div> 
+                     <div class="review-trait-justification" style="white-space: pre-line;"> 
+                         ${safeJustification} 
+                     </div> 
+                     <div class="button-row" style="margin-top: 10px;"> 
+                         <button class="btn btn-meets" onclick="editTrait('${trait.key}')">Re-evaluate Trait</button> 
+                     </div> 
+                 </div> 
+             `; 
         }).join('');
 
         const sectionDiv = document.createElement('div');
@@ -762,6 +791,12 @@ function cancelReevaluation() {
         modal.classList.remove('active');
         modal.setAttribute('aria-hidden', 'true');
     }
+    try {
+        const bd = document.querySelector('.sa-modal-backdrop[data-modal-id="reevaluateModal"]');
+        if (bd && bd.parentNode) bd.parentNode.removeChild(bd);
+    } catch (_) {}
+    const reviewCard = document.getElementById('reviewCard');
+    if (reviewCard) { reviewCard.classList.add('active'); reviewCard.style.display = 'block'; }
 }
 
 function startReevaluation() {
@@ -791,9 +826,12 @@ function startReevaluation() {
     if (index !== -1) currentTraitIndex = index;
 
     // Hide modal and review card, then show evaluation
+    try { if (window.ModalController) window.ModalController.closeById('reevaluateModal'); } catch (_) {}
     if (window.A11y) try { A11y.closeDialog(modal); } catch (_) {}
     modal.classList.remove('active');
     modal.setAttribute('aria-hidden', 'true');
+    try { modal.style.display = 'none'; } catch (_) {}
+    try { document.querySelectorAll('.sa-modal-backdrop[data-modal-id="reevaluateModal"]').forEach(b => { if (b && b.parentNode) b.parentNode.removeChild(b); }); } catch (_) {}
     isInReviewMode = false;
     const reviewCard = document.getElementById('reviewCard');
     if (reviewCard) {
@@ -806,12 +844,12 @@ function startReevaluation() {
             jumpToStep(STEPS.evaluation);
         } else {
             const container = document.getElementById('evaluationContainer');
-            if (container) container.style.display = 'block';
+            if (container) { container.style.display = 'block'; container.classList.add('active'); }
             renderCurrentTrait();
         }
     } catch (_) {
         const container = document.getElementById('evaluationContainer');
-        if (container) container.style.display = 'block';
+        if (container) { container.style.display = 'block'; container.classList.add('active'); }
         renderCurrentTrait();
     }
 }
@@ -831,10 +869,25 @@ function goBackToLastTrait() {
 // proceedToDirectedComments()
 function proceedToDirectedComments() {
     isInReviewMode = false;
-    const reviewCard = document.getElementById('reviewCard');
-    reviewCard.classList.remove('active');
-    reviewCard.style.display = 'none';
-    showDirectedCommentsScreen();
+    try { if (window.ModalController) window.ModalController.closeAll(); } catch (_) {}
+    try {
+        document.querySelectorAll('.evaluation-card, .review-card, .section-i-generation-card, .summary-card').forEach(card => {
+            card.classList.remove('active');
+            card.style.display = 'none';
+        });
+    } catch (_) {}
+    const progressEl = document.getElementById('progressText');
+    if (progressEl) progressEl.textContent = 'Directed Comments Selection';
+    const dcCard = document.getElementById('directedCommentsCard');
+    if (dcCard) { dcCard.classList.add('active'); dcCard.style.display = 'block'; }
+    try {
+        if (typeof showDirectedCommentsScreen === 'function') {
+            showDirectedCommentsScreen();
+        } else if (typeof renderDirectedCommentsGrid === 'function') {
+            renderDirectedCommentsGrid();
+        }
+    } catch (_) { /* ignore */ }
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
 }
 
 function showSummary() {
@@ -958,8 +1011,10 @@ const EvaluationAPI = {
     updateProgress,
     renderCurrentTrait,
     finalizeTrait,
+    handleGradeAction,
     showJustificationModal,
     saveJustification,
+    cancelJustification,
     cancelReevaluation,
     startReevaluation,
     editTrait,
@@ -970,6 +1025,7 @@ const EvaluationAPI = {
     getGradeDescription,
     goBackToLastTrait,
     proceedToDirectedComments,
+    showSectionIGeneration,
     showSummary,
     /**
      * Read-only view of internal state for debugging.
@@ -994,11 +1050,16 @@ global.Evaluation = EvaluationAPI;
 global.startEvaluation = EvaluationAPI.startEvaluation;
 global.goBackToLastTrait = EvaluationAPI.goBackToLastTrait;
 global.proceedToDirectedComments = EvaluationAPI.proceedToDirectedComments;
+global.showSectionIGeneration = EvaluationAPI.showSectionIGeneration;
 global.saveJustification = EvaluationAPI.saveJustification;
+global.cancelJustification = EvaluationAPI.cancelJustification;
 global.cancelReevaluation = EvaluationAPI.cancelReevaluation;
 global.startReevaluation = EvaluationAPI.startReevaluation;
 global.editTrait = EvaluationAPI.editTrait;
 global.editJustification = EvaluationAPI.editJustification;
+global.handleGradeAction = EvaluationAPI.handleGradeAction;
 global.evaluationShowSummary = EvaluationAPI.showSummary;
+global.evaluationResults = evaluationResults;
+global.allTraits = allTraits;
 
 })(typeof window !== 'undefined' ? window : globalThis);

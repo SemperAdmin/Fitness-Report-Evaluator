@@ -157,8 +157,22 @@
 
       // Modal visuals and semantics
       modal.style.zIndex = String(entry.zIndexModal);
-    modal.style.display = DISPLAY.BLOCK;
-    modal.classList.add(CSS.ACTIVE);
+      // Use flex centering for app overlay modals
+      if (modal.classList.contains('justification-modal') || modal.classList.contains('help-modal') || modal.classList.contains('reevaluate-modal')) {
+        modal.style.display = 'flex';
+        try {
+          modal.style.position = 'fixed';
+          modal.style.top = '0';
+          modal.style.left = '0';
+          modal.style.width = '100%';
+          modal.style.height = '100%';
+          modal.style.alignItems = 'center';
+          modal.style.justifyContent = 'center';
+        } catch (_) {}
+      } else {
+        modal.style.display = DISPLAY.BLOCK;
+      }
+      modal.classList.add(CSS.ACTIVE);
       modal.classList.remove('sa-modal-background');
       modal.setAttribute('aria-hidden', 'false');
       modal.setAttribute('role', modal.getAttribute('role') || 'dialog');
