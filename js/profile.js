@@ -404,39 +404,11 @@ async function postJson(url, body) {
     let attempt = 0;
     let lastError = null;
 
-    // Determine credentials mode using allowlist-aware logic
-    // Matches githubService._getFetchCredentials to ensure session cookies are sent
-    // to allowlisted cross-origin endpoints (e.g., Render backend from GitHub Pages)
-    const getCredentialsMode = (endpointUrl) => {
-        try {
-            const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
-            const pageProtocol = (typeof window !== 'undefined' && window.location?.protocol) || '';
-            const url = new URL(endpointUrl);
-            const endpointOrigin = url.origin;
-            const endpointProtocol = url.protocol;
-
-            // Same-origin: always include credentials
-            if (pageOrigin && endpointOrigin === pageOrigin) {
-                return 'include';
-            }
-
-            // Cross-origin: check allowlist and require HTTPS for both origins
-            const allowlist = Array.isArray(typeof window !== 'undefined' ? window.API_ALLOWED_ORIGINS : null)
-                ? window.API_ALLOWED_ORIGINS
-                : [];
-            const isSecureContext = (pageProtocol === 'https:' && endpointProtocol === 'https:');
-            if (allowlist.includes(endpointOrigin) && isSecureContext) {
-                return 'include';
-            }
-
-            // Default: omit credentials for untrusted cross-origin requests
-            return 'omit';
-        } catch (_) {
-            return 'omit';
-        }
-    };
-
-    const credentialsMode = getCredentialsMode(endpoint);
+    // Use shared credentials logic from githubService to ensure consistent behavior
+    // for session cookies sent to allowlisted cross-origin endpoints (e.g., Render backend from GitHub Pages)
+    const credentialsMode = (typeof window !== 'undefined' && window.githubService)
+        ? window.githubService.getFetchCredentials(endpoint)
+        : 'omit';
     const isCrossOrigin = (typeof window !== 'undefined')
         ? (resolvedUrl.origin !== window.location.origin)
         : false;
@@ -486,7 +458,7 @@ async function postJson(url, body) {
                         endpoint: endpoint,
                         pageOrigin,
                         endpointOrigin,
-                        credentials: (isCrossOrigin ? 'omit' : 'include')
+                        credentials: credentialsMode
                     };
                 } else if (typeof window !== 'undefined') {
                     window.__lastApiError = { type: 'network', message: String(e && e.message || e) };
