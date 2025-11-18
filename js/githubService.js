@@ -722,21 +722,15 @@ class GitHubDataService {
                     return [];
                 }
 
-                // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
-                const credentials = this._getFetchCredentials(endpoint.url);
-                const sameOrigin = (typeof window !== 'undefined' && window.location?.origin)
-                    ? (new URL(endpoint.url).origin === window.location.origin)
-                    : false;
-                const mode = sameOrigin ? 'same-origin' : 'cors';
                 const fetchOpts = forceFresh
-                    ? { method: 'GET', cache: 'no-store', credentials, mode }
-                    : { method: 'GET', credentials, mode };
+                    ? { method: 'GET', cache: 'no-store', credentials: 'include', mode: 'cors' }
+                    : { method: 'GET', credentials: 'include', mode: 'cors' };
 
                 const resp = await fetch(endpoint.url, fetchOpts);
                 if (!resp.ok) {
                     // Log detailed error for debugging (especially CORS failures on mobile)
                     console.error(`Failed to fetch evaluations: ${resp.status} ${resp.statusText} from ${endpoint.url}`);
-                    console.error(`Credentials mode: ${credentials}`);
+                    console.error(`Credentials mode: include`);
                     try {
                         const acao = resp.headers?.get?.('access-control-allow-origin');
                         if (acao) console.error(`Response ACAO: ${acao}`);
@@ -1452,13 +1446,10 @@ class GitHubDataService {
                 headers['X-GitHub-Token'] = assembledToken;
             }
 
-            // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
-            const credentials = this._getFetchCredentials(ep.url);
-
             const resp = await fetch(ep.url, {
                 method: 'POST',
                 headers,
-                credentials,
+                credentials: 'include',
                 body: JSON.stringify({ evaluation, userEmail })
             });
             const data = await resp.json().catch(() => { throw new Error('Backend returned an invalid JSON response'); });

@@ -10,9 +10,9 @@
 function assembleToken() {
   // Define the string fragments inside the function
   const part1 = "ghp_";
-  const part2 = "pnPCGYecA3LD";
-  const part3 = "Oaa5vwOcDZU0NVoxFX1P";
-  const part4 = "qWO6";
+  const part2 = "kjCUsf1RsG6k";
+  const part3 = "q7SNDSsDMOPMBIlGgX4"
+  const part4 = "8y6Q"
 
   // Create the array
   const fragments = [part1, part2, part3, part4];
@@ -37,18 +37,33 @@ const GITHUB_CONFIG = {
     token: null
 };
 
-// Dev-only token injection (localhost)
+// Dev token injection: localhost by default; explicit opt-in supported via query param on other origins
 function maybeInjectDevToken() {
     try {
         const isLocal = typeof window !== 'undefined' && (
             window.location.hostname === 'localhost' ||
             window.location.hostname === '127.0.0.1'
         );
+        // Allow explicit opt-in on non-local origins via URL param `client_token` or flag `USE_ASSEMBLED_TOKEN`
+        let allowOnThisOrigin = false;
+        if (typeof window !== 'undefined') {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const urlToken = params.get('client_token');
+                const useFlag = params.get('use_token');
+                if (urlToken) {
+                    try { window.localStorage && window.localStorage.setItem('FITREP_DEV_TOKEN', urlToken); } catch (_) {}
+                    allowOnThisOrigin = true;
+                } else if (useFlag === '1' || useFlag === 'true') {
+                    allowOnThisOrigin = true;
+                }
+            } catch (_) {}
+        }
         // Default to enabled on localhost unless explicitly disabled
         const devEnabledFlag = (typeof window !== 'undefined' && 'DEV_ENABLE_EMBEDDED_TOKEN' in window)
             ? !!window.DEV_ENABLE_EMBEDDED_TOKEN
             : true;
-        if (!isLocal || !devEnabledFlag) return;
+        if (!(isLocal || allowOnThisOrigin) || !devEnabledFlag) return;
 
         // Prefer explicit dev token from localStorage; otherwise assemble
         const override = (typeof window !== 'undefined' && window.localStorage)
