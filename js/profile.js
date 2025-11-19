@@ -3000,10 +3000,12 @@ function renderProfileGrid() {
         const cumRv = cumValuesById.get(evaluation.evaluationId) ?? rv;
         const avg = parseFloat(evaluation.fitrepAverage || '0').toFixed(2);
         const rankPos = 1 + cumList.filter(v => v > cumRv).length;
+        const marineRankNorm = normalizeRankLabel(evaluation.marineInfo?.rank || '');
 
         return {
             ...evaluation,
             rank: rankPos,
+            marineRankNorm,
             marineName: evaluation.marineInfo?.name || '-',
             occasion: capitalize(evaluation.occasion || '-'),
             endDate: (evaluation.marineInfo?.evaluationPeriod?.to || '').slice(0, 10) || '-',
@@ -3025,6 +3027,7 @@ function renderProfileGrid() {
         // Create cells efficiently
         const cells = [
             { text: evaluation.rank, className: '' },
+            { text: evaluation.marineRankNorm || '-', className: '' },
             { text: evaluation.marineName, className: '', style: 'text-align: left;' },
             { text: evaluation.occasion, className: '' },
             { text: evaluation.endDate, className: '' },
