@@ -723,7 +723,35 @@ function renderProfileHeader() {
     const pendingEl = document.getElementById('pendingSync');
 
     if (nameEl && currentProfile) {
-        nameEl.textContent = `${currentProfile.rsRank} ${currentProfile.rsName}`;
+        const rankNorm = normalizeRankLabel(currentProfile.rsRank || '');
+        const imgSrc = (function(rank){
+            const map = {
+                'SGT':'assets/images/USMC_SGT.png',
+                'SSGT':'assets/images/USMC_SSGT.png',
+                'GYSGT':'assets/images/USMC_GYSGT.png',
+                'MSGT':'assets/images/USMC_MSGT.png',
+                '1STSGT':'assets/images/USMC_1STSGT.png',
+                'MGYSGT':'assets/images/USMC_MGYSGT.png',
+                'SGTMAJ':'assets/images/USMC_SGTMAJ.png',
+                'WO':'assets/images/USMC_WO.png',
+                'CWO2':'assets/images/USMC_CWO2.png',
+                'CWO3':'assets/images/USMC_CWO3.png',
+                'CWO4':'assets/images/USMC_CWO4.png',
+                'CWO5':'assets/images/USMC_CWO5.png',
+                '2NDLT':'assets/images/USMC_2NDLT.png',
+                '1STLT':'assets/images/USMC_1STLT.png',
+                'CAPT':'assets/images/USMC_CAPT.png',
+                'MAJ':'assets/images/USMC_MAJ.png',
+                'LTCOL':'assets/images/USMC_LTCOL.png',
+                'COL':'assets/images/USMC_COL.png'
+            };
+            return map[rank] || '';
+        })(rankNorm);
+        if (imgSrc) {
+            nameEl.innerHTML = `<img src="${imgSrc}" alt="${rankNorm} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${rankNorm} ${currentProfile.rsName}`;
+        } else {
+            nameEl.textContent = `${currentProfile.rsRank} ${currentProfile.rsName}`;
+        }
     }
     if (emailEl && currentProfile) {
         emailEl.textContent = currentProfile.rsEmail;
@@ -1241,8 +1269,30 @@ function renderEvaluationsList() {
             card.onclick = () => applyRankFromSummary(r.rank);
             card.title = `Open ${r.rank} grid`;
 
+            const rankImageMap = {
+                '2NDLT': 'assets/images/USMC_2NDLT.png',
+                '1STLT': 'assets/images/USMC_1STLT.png',
+                'CAPT': 'assets/images/USMC_CAPT.png',
+                'MAJ': 'assets/images/USMC_MAJ.png',
+                'LTCOL': 'assets/images/USMC_LTCOL.png',
+                'COL': 'assets/images/USMC_COL.png',
+                'WO': 'assets/images/USMC_WO.png',
+                'CWO2': 'assets/images/USMC_CWO2.png',
+                'CWO3': 'assets/images/USMC_CWO3.png',
+                'CWO4': 'assets/images/USMC_CWO4.png',
+                'CWO5': 'assets/images/USMC_CWO5.png',
+                'SGT': 'assets/images/USMC_SGT.png',
+                'SSGT': 'assets/images/USMC_SSGT.png',
+                'GYSGT': 'assets/images/USMC_GYSGT.png',
+                'MSGT': 'assets/images/USMC_MSGT.png',
+                '1STSGT': 'assets/images/USMC_1STSGT.png',
+                'MGYSGT': 'assets/images/USMC_MGYSGT.png',
+                'SGTMAJ': 'assets/images/USMC_SGTMAJ.png'
+            };
+            const imgSrc = rankImageMap[r.rank] || '';
+            const imgHtml = imgSrc ? `<img src="${imgSrc}" alt="${r.rank} insignia" style="width:28px;height:28px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>` : '';
             card.innerHTML = `
-                <div class="rank-chip">${r.rank}</div>
+                <div class="rank-chip">${imgHtml}${r.rank}</div>
                 <div class="metric-group">
                     <div class="metric">
                         <span class="metric-label">Avg</span>
