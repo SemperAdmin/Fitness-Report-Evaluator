@@ -1,0 +1,107 @@
+name: Create User Profile
+
+on:
+  repository_dispatch:
+    types: [create-user]
+
+jobs:
+  create_user:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate payload
+        run: |
+          echo "Checking client_payload..."
+          if [ -z "${{ github.event.client_payload.user.rsEmail }}" ]; then echo "Missing rsEmail" && exit 1; fi
+          if [ -z "${{ github.event.client_payload.user.rsName }}" ]; then echo "Missing rsName" && exit 1; fi
+          if [ -z "${{ github.event.client_payload.user.rsRank }}" ]; then echo "Missing rsRank" && exit 1; fi
+          if [ -z "${{ github.event.client_payload.user.passwordHash }}" ]; then echo "passwordHash not provided; will attempt migration via previousEmail if available"; fi
+
+      - name: Prepare profile JSON
+        id: prep
+        run: |
+          EMAIL="${{ github.event.client_payload.user.rsEmail }}"
+          NAME="${{ github.event.client_payload.user.rsName }}"
+          RANK="${{ github.event.client_payload.user.rsRank }}"
+          PWHASH="${{ github.event.client_payload.user.passwordHash }}"
+          PREV_EMAIL="${{ github.event.client_payload.user.previousEmail }}"
+          if [ -z "$PREV_EMAIL" ]; then PREV_EMAIL="${{ github.event.client_payload.previousEmail }}"; fi
+          EMAIL_PREFIX=$(echo "$EMAIL" | tr 'A-Z' 'a-z' | cut -d'@' -f1)
+          PREV_PREFIX=$(echo "$PREV_EMAIL" | tr 'A-Z' 'a-z' | cut -d'@' -f1)
+
+          OWNER_REPO="SemperAdmin/Fitness-Report-Evaluator-Data"
+          FINAL_PWHASH="$PWHASH"
+          FINAL_CREATED=""
+          if [ -z "$FINAL_PWHASH" ] && [ -n "$PREV_PREFIX" ]; then
+            echo "Attempting to migrate passwordHash from previousEmail: $PREV_PREFIX"
+            PREV_PATH="users/${PREV_PREFIX}.json"
+            PREV_CONTENT_BASE64=$(gh api repos/$OWNER_REPO/contents/$PREV_PATH --jq .content || true)
+            if [ -n "$PREV_CONTENT_BASE64" ]; then
+              echo "$PREV_CONTENT_BASE64" | base64 -d > prev.json || true
+              if [ -s prev.json ]; then
+                FINAL_PWHASH=$(jq -r '.passwordHash // empty' prev.json)
+                FINAL_CREATED=$(jq -r '.createdDate // empty' prev.json)
+                echo "Migrated passwordHash=${FINAL_PWHASH:+(present)} createdDate=${FINAL_CREATED}"
+              fi
+            fi
+          fi
+
+          # Minimal user record; no aggregate arrays
+          cat > user.json <<EOF
+          {
+            "rsEmail": "$EMAIL",
+            "rsName": "$NAME",
+            "rsRank": "$RANK",
+            "createdDate": "$(date -Iseconds)",
+            "lastUpdated": "$(date -Iseconds)"
+          }
+          EOF
+
+          # Conditionally add passwordHash and migrated createdDate
+          if [ -n "$FINAL_PWHASH" ]; then
+            tmp=$(mktemp)
+            jq --arg ph "$FINAL_PWHASH" '.passwordHash=$ph' user.json > "$tmp" && mv "$tmp" user.json
+          fi
+          if [ -n "$FINAL_CREATED" ]; then
+            tmp=$(mktemp)
+            jq --arg cd "$FINAL_CREATED" '.createdDate=$cd' user.json > "$tmp" && mv "$tmp" user.json
+          fi
+
+          echo "email_prefix=$EMAIL_PREFIX" >> $GITHUB_OUTPUT
+
+      - name: Create or update user file in data repo
+        env:
+          GH_TOKEN: ${{ secrets.FITREP_DATA }}
+        run: |
+          EMAIL_PREFIX="${{ steps.prep.outputs.email_prefix }}"
+          OWNER_REPO="SemperAdmin/Fitness-Report-Evaluator-Data"
+          PATH="users/${EMAIL_PREFIX}.json"
+
+          # Get existing file SHA if present
+          SHA=$(gh api repos/$OWNER_REPO/contents/$PATH --jq .sha || true)
+          # Preserve existing createdDate if file already exists
+          if [ -n "$SHA" ]; then
+            EXISTING_CONTENT=$(gh api repos/$OWNER_REPO/contents/$PATH --jq .content || true)
+            if [ -n "$EXISTING_CONTENT" ]; then
+              echo "$EXISTING_CONTENT" | base64 -d > existing.json || true
+              if [ -s existing.json ]; then
+                EXISTING_CREATED=$(jq -r '.createdDate // empty' existing.json)
+                if [ -n "$EXISTING_CREATED" ]; then
+                  tmp=$(mktemp)
+                  jq --arg cd "$EXISTING_CREATED" '.createdDate=$cd' user.json > "$tmp" && mv "$tmp" user.json
+                fi
+              fi
+            fi
+          fi
+          CONTENT_BASE64=$(base64 -w0 user.json)
+
+          if [ -z "$SHA" ]; then
+            gh api --method PUT repos/$OWNER_REPO/contents/$PATH \
+              -F message="Create user profile for ${EMAIL_PREFIX}" \
+              -F content="$CONTENT_BASE64"
+          else
+            gh api --method PUT repos/$OWNER_REPO/contents/$PATH \
+              -F message="Update user profile for ${EMAIL_PREFIX}" \
+              -F content="$CONTENT_BASE64" \
+              -F sha="$SHA"
+          fi
+

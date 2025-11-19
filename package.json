@@ -1,0 +1,23 @@
+{
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "js-yaml": "^4.1.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-jsdoc": "^48.2.3"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:docs": "eslint . --max-warnings=0",
+    "docs:coverage": "node scripts/jsdoc-coverage.js",
+    "docs:report": "node scripts/jsdoc-coverage.js --report",
+    "start": "node server/server.js",
+    "render:build": "node scripts/render-build-wrapper.js",
+    "render:start": "node scripts/render-start-wrapper.js",
+    "test:issue": "node scripts/test-issue.js"
+  }
+}
