@@ -1123,7 +1123,7 @@ async function saveProfileUpdates() {
 
 // Set rank summary sort preference
 function setRankSummarySort(key) {
-    window.rankSummarySort = key || 'reports';
+    window.rankSummarySort = key || 'rank';
     renderEvaluationsList();
 }
 
@@ -1175,7 +1175,7 @@ function renderEvaluationsList() {
 
     // Only show ranks that have reports
     const orderedRanks = [
-        'SGT','SSGT','GYSGT','MSGT','1STSGT',
+        'SGT','SSGT','GYSGT','MSGT','1STSGT','MGYSGT','SGTMAJ',
         'WO','CWO2','CWO3','CWO4','CWO5',
         '2NDLT','1STLT','CAPT','MAJ','LTCOL','COL'
     ];
@@ -1196,9 +1196,21 @@ function renderEvaluationsList() {
     });
 
     // Sorting
-    const key = window.rankSummarySort || 'reports';
+    const key = window.rankSummarySort || 'rank';
     if (key === 'avg') {
         rows.sort((a, b) => b.avg - a.avg || a.rank.localeCompare(b.rank));
+    } else if (key === 'rank') {
+        const rankOrder = [
+            'COL','LTCOL','MAJ','CAPT','1STLT','2NDLT',
+            'CWO5','CWO4','CWO3','CWO2','WO',
+            'SGTMAJ','MGYSGT','1STSGT','MSGT','GYSGT','SSGT','SGT'
+        ];
+        rows.sort((a, b) => {
+            const ai = rankOrder.indexOf(a.rank);
+            const bi = rankOrder.indexOf(b.rank);
+            if (ai !== bi) return ai - bi;
+            return b.count - a.count || a.rank.localeCompare(b.rank);
+        });
     } else {
         rows.sort((a, b) => b.count - a.count || a.rank.localeCompare(b.rank));
     }
@@ -1213,6 +1225,7 @@ function renderEvaluationsList() {
                 <span class="sort-label">Sort:</span>
                 <button class="btn btn-secondary sort-btn ${key === 'reports' ? 'active' : ''}" onclick="setRankSummarySort('reports')">Reports</button>
                 <button class="btn btn-secondary sort-btn ${key === 'avg' ? 'active' : ''}" onclick="setRankSummarySort('avg')">Average</button>
+                <button class="btn btn-secondary sort-btn ${key === 'rank' ? 'active' : ''}" onclick="setRankSummarySort('rank')">Rank</button>
             </div>
         `;
 
@@ -1249,12 +1262,8 @@ function renderEvaluationsList() {
             cardsContainer.appendChild(card);
         });
 
-        // Only update DOM if content changed (simple check)
-        const existingGrid = container.querySelector('.rank-summary-grid');
-        if (!existingGrid || existingGrid.children.length !== rows.length) {
-            container.innerHTML = toolbarHtml;
-            container.appendChild(cardsContainer);
-        }
+        container.innerHTML = toolbarHtml;
+        container.appendChild(cardsContainer);
     });
 }
 
@@ -3315,6 +3324,10 @@ function normalizeRankLabel(rank) {
         'msgt': 'MSGT',
         '1stsgt': '1STSGT',
         '1st sgt': '1STSGT',
+        'mgysgt': 'MGYSGT',
+        'm gy sgt': 'MGYSGT',
+        'sgtmaj': 'SGTMAJ',
+        'sgt maj': 'SGTMAJ',
         // Warrant
         'wo': 'WO',
         'cwo2': 'CWO2',
