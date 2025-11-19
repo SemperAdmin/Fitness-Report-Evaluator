@@ -723,7 +723,35 @@ function renderProfileHeader() {
     const pendingEl = document.getElementById('pendingSync');
 
     if (nameEl && currentProfile) {
-        nameEl.textContent = `${currentProfile.rsRank} ${currentProfile.rsName}`;
+        const rankNorm = normalizeRankLabel(currentProfile.rsRank || '');
+        const imgSrc = (function(rank){
+            const map = {
+                'SGT':'assets/images/USMC_SGT.png',
+                'SSGT':'assets/images/USMC_SSGT.png',
+                'GYSGT':'assets/images/USMC_GYSGT.png',
+                'MSGT':'assets/images/USMC_MSGT.png',
+                '1STSGT':'assets/images/USMC_1STSGT.png',
+                'MGYSGT':'assets/images/USMC_MGYSGT.png',
+                'SGTMAJ':'assets/images/USMC_SGTMAJ.png',
+                'WO':'assets/images/USMC_WO.png',
+                'CWO2':'assets/images/USMC_CWO2.png',
+                'CWO3':'assets/images/USMC_CWO3.png',
+                'CWO4':'assets/images/USMC_CWO4.png',
+                'CWO5':'assets/images/USMC_CWO5.png',
+                '2NDLT':'assets/images/USMC_2NDLT.png',
+                '1STLT':'assets/images/USMC_1STLT.png',
+                'CAPT':'assets/images/USMC_CAPT.png',
+                'MAJ':'assets/images/USMC_MAJ.png',
+                'LTCOL':'assets/images/USMC_LTCOL.png',
+                'COL':'assets/images/USMC_COL.png'
+            };
+            return map[rank] || '';
+        })(rankNorm);
+        if (imgSrc) {
+            nameEl.innerHTML = `<img src="${imgSrc}" alt="${rankNorm} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${rankNorm} ${currentProfile.rsName}`;
+        } else {
+            nameEl.textContent = `${currentProfile.rsRank} ${currentProfile.rsName}`;
+        }
     }
     if (emailEl && currentProfile) {
         emailEl.textContent = currentProfile.rsEmail;
@@ -1123,7 +1151,7 @@ async function saveProfileUpdates() {
 
 // Set rank summary sort preference
 function setRankSummarySort(key) {
-    window.rankSummarySort = key || 'reports';
+    window.rankSummarySort = key || 'rank';
     renderEvaluationsList();
 }
 
@@ -1175,7 +1203,7 @@ function renderEvaluationsList() {
 
     // Only show ranks that have reports
     const orderedRanks = [
-        'SGT','SSGT','GYSGT','MSGT','1STSGT',
+        'SGT','SSGT','GYSGT','MSGT','1STSGT','MGYSGT','SGTMAJ',
         'WO','CWO2','CWO3','CWO4','CWO5',
         '2NDLT','1STLT','CAPT','MAJ','LTCOL','COL'
     ];
@@ -1196,9 +1224,21 @@ function renderEvaluationsList() {
     });
 
     // Sorting
-    const key = window.rankSummarySort || 'reports';
+    const key = window.rankSummarySort || 'rank';
     if (key === 'avg') {
         rows.sort((a, b) => b.avg - a.avg || a.rank.localeCompare(b.rank));
+    } else if (key === 'rank') {
+        const rankOrder = [
+            'COL','LTCOL','MAJ','CAPT','1STLT','2NDLT',
+            'CWO5','CWO4','CWO3','CWO2','WO',
+            'SGTMAJ','MGYSGT','1STSGT','MSGT','GYSGT','SSGT','SGT'
+        ];
+        rows.sort((a, b) => {
+            const ai = rankOrder.indexOf(a.rank);
+            const bi = rankOrder.indexOf(b.rank);
+            if (ai !== bi) return ai - bi;
+            return b.count - a.count || a.rank.localeCompare(b.rank);
+        });
     } else {
         rows.sort((a, b) => b.count - a.count || a.rank.localeCompare(b.rank));
     }
@@ -1213,6 +1253,7 @@ function renderEvaluationsList() {
                 <span class="sort-label">Sort:</span>
                 <button class="btn btn-secondary sort-btn ${key === 'reports' ? 'active' : ''}" onclick="setRankSummarySort('reports')">Reports</button>
                 <button class="btn btn-secondary sort-btn ${key === 'avg' ? 'active' : ''}" onclick="setRankSummarySort('avg')">Average</button>
+                <button class="btn btn-secondary sort-btn ${key === 'rank' ? 'active' : ''}" onclick="setRankSummarySort('rank')">Rank</button>
             </div>
         `;
 
@@ -1228,8 +1269,30 @@ function renderEvaluationsList() {
             card.onclick = () => applyRankFromSummary(r.rank);
             card.title = `Open ${r.rank} grid`;
 
+            const rankImageMap = {
+                '2NDLT': 'assets/images/USMC_2NDLT.png',
+                '1STLT': 'assets/images/USMC_1STLT.png',
+                'CAPT': 'assets/images/USMC_CAPT.png',
+                'MAJ': 'assets/images/USMC_MAJ.png',
+                'LTCOL': 'assets/images/USMC_LTCOL.png',
+                'COL': 'assets/images/USMC_COL.png',
+                'WO': 'assets/images/USMC_WO.png',
+                'CWO2': 'assets/images/USMC_CWO2.png',
+                'CWO3': 'assets/images/USMC_CWO3.png',
+                'CWO4': 'assets/images/USMC_CWO4.png',
+                'CWO5': 'assets/images/USMC_CWO5.png',
+                'SGT': 'assets/images/USMC_SGT.png',
+                'SSGT': 'assets/images/USMC_SSGT.png',
+                'GYSGT': 'assets/images/USMC_GYSGT.png',
+                'MSGT': 'assets/images/USMC_MSGT.png',
+                '1STSGT': 'assets/images/USMC_1STSGT.png',
+                'MGYSGT': 'assets/images/USMC_MGYSGT.png',
+                'SGTMAJ': 'assets/images/USMC_SGTMAJ.png'
+            };
+            const imgSrc = rankImageMap[r.rank] || '';
+            const imgHtml = imgSrc ? `<img src="${imgSrc}" alt="${r.rank} insignia" style="width:28px;height:28px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>` : '';
             card.innerHTML = `
-                <div class="rank-chip">${r.rank}</div>
+                <div class="rank-chip">${imgHtml}${r.rank}</div>
                 <div class="metric-group">
                     <div class="metric">
                         <span class="metric-label">Avg</span>
@@ -1249,12 +1312,8 @@ function renderEvaluationsList() {
             cardsContainer.appendChild(card);
         });
 
-        // Only update DOM if content changed (simple check)
-        const existingGrid = container.querySelector('.rank-summary-grid');
-        if (!existingGrid || existingGrid.children.length !== rows.length) {
-            container.innerHTML = toolbarHtml;
-            container.appendChild(cardsContainer);
-        }
+        container.innerHTML = toolbarHtml;
+        container.appendChild(cardsContainer);
     });
 }
 
@@ -3297,6 +3356,10 @@ function normalizeRankLabel(rank) {
         'msgt': 'MSGT',
         '1stsgt': '1STSGT',
         '1st sgt': '1STSGT',
+        'mgysgt': 'MGYSGT',
+        'm gy sgt': 'MGYSGT',
+        'sgtmaj': 'SGTMAJ',
+        'sgt maj': 'SGTMAJ',
         // Warrant
         'wo': 'WO',
         'cwo2': 'CWO2',
