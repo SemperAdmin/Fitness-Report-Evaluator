@@ -1,6 +1,6 @@
 // Navigation System with Back Buttons and Step Management
 // Share navigationHistory across modules via window to avoid undefined references
-let navigationHistory = (typeof window !== 'undefined' && Array.isArray(window.navigationHistory)) 
+const navigationHistory = (typeof window !== 'undefined' && Array.isArray(window.navigationHistory))
     ? window.navigationHistory 
     : [];
 try { if (typeof window !== 'undefined') { window.navigationHistory = navigationHistory; } } catch (_) {}
@@ -24,6 +24,10 @@ const UI = {
 };
 
 // Navigation Functions
+/**
+ *
+ * @param step
+ */
 function updateNavigationState(step) {
     currentStep = step;
     navigationHistory.push(step);
@@ -41,6 +45,9 @@ function updateNavigationState(step) {
     renderBreadcrumbs();
 }
 
+/**
+ *
+ */
 function goBack() {
     if (navigationHistory.length <= 1) return;
     // Guard unsaved changes
@@ -77,6 +84,10 @@ function goBack() {
     updateNavigationState(previousStep);
 }
 
+/**
+ *
+ * @param step
+ */
 function jumpToStep(step) {
     // Validate if step is accessible
     if (!isStepAccessible(step)) {
@@ -111,6 +122,10 @@ function jumpToStep(step) {
     toggleMenu(); // Close menu after navigation
 }
 
+/**
+ *
+ * @param step
+ */
 function isStepAccessible(step) {
     switch(step) {
         case STEPS.setup:
@@ -136,6 +151,9 @@ function isStepAccessible(step) {
     }
 }
 
+/**
+ *
+ */
 function updateNavigationMenu() {
     const navItems = {
         navSetup: STEPS.setup,
@@ -166,6 +184,9 @@ function updateNavigationMenu() {
     });
 }
 
+/**
+ *
+ */
 function updateNavigationProgress() {
     const stepOrder = [STEPS.setup, STEPS.evaluation, STEPS.comments, STEPS.sectionI, STEPS.summary];
     const currentIndex = stepOrder.indexOf(currentStep);
@@ -190,6 +211,9 @@ function updateNavigationProgress() {
     }
 }
 
+/**
+ *
+ */
 function toggleMenu() {
     const overlay = document.getElementById('navMenuOverlay');
     overlay.classList.toggle(UI.CSS.ACTIVE);
@@ -202,6 +226,9 @@ function toggleMenu() {
     }
 }
 
+/**
+ *
+ */
 function renderBreadcrumbs() {
     const el = document.getElementById('breadcrumbs');
     if (!el) return;
@@ -226,6 +253,9 @@ function renderBreadcrumbs() {
 }
 
 // Step Navigation Functions
+/**
+ *
+ */
 function showSetupCard() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
     hideAllCards();
@@ -242,6 +272,9 @@ function showSetupCard() {
 }
 
 // Ensure RS name display on setup reflects whether we launched from the RS profile
+/**
+ *
+ */
 function updateRSSetupDisplay() {
     const rsDisplay = document.getElementById('rsProfileDisplay');
     const evaluatorInput = document.getElementById('evaluatorNameInput');
@@ -377,6 +410,9 @@ function updateRSSetupDisplay() {
     }
 }
 
+/**
+ *
+ */
 function showEvaluationStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
     hideAllCards();
@@ -388,6 +424,9 @@ function showEvaluationStep() {
     }
 }
 
+/**
+ *
+ */
 function showDirectedCommentsStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
     hideAllCards();
@@ -399,6 +438,9 @@ function showDirectedCommentsStep() {
     }
 }
 
+/**
+ *
+ */
 function showSectionIStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
     hideAllCards();
@@ -410,6 +452,9 @@ function showSectionIStep() {
     }
 }
 
+/**
+ *
+ */
 function showSummaryStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
     hideAllCards();
@@ -422,6 +467,9 @@ function showSummaryStep() {
 }
 
 // Delegate to the single implementation in evaluation.js
+/**
+ *
+ */
 function showSummary() {
     if (typeof window.evaluationShowSummary === 'function') {
         return window.evaluationShowSummary();
@@ -430,6 +478,9 @@ function showSummary() {
     showSummaryStep();
 }
 
+/**
+ *
+ */
 function hideAllCards() {
     const cards = [
         'modeSelectionCard', 'profileLoginCard', 'profileDashboardCard',
@@ -446,6 +497,10 @@ function hideAllCards() {
     });
 }
 
+/**
+ *
+ * @param step
+ */
 function jumpToStep(step) {
     // Validate if step is accessible
     if (!isStepAccessible(step)) {
@@ -477,11 +532,17 @@ function jumpToStep(step) {
 }
 
 // Update the original functions to use the new step functions
+/**
+ *
+ */
 function showDirectedCommentsScreen() {
     showDirectedCommentsStep();
     renderDirectedCommentsGrid();
 }
 
+/**
+ *
+ */
 function showSectionIGeneration() {
     showSectionIStep();
     
@@ -493,6 +554,9 @@ function showSectionIGeneration() {
     updateAnalysisDisplay(analysis);
 }
 
+/**
+ *
+ */
 function showSummary() {
     showSummaryStep();
     
@@ -556,6 +620,9 @@ function showSummary() {
 }
 
 // Edit Functions
+/**
+ *
+ */
 function editPreviousEvaluations() {
     if (confirm('This will take you back to edit your trait evaluations. Continue?')) {
         // Save current progress
@@ -570,6 +637,9 @@ function editPreviousEvaluations() {
     }
 }
 
+/**
+ *
+ */
 function editSummaryEvaluation() {
     if (confirm('This will take you back to the beginning to edit this evaluation. Continue?')) {
         // Save current progress first
@@ -581,11 +651,17 @@ function editSummaryEvaluation() {
     }
 }
 
+/**
+ *
+ */
 function editEvaluation() {
     editSummaryEvaluation();
 }
 
 // Mobile-friendly touch handlers
+/**
+ *
+ */
 function initializeTouchHandlers() {
     // Add touch feedback to buttons
     const buttons = document.querySelectorAll('.btn, .tool-btn, .nav-btn');
@@ -616,6 +692,9 @@ function initializeTouchHandlers() {
 }
 
 // Keyboard navigation
+/**
+ *
+ */
 function initializeKeyboardNavigation() {
     document.addEventListener('keydown', function(e) {
         // ESC to close modals/menus
@@ -643,6 +722,9 @@ function initializeKeyboardNavigation() {
 }
 
 // Initialize navigation system
+/**
+ *
+ */
 function initializeNavigation() {
     initializeTouchHandlers();
     initializeKeyboardNavigation();

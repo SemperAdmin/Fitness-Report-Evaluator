@@ -9,6 +9,10 @@
  * Only renders visible items + buffer, dramatically improves performance
  */
 class VirtualScroller {
+    /**
+     *
+     * @param options
+     */
     constructor(options) {
         this.container = options.container;
         this.items = options.items || [];
@@ -28,6 +32,9 @@ class VirtualScroller {
         this.init();
     }
 
+    /**
+     *
+     */
     init() {
         if (!this.container) {
             console.error('VirtualScroller: Container not found');
@@ -58,10 +65,17 @@ class VirtualScroller {
         this.updateItems(this.items);
     }
 
+    /**
+     *
+     */
     handleScroll() {
         this.render();
     }
 
+    /**
+     *
+     * @param items
+     */
     updateItems(items) {
         this.items = items || [];
         this.contentHeight = this.items.length * this.itemHeight;
@@ -69,6 +83,9 @@ class VirtualScroller {
         this.render();
     }
 
+    /**
+     *
+     */
     render() {
         if (!this.container || this.items.length === 0) return;
 
@@ -126,11 +143,18 @@ class VirtualScroller {
         }
     }
 
+    /**
+     *
+     * @param index
+     */
     scrollToIndex(index) {
         if (index < 0 || index >= this.items.length) return;
         this.container.scrollTop = index * this.itemHeight;
     }
 
+    /**
+     *
+     */
     destroy() {
         if (this.container) {
             this.container.removeEventListener('scroll', this.handleScroll);
@@ -144,6 +168,10 @@ class VirtualScroller {
  * Renders large datasets in chunks to avoid blocking the UI
  */
 class IncrementalRenderer {
+    /**
+     *
+     * @param options
+     */
     constructor(options) {
         this.items = options.items || [];
         this.renderItem = options.renderItem;
@@ -157,6 +185,9 @@ class IncrementalRenderer {
         this.cancelled = false;
     }
 
+    /**
+     *
+     */
     start() {
         if (this.isRendering) {
             console.warn('Rendering already in progress');
@@ -169,6 +200,9 @@ class IncrementalRenderer {
         this.renderChunk();
     }
 
+    /**
+     *
+     */
     renderChunk() {
         if (this.cancelled || this.currentIndex >= this.items.length) {
             this.complete();
@@ -200,6 +234,9 @@ class IncrementalRenderer {
         }
     }
 
+    /**
+     *
+     */
     complete() {
         this.isRendering = false;
         if (this.onComplete && !this.cancelled) {
@@ -207,6 +244,9 @@ class IncrementalRenderer {
         }
     }
 
+    /**
+     *
+     */
     cancel() {
         this.cancelled = true;
         this.isRendering = false;
@@ -220,6 +260,8 @@ class IncrementalRenderer {
 class DOMDiffer {
     /**
      * Update element attributes only if they changed
+     * @param element
+     * @param newAttributes
      */
     static updateAttributes(element, newAttributes) {
         if (!element || !newAttributes) return;
@@ -242,6 +284,8 @@ class DOMDiffer {
 
     /**
      * Update text content only if changed
+     * @param element
+     * @param newText
      */
     static updateTextContent(element, newText) {
         if (!element) return;
@@ -252,6 +296,9 @@ class DOMDiffer {
 
     /**
      * Update a single table cell
+     * @param cell
+     * @param newContent
+     * @param newClass
      */
     static updateCell(cell, newContent, newClass = null) {
         if (!cell) return;
@@ -269,6 +316,8 @@ class DOMDiffer {
 
     /**
      * Batch update multiple cells in a row
+     * @param row
+     * @param updates
      */
     static updateRow(row, updates) {
         if (!row || !updates) return;
@@ -291,6 +340,10 @@ class DOMDiffer {
  * For profile grid - updates only changed rows
  */
 class OptimizedTableRenderer {
+    /**
+     *
+     * @param tableBody
+     */
     constructor(tableBody) {
         this.tbody = tableBody;
         this.rowCache = new Map(); // evaluationId -> row element
@@ -299,6 +352,7 @@ class OptimizedTableRenderer {
 
     /**
      * Generate a simple hash of row data
+     * @param data
      */
     hashRowData(data) {
         return JSON.stringify({
@@ -317,6 +371,8 @@ class OptimizedTableRenderer {
     /**
      * Update table with new data
      * Only modifies changed rows
+     * @param evaluations
+     * @param renderRow
      */
     updateTable(evaluations, renderRow) {
         const newIds = new Set(evaluations.map(e => e.evaluationId));
@@ -382,6 +438,7 @@ class OptimizedTableRenderer {
     /**
      * Reorder DOM elements to match data order
      * Only if order changed
+     * @param evaluations
      */
     reorderRows(evaluations) {
         const currentOrder = Array.from(this.tbody.children)
@@ -414,6 +471,9 @@ class OptimizedTableRenderer {
         }
     }
 
+    /**
+     *
+     */
     clear() {
         this.rowCache.clear();
         this.rowData.clear();
@@ -425,11 +485,18 @@ class OptimizedTableRenderer {
  * Request Animation Frame helper for smooth updates
  */
 class RAFQueue {
+    /**
+     *
+     */
     constructor() {
         this.queue = [];
         this.isProcessing = false;
     }
 
+    /**
+     *
+     * @param callback
+     */
     add(callback) {
         this.queue.push(callback);
         if (!this.isProcessing) {
@@ -437,6 +504,9 @@ class RAFQueue {
         }
     }
 
+    /**
+     *
+     */
     process() {
         if (this.queue.length === 0) {
             this.isProcessing = false;

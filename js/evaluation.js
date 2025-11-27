@@ -1,8 +1,9 @@
 /**
  * Evaluation Module: encapsulates evaluation workflow and state to avoid globals.
  * Provides backward-compatible shims so existing inline handlers continue to work.
+ * @param global
  */
-;(function (global) {
+(function (global) {
     'use strict';
 
     /**
@@ -22,13 +23,13 @@
      * Each entry stores selected grade and justification.
      * @type {Record<string, {grade: string, justification: string}>}
      */
-    let evaluationResults = {};
+    const evaluationResults = {};
 
     /**
      * Ordered list of trait definitions used by the evaluation UI.
      * @type {Array<object>}
      */
-    let allTraits = [];
+    const allTraits = [];
 
     /**
      * Whether Reporting Senior section (H) should be included.
@@ -46,7 +47,7 @@
      * Metadata for the current evaluation (Marine name, rank, dates, evaluator, occasion).
      * @type {object}
      */
-    let evaluationMeta = {};
+    const evaluationMeta = {};
 
     /**
      * Whether the UI is currently showing the review screen.
@@ -67,6 +68,10 @@
     let reevaluationReturnTo = null;
 
 // Safely split a composite trait key like "E_effectiveness_under_stress"
+/**
+ *
+ * @param compositeKey
+ */
 function splitTraitKey(compositeKey) {
     const idx = String(compositeKey).indexOf('_');
     if (idx === -1) return [String(compositeKey), ''];
@@ -76,6 +81,10 @@ function splitTraitKey(compositeKey) {
 }
 
 // Helper Functions (defined first)
+/**
+ *
+ * @param sectionKey
+ */
 function getSectionProgress(sectionKey) {
     const sectionTraits = allTraits.filter(trait => trait.sectionKey === sectionKey);
     const completedInSection = sectionTraits.filter((trait, index) => {
@@ -95,6 +104,10 @@ function getSectionProgress(sectionKey) {
     };
 }
 
+/**
+ *
+ * @param sectionKey
+ */
 function getSectionInfo(sectionKey) {
     const sectionDetails = {
         'D': {
@@ -122,6 +135,10 @@ function getSectionInfo(sectionKey) {
     return sectionDetails[sectionKey] || { description: "", importance: "" };
 }
 
+/**
+ *
+ * @param grade
+ */
 function getGradeMeaning(grade) {
     const meanings = {
         'A': "Significantly below standards",
@@ -136,6 +153,9 @@ function getGradeMeaning(grade) {
     return meanings[grade] || "";
 }
 
+/**
+ *
+ */
 function getRemainingsSections() {
     const remainingTraits = allTraits.slice(currentTraitIndex + 1);
     const sectionsLeft = [...new Set(remainingTraits.map(t => t.sectionTitle))];
@@ -149,6 +169,9 @@ function getRemainingsSections() {
     }
 }
 
+/**
+ *
+ */
 function updateProgress() {
     const progress = (currentTraitIndex / allTraits.length) * 100;
     document.getElementById('progressFill').style.width = progress + '%';
@@ -167,6 +190,9 @@ function updateProgress() {
 
 // Main Functions
 // startEvaluation()
+/**
+ *
+ */
 function startEvaluation() {
     const marineName = document.getElementById('marineNameInput').value.trim();
     const fromDate = document.getElementById('fromDateInput').value;
@@ -233,6 +259,9 @@ function startEvaluation() {
     renderCurrentTrait();
 }
 
+/**
+ *
+ */
 function initializeTraits() {
     // Clear array without reassigning to preserve object reference
     allTraits.length = 0;
@@ -279,6 +308,9 @@ function initializeTraits() {
     console.log('Total traits:', allTraits.length);
 }
 
+/**
+ *
+ */
 function renderCurrentTrait() {
     const container = document.getElementById('evaluationContainer');
     
@@ -372,6 +404,10 @@ function renderCurrentTrait() {
     `;
 }
 
+/**
+ *
+ * @param grade
+ */
 function getGradeClass(grade) {
     const gradeClasses = {
         'A': 'adverse',
@@ -385,6 +421,10 @@ function getGradeClass(grade) {
     return gradeClasses[grade] || 'acceptable';
 }
 
+/**
+ *
+ * @param action
+ */
 function handleGradeAction(action) {
     const trait = traitBeingReevaluated || allTraits[currentTraitIndex];
     let selectedGrade = currentEvaluationLevel;
@@ -415,6 +455,10 @@ function handleGradeAction(action) {
     }
 }
 
+/**
+ *
+ * @param grade
+ */
 function finalizeTrait(grade) {
     const trait = traitBeingReevaluated || allTraits[currentTraitIndex];
     
@@ -427,6 +471,9 @@ function finalizeTrait(grade) {
     showJustificationModal();
 }
 
+/**
+ *
+ */
 function showJustificationModal() {
     const modal = document.getElementById('justificationModal');
     const trait = pendingEvaluation.trait;
@@ -483,6 +530,9 @@ function showJustificationModal() {
     document.getElementById('justificationText').focus();
 }
 
+/**
+ *
+ */
 function saveJustification() {
     const justificationText = document.getElementById('justificationText').value.trim();
     
@@ -557,6 +607,9 @@ function saveJustification() {
     }
 }
 
+/**
+ *
+ */
 function cancelJustification() {
     // Stop voice recording if active
     if (voiceRecognition) {
@@ -593,6 +646,9 @@ function cancelJustification() {
 }
 
 // showReviewScreen()
+/**
+ *
+ */
 function showReviewScreen() {
     isInReviewMode = true;
     updateProgress();
@@ -613,6 +669,9 @@ function showReviewScreen() {
 }
 
 // populateReviewScreen()
+/**
+ *
+ */
 function populateReviewScreen() {
     const reviewGrid = document.getElementById('reviewGrid');
     if (!reviewGrid) {
@@ -684,6 +743,10 @@ function populateReviewScreen() {
     });
 }
 
+/**
+ *
+ * @param grade
+ */
 function getGradeDescription(grade) {
     const descriptions = {
         'A': "Significantly below standards",
@@ -697,6 +760,10 @@ function getGradeDescription(grade) {
     return descriptions[grade] || "Grade description not available";
 }
 
+/**
+ *
+ * @param traitKey
+ */
 function editTrait(traitKey) {
     // Find the trait in allTraits
     const [sectionKey, traitKeyPart] = splitTraitKey(traitKey);
@@ -711,6 +778,10 @@ function editTrait(traitKey) {
     showReevaluationModal(trait, traitKey);
 }
 
+/**
+ *
+ * @param traitKey
+ */
 function editJustification(traitKey) {
     // Parse keys and locate trait
     const [sectionKey, traitKeyPart] = splitTraitKey(String(traitKey));
@@ -731,6 +802,11 @@ function editJustification(traitKey) {
     showJustificationModal();
 }
 
+/**
+ *
+ * @param trait
+ * @param traitKey
+ */
 function showReevaluationModal(trait, traitKey) {
     const modal = document.getElementById('reevaluateModal');
     const currentResult = evaluationResults[traitKey];
@@ -783,6 +859,9 @@ function showReevaluationModal(trait, traitKey) {
     }
 }
 
+/**
+ *
+ */
 function cancelReevaluation() {
     const modal = document.getElementById('reevaluateModal');
     try {
@@ -806,6 +885,9 @@ function cancelReevaluation() {
     if (reviewCard) { reviewCard.classList.add('active'); reviewCard.style.display = 'block'; }
 }
 
+/**
+ *
+ */
 function startReevaluation() {
     const modal = document.getElementById('reevaluateModal');
     const traitKey = modal.dataset.traitKey;
@@ -862,6 +944,9 @@ function startReevaluation() {
 }
 
 // goBackToLastTrait()
+/**
+ *
+ */
 function goBackToLastTrait() {
     if (currentTraitIndex > 0) {
         currentTraitIndex--;
@@ -874,6 +959,9 @@ function goBackToLastTrait() {
 }
 
 // proceedToDirectedComments()
+/**
+ *
+ */
 function proceedToDirectedComments() {
     isInReviewMode = false;
     try { if (window.ModalController) window.ModalController.closeAll(); } catch (_) {}
@@ -897,6 +985,9 @@ function proceedToDirectedComments() {
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
 }
 
+/**
+ *
+ */
 function showSummary() {
     // Hide all other cards
     document.querySelectorAll('.evaluation-card, .directed-comments-card, .section-i-generation-card, .review-card').forEach(card => {

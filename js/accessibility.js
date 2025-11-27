@@ -1,5 +1,9 @@
 // Accessibility and form helpers: required indicators and focus management
 (function () {
+  /**
+   *
+   * @param root
+   */
   function initRequiredIndicators(root = document) {
     const groups = root.querySelectorAll('.form-group');
     groups.forEach(group => {
@@ -19,6 +23,10 @@
     });
   }
 
+  /**
+   *
+   * @param root
+   */
   function focusFirstInteractive(root) {
     const sel = 'input, select, textarea, button, [tabindex]:not([tabindex="-1"])';
     const el = root.querySelector(sel);

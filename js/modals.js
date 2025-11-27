@@ -10,13 +10,33 @@
   const Z_STEP = 20; // gap between stacked layers
   const modalRegistry = new Map(); // id -> config for reusable defaults
 
+  /**
+   *
+   */
   class ModalStack {
+    /**
+     *
+     */
     constructor(){
       this.stack = []; // [{ id, zIndexBackdrop, zIndexModal }]
     }
+    /**
+     *
+     */
     depth(){ return this.stack.length; }
+    /**
+     *
+     */
     top(){ return this.stack[this.stack.length - 1] || null; }
+    /**
+     *
+     * @param id
+     */
     has(id){ return this.stack.some(m => m.id === id); }
+    /**
+     *
+     * @param id
+     */
     push(id){
       if (this.has(id)) return this.top();
       const idx = this.depth();
@@ -28,9 +48,16 @@
       this.stack.push(entry);
       return entry;
     }
+    /**
+     *
+     */
     pop(){
       return this.stack.pop() || null;
     }
+    /**
+     *
+     * @param id
+     */
     remove(id){
       const i = this.stack.findIndex(m => m.id === id);
       if (i >= 0) {
@@ -44,12 +71,19 @@
       }
       return null;
     }
+    /**
+     *
+     * @param index
+     */
     computeZForIndex(index){
       return {
         backdrop: BASE_BACKDROP_Z + index * Z_STEP,
         modal: BASE_MODAL_Z + index * Z_STEP,
       };
     }
+    /**
+     *
+     */
     handleEscape(){
       // For testing: simulate Escape closing the topmost
       const top = this.top();
@@ -64,7 +98,13 @@
     }
   }
 
+  /**
+   *
+   */
   class ModalController {
+    /**
+     *
+     */
     constructor(){
       this.stack = new ModalStack();
       this._keyHandler = (e) => {
@@ -79,15 +119,37 @@
     }
 
     // Register reusable defaults and semantics for a modal id
+    /**
+     *
+     * @param id
+     * @param config
+     */
     register(id, config = {}){
       if (!id) return;
       modalRegistry.set(String(id), Object.assign({}, config));
     }
+    /**
+     *
+     * @param id
+     */
     getConfig(id){
       return modalRegistry.get(String(id)) || {};
     }
 
     // Create a reusable modal element with standard structure and ARIA
+    /**
+     *
+     * @param root0
+     * @param root0.id
+     * @param root0.title
+     * @param root0.content
+     * @param root0.closeLabel
+     * @param root0.className
+     * @param root0.describedBy
+     * @param root0.labelledBy
+     * @param root0.focusFirst
+     * @param root0.attributes
+     */
     create({ id, title = '', content, closeLabel = 'Close', className = 'sa-modal', describedBy, labelledBy, focusFirst, attributes = {} } = {}){
       if (!id) throw new Error('ModalController.create requires an id');
       if (typeof document === 'undefined') return null;
@@ -134,6 +196,11 @@
       return wrapper;
     }
 
+    /**
+     *
+     * @param id
+     * @param options
+     */
     openById(id, options = {}){
       const modal = typeof document !== 'undefined' ? document.getElementById(id) : null;
       if (!modal) {
@@ -203,6 +270,10 @@
       this._applyBodyLock();
     }
 
+    /**
+     *
+     * @param id
+     */
     closeById(id){
       const modal = typeof document !== 'undefined' ? document.getElementById(id) : null;
       if (!modal) return;
@@ -232,6 +303,9 @@
       return removed;
     }
 
+    /**
+     *
+     */
     closeTop(){
       const top = this.stack.top();
       if (!top) return null;
@@ -240,6 +314,9 @@
     }
 
     // Close all open modals and ensure no orphan backdrops/body locks remain
+    /**
+     *
+     */
     closeAll(){
       try {
         while (this.stack.depth() > 0) {
@@ -255,8 +332,14 @@
       try { this._removeBodyLock(); } catch (_) {}
     }
 
+    /**
+     *
+     */
     isAnyOpen(){ return this.stack.depth() > 0; }
 
+    /**
+     *
+     */
     _refreshLayering(){
       // Update z-indices and classes across stack
       this.stack.stack.forEach((entry, idx) => {
@@ -275,6 +358,9 @@
       });
     }
 
+    /**
+     *
+     */
     _applyBodyLock(){
       if (this._bodyClassApplied) return;
       document.body.classList.add('sa-modal-open');
@@ -302,6 +388,9 @@
       } catch (_) {}
       this._bodyClassApplied = true;
     }
+    /**
+     *
+     */
     _removeBodyLock(){
       document.body.classList.remove('sa-modal-open');
       try {

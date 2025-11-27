@@ -2,6 +2,7 @@
 
 /**
  * Debug logging utilities - only log when DEBUG_CREDENTIALS flag is enabled
+ * @param {...any} args
  */
 function debugLog(...args) {
     if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
@@ -9,6 +10,10 @@ function debugLog(...args) {
     }
 }
 
+/**
+ *
+ * @param {...any} args
+ */
 function debugWarn(...args) {
     if (typeof window !== 'undefined' && window.DEBUG_CREDENTIALS) {
         console.warn(...args);
@@ -83,11 +88,18 @@ function getCsrfToken() {
     return csrf;
 }
 
+/**
+ *
+ * @param grade
+ */
 function getGradeNumber(grade) {
     const gradeNumbers = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 0 };
     return gradeNumbers[grade];
 }
 
+/**
+ *
+ */
 function updateWordCount() {
     const textarea = document.getElementById('justificationText');
     const counter = document.getElementById('wordCount');
@@ -108,6 +120,9 @@ function updateWordCount() {
 }
 
 
+/**
+ *
+ */
 function calculateFitrepAverage() {
     // Excel-style aliases for the 13/14 attributes
     const traitAliases = {
@@ -163,6 +178,9 @@ function calculateFitrepAverage() {
     return avg.toFixed(2);
 }
 
+/**
+ *
+ */
 function exportToClipboard() {
     const fitrepAverage = calculateFitrepAverage();
     let exportText = "USMC FITREP Evaluation Results\n";
@@ -199,6 +217,9 @@ function exportToClipboard() {
     });
 }
 
+/**
+ *
+ */
 function resetEvaluation() {
     if (confirm('Are you sure you want to start over? All progress will be lost.')) {
         // Reset all state variables (clear objects/arrays without reassigning to preserve references)
@@ -223,6 +244,9 @@ function resetEvaluation() {
 // Lightweight utilities to support WCAG-compliant dialogs, focus, and announcements
 const A11y = (function() {
     let liveRegionEl = null;
+    /**
+     *
+     */
     function ensureLiveRegion() {
         if (liveRegionEl) return liveRegionEl;
         liveRegionEl = document.getElementById('srAnnouncements');
@@ -245,6 +269,11 @@ const A11y = (function() {
         return liveRegionEl;
     }
 
+    /**
+     *
+     * @param message
+     * @param politeness
+     */
     function announce(message, politeness) {
         try {
             const el = ensureLiveRegion();
@@ -253,6 +282,10 @@ const A11y = (function() {
         } catch (_) {}
     }
 
+    /**
+     *
+     * @param container
+     */
     function getFocusable(container) {
         const selectors = [
             'a[href]', 'button:not([disabled])', 'input:not([disabled])', 'select:not([disabled])', 'textarea:not([disabled])',
@@ -262,7 +295,15 @@ const A11y = (function() {
             .filter(el => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
     }
 
+    /**
+     *
+     * @param modalEl
+     */
     function trapFocus(modalEl) {
+        /**
+         *
+         * @param e
+         */
         function onKeyDown(e) {
             if (e.key !== 'Tab') return;
             const focusables = getFocusable(modalEl);
@@ -286,12 +327,21 @@ const A11y = (function() {
         modalEl.addEventListener('keydown', onKeyDown);
     }
 
+    /**
+     *
+     * @param modalEl
+     */
     function untrapFocus(modalEl) {
         const handler = modalEl.__a11yTrap;
         if (handler) modalEl.removeEventListener('keydown', handler);
         modalEl.__a11yTrap = null;
     }
 
+    /**
+     *
+     * @param modalEl
+     * @param opts
+     */
     function openDialog(modalEl, opts = {}) {
         if (!modalEl) return;
         const { labelledBy, describedBy, focusFirst } = opts;
@@ -308,6 +358,10 @@ const A11y = (function() {
         announce('Dialog opened');
     }
 
+    /**
+     *
+     * @param modalEl
+     */
     function closeDialog(modalEl) {
         if (!modalEl) return;
         untrapFocus(modalEl);
@@ -322,6 +376,9 @@ const A11y = (function() {
 
 try { window.A11y = A11y; } catch (_) {}
 
+/**
+ *
+ */
 function openHelpModal() {
     const modal = document.getElementById('helpModal');
     const trigger = document.getElementById('helpButton');
@@ -340,6 +397,9 @@ function openHelpModal() {
     A11y.openDialog(modal, { labelledBy: 'helpModalTitle', focusFirst: '.help-close' });
 }
 
+/**
+ *
+ */
 function closeHelpModal() {
     const modal = document.getElementById('helpModal');
     const trigger = document.getElementById('helpButton');
@@ -362,6 +422,10 @@ function closeHelpModal() {
 
 // Global HTML escaping utilities for XSS safety
 // Escapes special characters to prevent HTML injection when rendering user-provided content
+/**
+ *
+ * @param str
+ */
 function escapeHtml(str) {
     const s = String(str == null ? '' : str);
     return s
@@ -373,6 +437,10 @@ function escapeHtml(str) {
 }
 
 // Converts newlines to <br> tags after escaping, preserving line breaks safely
+/**
+ *
+ * @param str
+ */
 function nl2br(str) {
     const s = escapeHtml(str);
     return s.replace(/\r\n|\n|\r/g, '<br>');

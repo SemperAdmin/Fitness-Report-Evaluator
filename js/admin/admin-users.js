@@ -13,11 +13,14 @@ window.AdminUsers = (function() {
   // Evaluation viewer elements
   let evalModalEl, evalBackdrop, evalCloseBtn, evalModalTitle, evalOccasion, evalCompleted, evalAverage, evalMarine, evalRS, evalComments, evalTraits;
   let currentPage = 1;
-  let pageSize = 20;
+  const pageSize = 20;
   let totalItems = 0;
   let currentQuery = '';
   let currentSort = 'name';
 
+  /**
+   *
+   */
   function init() {
     tableBody = document.querySelector('#usersTable tbody');
     pagination = document.getElementById('usersPagination');
@@ -107,6 +110,10 @@ window.AdminUsers = (function() {
     if (evalCloseBtn) evalCloseBtn.addEventListener('click', closeEvaluationModal);
   }
 
+  /**
+   *
+   * @param page
+   */
   async function load(page) {
     if (typeof page === 'number') currentPage = Math.max(1, page);
     try {
@@ -124,6 +131,9 @@ window.AdminUsers = (function() {
     }
   }
 
+  /**
+   *
+   */
   async function populateRankOptions() {
     try {
       const eng = await window.AdminAPI.get('/metrics/engagement');
@@ -143,6 +153,9 @@ window.AdminUsers = (function() {
     } catch (_) { /* ignore */ }
   }
 
+  /**
+   *
+   */
   function renderPlaceholder() {
     if (!tableBody) return;
     tableBody.innerHTML = '';
@@ -151,6 +164,10 @@ window.AdminUsers = (function() {
     tableBody.appendChild(row);
   }
 
+  /**
+   *
+   * @param message
+   */
   function renderError(message) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
@@ -160,6 +177,10 @@ window.AdminUsers = (function() {
     if (pagination) pagination.textContent = '';
   }
 
+  /**
+   *
+   * @param users
+   */
   function renderTable(users) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
@@ -212,6 +233,9 @@ window.AdminUsers = (function() {
     }
   }
 
+  /**
+   *
+   */
   function renderPagination() {
     if (!pagination) return;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -233,16 +257,29 @@ window.AdminUsers = (function() {
     pagination.appendChild(nextBtn);
   }
 
+  /**
+   *
+   * @param str
+   */
   function escapeHtml(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  /**
+   *
+   * @param str
+   */
   function safeDate(str) {
     const ts = Date.parse(str || '');
     if (!Number.isFinite(ts) || ts <= 0) return '—';
     try { return new Date(ts).toLocaleDateString(); } catch (_) { return '—'; }
   }
 
+  /**
+   *
+   * @param fn
+   * @param ms
+   */
   function debounce(fn, ms) {
     let t;
     return function(...args) {
@@ -251,6 +288,10 @@ window.AdminUsers = (function() {
     };
   }
 
+  /**
+   *
+   * @param user
+   */
   function openUserDrawer(user) {
     if (!drawerEl) return;
     // Populate fields
@@ -276,6 +317,10 @@ window.AdminUsers = (function() {
     });
   }
 
+  /**
+   *
+   * @param user
+   */
   async function loadRecentActivity(user) {
     const username = String(user?.username || '').trim();
     if (!username) {
@@ -313,6 +358,10 @@ window.AdminUsers = (function() {
     }
   }
 
+  /**
+   *
+   * @param ev
+   */
   function openEvaluationModal(ev) {
     if (!evalModalEl) return;
     try {
@@ -362,18 +411,28 @@ window.AdminUsers = (function() {
     }
   }
 
+  /**
+   *
+   */
   function closeEvaluationModal() {
     if (!evalModalEl) return;
     evalModalEl.classList.add('hidden');
     evalModalEl.style.display = 'none';
   }
 
+  /**
+   *
+   */
   function closeDrawer() {
     if (!drawerEl) return;
     drawerEl.classList.add('hidden');
     drawerEl.style.display = 'none';
   }
 
+  /**
+   *
+   * @param user
+   */
   function openEditModal(user) {
     if (!editModalEl) return;
     editingUser = user || null;
@@ -386,6 +445,9 @@ window.AdminUsers = (function() {
     editModalEl.classList.remove('hidden');
   }
 
+  /**
+   *
+   */
   function closeEditModal() {
     if (!editModalEl) return;
     editModalEl.classList.add('hidden');
@@ -393,6 +455,10 @@ window.AdminUsers = (function() {
     editingUser = null;
   }
 
+  /**
+   *
+   * @param username
+   */
   async function checkAvailability(username) {
     const u = String(username || '').trim();
     if (!u) return { ok: false, error: 'Missing username' };
@@ -407,10 +473,17 @@ window.AdminUsers = (function() {
     }
   }
 
+  /**
+   *
+   * @param username
+   */
   function isValidUsername(username) {
     return /^[a-zA-Z0-9._-]{3,50}$/.test(String(username || ''));
   }
 
+  /**
+   *
+   */
   async function saveEdit() {
     if (!editingUser) return;
     const name = String(editNameInput?.value || '').trim();
@@ -466,6 +539,10 @@ window.AdminUsers = (function() {
     }
   }
 
+  /**
+   *
+   * @param user
+   */
   function openDeleteModal(user) {
     if (!deleteModalEl) return;
     deletingUser = user || null;
@@ -476,6 +553,9 @@ window.AdminUsers = (function() {
     deleteModalEl.classList.remove('hidden');
   }
 
+  /**
+   *
+   */
   function closeDeleteModal() {
     if (!deleteModalEl) return;
     deleteModalEl.classList.add('hidden');
@@ -483,6 +563,9 @@ window.AdminUsers = (function() {
     deletingUser = null;
   }
 
+  /**
+   *
+   */
   async function confirmDelete() {
     const expected = String(deletingUser?.username || '').trim();
     const typed = String(deleteConfirmInput?.value || '').trim();
@@ -515,6 +598,11 @@ window.AdminUsers = (function() {
   }
 
   // Simple toast helper
+  /**
+   *
+   * @param message
+   * @param type
+   */
   function showToast(message, type) {
     try {
       if (!toastContainer) return;

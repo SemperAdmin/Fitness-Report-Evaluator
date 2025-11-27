@@ -1,6 +1,9 @@
 window.AdminDashboard = (function() {
   let refreshBtn, lastRefreshEl;
   let tabs;
+  /**
+   *
+   */
   function init() {
     refreshBtn = document.getElementById('refreshDataBtn');
     lastRefreshEl = document.getElementById('lastRefresh');
@@ -10,6 +13,10 @@ window.AdminDashboard = (function() {
     setupTabs();
     showPanels(false);
   }
+  /**
+   *
+   * @param user
+   */
   function onLogin(user) {
     showPanels(true);
     try {
@@ -22,6 +29,9 @@ window.AdminDashboard = (function() {
     refreshData();
     try { window.AdminUsers?.load?.(1); } catch (_) {}
   }
+  /**
+   *
+   */
   async function refreshData() {
     const overviewLoading = document.getElementById('overviewLoading');
     const analyticsLoading = document.getElementById('analyticsLoading');
@@ -59,6 +69,9 @@ window.AdminDashboard = (function() {
       } catch (_) {}
     }
   }
+  /**
+   *
+   */
   async function logout() {
     try {
       await AdminAPI.post('/logout');
@@ -66,6 +79,10 @@ window.AdminDashboard = (function() {
     // Always navigate back to the main app
     window.location.href = 'index.html';
   }
+  /**
+   *
+   * @param authenticated
+   */
   function showPanels(authenticated) {
     const authPanel = document.getElementById('authPanel');
     const overviewPanel = document.getElementById('overviewPanel');
@@ -96,6 +113,9 @@ window.AdminDashboard = (function() {
     }
   }
 
+  /**
+   *
+   */
   function setupTabs() {
     tabs = {
       overview: document.getElementById('tabOverview'),
@@ -120,6 +140,10 @@ window.AdminDashboard = (function() {
     bind(tabs.analytics, 'analyticsPanel', 'tabAnalytics');
   }
 
+  /**
+   *
+   * @param tabId
+   */
   function setActiveTab(tabId) {
     const btns = [document.getElementById('tabOverview'), document.getElementById('tabUsers'), document.getElementById('tabAnalytics')];
     btns.forEach(btn => {

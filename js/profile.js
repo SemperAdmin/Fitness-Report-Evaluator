@@ -1,7 +1,7 @@
 // Profile Management System
 let currentProfile = null;
 let profileEvaluations = [];
-let syncQueue = [];
+const syncQueue = [];
 // In-memory cache for expanded evaluation details (with automatic size management)
 const evaluationDetailsCache = typeof ManagedCache !== 'undefined'
     ? new ManagedCache(100)
@@ -9,7 +9,7 @@ const evaluationDetailsCache = typeof ManagedCache !== 'undefined'
 
 // Performance optimization instances
 let tableRenderer = null; // OptimizedTableRenderer instance
-let rafQueue = new RAFQueue(); // Request Animation Frame queue for smooth updates
+const rafQueue = new RAFQueue(); // Request Animation Frame queue for smooth updates
 
 /**
  * Profile Authentication: Local-only login path.
@@ -328,11 +328,19 @@ async function accountLogin() {
 }
 
 // Client-side validators mirroring server-side rules
+/**
+ *
+ * @param username
+ */
 function isValidUsernameClient(username) {
     const u = String(username || '').trim();
     if (u.length < 3 || u.length > 50) return false;
     return /^[a-zA-Z0-9._-]+$/.test(u);
 }
+/**
+ *
+ * @param pw
+ */
 function isStrongPasswordClient(pw) {
     const p = String(pw || '');
     if (p.length < 8) return false;
@@ -341,10 +349,18 @@ function isStrongPasswordClient(pw) {
     const hasDigit = /\d/.test(p);
     return hasLower && hasUpper && hasDigit;
 }
+/**
+ *
+ * @param name
+ */
 function isValidNameClient(name) {
     const n = String(name || '').trim();
     return n.length >= 2 && n.length <= 100;
 }
+/**
+ *
+ * @param rank
+ */
 function isValidRankClient(rank) {
     const r = String(rank || '').trim();
     return r.length >= 2 && r.length <= 20;
@@ -356,8 +372,8 @@ function isValidRankClient(rank) {
  * Sends JSON body to API route and returns normalized result.
  *
  * @param {string} url API route.
- * @param {Object} body JSON serializable payload.
- * @returns {Promise<{ok:boolean,status:number,error?:string,profile?:Object,rsName?:string,rsRank?:string} | null>}
+ * @param {object} body JSON serializable payload.
+ * @returns {Promise<{ok: boolean, status: number, error?: string, profile?: object, rsName?: string, rsRank?: string} | null>}
  */
 async function postJson(url, body) {
     const base = (typeof window !== 'undefined' && window.API_BASE_URL)
@@ -522,6 +538,11 @@ async function postJson(url, body) {
 }
 
 // Cross-origin friendly POST using application/x-www-form-urlencoded to avoid preflight
+/**
+ *
+ * @param url
+ * @param body
+ */
 async function postForm(url, body) {
     const base = (typeof window !== 'undefined' && window.API_BASE_URL)
         ? window.API_BASE_URL
@@ -598,6 +619,9 @@ async function postForm(url, body) {
 }
 
 // UI toggles for Create Account
+/**
+ *
+ */
 function showCreateAccount() {
     const loginFields = document.getElementById('loginFields');
     const createSection = document.getElementById('createAccountSection');
@@ -607,6 +631,9 @@ function showCreateAccount() {
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
+/**
+ *
+ */
 function hideCreateAccount() {
     const loginFields = document.getElementById('loginFields');
     const createSection = document.getElementById('createAccountSection');
@@ -616,6 +643,9 @@ function hideCreateAccount() {
 }
 
 // Skip -> show main app
+/**
+ *
+ */
 function skipProfileLogin() {
     currentProfile = null;
 
@@ -652,12 +682,19 @@ function skipProfileLogin() {
 let selectedRankFilter = '';
 
 // New function to apply rank filter from summary table and open grid view
+/**
+ *
+ * @param rank
+ */
 function applyRankFromSummary(rank) {
     setRankFilter(rank);
     toggleGridView(true);
 }
 
 // Show RS Summary (main page) and clear any active rank filter
+/**
+ *
+ */
 function showRankSummaryView() {
     // Clear the selected rank filter
     setRankFilter('');
@@ -673,6 +710,9 @@ function showRankSummaryView() {
 }
 
 // Show Dashboard -> initialize and hide filters until a rank is chosen
+/**
+ *
+ */
 function showProfileDashboard() {
     const login = document.getElementById('profileLoginCard');
     if (login) {
@@ -716,6 +756,9 @@ function showProfileDashboard() {
     try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
 }
 
+/**
+ *
+ */
 function renderProfileHeader() {
     const nameEl = document.getElementById('profileHeaderName');
     const emailEl = document.getElementById('profileHeaderEmail');
@@ -767,6 +810,9 @@ function renderProfileHeader() {
 }
 
 // Edit Profile UI handlers
+/**
+ *
+ */
 function openEditProfile() {
     try {
         console.group('ProfileEdit: openEditProfile');
@@ -832,6 +878,9 @@ function openEditProfile() {
     }
 }
 
+/**
+ *
+ */
 function closeEditProfileModal() {
     try {
         console.group('ProfileEdit: closeEditProfileModal');
@@ -950,6 +999,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+/**
+ *
+ */
 async function saveProfileUpdates() {
     try {
         console.group('ProfileEdit: saveProfileUpdates');
@@ -1150,11 +1202,18 @@ async function saveProfileUpdates() {
 }
 
 // Set rank summary sort preference
+/**
+ *
+ * @param key
+ */
 function setRankSummarySort(key) {
     window.rankSummarySort = key || 'rank';
     renderEvaluationsList();
 }
 
+/**
+ *
+ */
 function renderEvaluationsList() {
     const container = document.getElementById('evaluationsList');
 
@@ -1317,6 +1376,10 @@ function renderEvaluationsList() {
     });
 }
 
+/**
+ *
+ * @param evaluation
+ */
 function createEvaluationListItem(evaluation) {
     const div = document.createElement('div');
     div.className = 'evaluation-item';
@@ -1354,6 +1417,10 @@ function createEvaluationListItem(evaluation) {
     return div;
 }
 
+/**
+ *
+ * @param evaluation
+ */
 function renderEvaluationDetails(evaluation) {
     let justificationsHTML = '';
     Object.values(evaluation.traitEvaluations).forEach(trait => {
@@ -1384,6 +1451,10 @@ function renderEvaluationDetails(evaluation) {
     `;
 }
 
+/**
+ *
+ * @param header
+ */
 async function toggleEvaluation(header) {
     const item = header.closest('.evaluation-item');
     const details = item.querySelector('.eval-details');
@@ -1452,6 +1523,9 @@ async function toggleEvaluation(header) {
 // Save Evaluation to Profile
 // Removed: showSaveToProfilePrompt (modal no longer used in streamlined flow)
 
+/**
+ *
+ */
 async function confirmSaveToProfile() {
     // Get occasion from evaluationMeta (captured during setup in evaluation.js)
     const occasion = evaluationMeta?.occasionType || '';
@@ -1476,6 +1550,10 @@ async function confirmSaveToProfile() {
 
     // Generate a collision-resistant evaluationId that can handle multiple events on the same day
     // Format: eval-YYYYMMDD-<marineRank>-<marineName>-<shortUUID>
+    /**
+     *
+     * @param meta
+     */
     function generateEvaluationId(meta) {
         const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const rankPart = String(meta?.marineRank || 'Unknown').toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -1585,6 +1663,9 @@ async function confirmSaveToProfile() {
     }
 }
 
+/**
+ *
+ */
 function skipSaveToProfile() {
     const modal = document.getElementById('saveProfileModal');
     if (!modal) return;
@@ -1602,6 +1683,9 @@ function skipSaveToProfile() {
 }
 
 // New: Save and immediately return to RS Dashboard
+/**
+ *
+ */
 async function confirmSaveToProfileAndReturn() {
     await confirmSaveToProfile();
     // Navigate to RS Dashboard to view the saved evaluation
@@ -1611,6 +1695,9 @@ async function confirmSaveToProfileAndReturn() {
 }
 
 // Sync Operations
+/**
+ *
+ */
 async function syncAllEvaluations() {
     if (!navigator.onLine) {
         showToast('Offline: connect to the internet to sync.', 'warning');
@@ -1679,6 +1766,9 @@ async function syncAllEvaluations() {
 }
 
 // Pending sync guard helpers
+/**
+ *
+ */
 function hasPendingSyncs() {
     try {
         return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => e.syncStatus === 'pending');
@@ -1687,6 +1777,10 @@ function hasPendingSyncs() {
     }
 }
 
+/**
+ *
+ * @param nextAction
+ */
 function openPendingSyncModal(nextAction) {
     const modal = document.getElementById('pendingSyncModal');
     const countEl = document.getElementById('pendingSyncCount');
@@ -1709,6 +1803,9 @@ function openPendingSyncModal(nextAction) {
     }
 }
 
+/**
+ *
+ */
 function closePendingSyncModal() {
     const modal = document.getElementById('pendingSyncModal');
     if (!modal) return;
@@ -1728,6 +1825,9 @@ function closePendingSyncModal() {
     if (nextEl) nextEl.value = '';
 }
 
+/**
+ *
+ */
 async function handlePendingSyncConfirm() {
     try {
         await syncAllEvaluations();
@@ -1745,6 +1845,9 @@ async function handlePendingSyncConfirm() {
 }
 
 // Utility Functions
+/**
+ *
+ */
 function startNewEvaluation() {
     if (hasPendingSyncs()) {
         openPendingSyncModal('startNewEvaluation');
@@ -1753,6 +1856,9 @@ function startNewEvaluation() {
     continueStartNewEvaluation();
 }
 
+/**
+ *
+ */
 function continueStartNewEvaluation() {
     const dash = document.getElementById('profileDashboardCard');
     if (dash) {
@@ -1813,6 +1919,10 @@ function continueStartNewEvaluation() {
     }
 }
 
+/**
+ *
+ * @param evalId
+ */
 function deleteEvaluation(evalId) {
     if (!confirm('Delete this evaluation? This cannot be undone.')) {
         return;
@@ -1826,6 +1936,10 @@ function deleteEvaluation(evalId) {
     renderEvaluationsList();
 }
 
+/**
+ *
+ * @param evalId
+ */
 function exportEvaluation(evalId) {
     const evaluation = profileEvaluations.find(e => e.evaluationId === evalId);
     if (!evaluation) return;
@@ -1934,6 +2048,9 @@ function exportEvaluation(evalId) {
     doc.save(`${pdfTitle}.pdf`);
 }
 
+/**
+ *
+ */
 function exportProfile() {
     const exportData = {
         profile: currentProfile,
@@ -1951,6 +2068,9 @@ function exportProfile() {
 
 // Manage Data dropdown logic and CSV import/template export
 let manageMenuOutsideHandler = null;
+/**
+ *
+ */
 function toggleSubMenu() {
     const menu = document.getElementById('subMenu');
     const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
@@ -1990,6 +2110,9 @@ function toggleSubMenu() {
     }
 }
 
+/**
+ *
+ */
 function exportAllData() {
     // Preserve existing JSON export for full profile + evaluations
     exportProfile();
@@ -2000,6 +2123,9 @@ function exportAllData() {
     if (chevron) chevron.classList.remove('rotated');
 }
 
+/**
+ *
+ */
 function initiateUpload() {
     const input = document.getElementById('csvUploadInput');
     if (!input) {
@@ -2036,6 +2162,9 @@ function initiateUpload() {
     input.click();
 }
 
+/**
+ *
+ */
 function downloadTemplate() {
     const headers = [
         'Marine','Rank','Occasion','Ending Date',
@@ -2056,6 +2185,10 @@ function downloadTemplate() {
     if (chevron) chevron.classList.remove('rotated');
 }
 
+/**
+ *
+ * @param text
+ */
 function parseCsv(text) {
     // Simple CSV parser with quote handling
     const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim().length > 0);
@@ -2096,6 +2229,11 @@ function parseCsv(text) {
     return { headers, rows };
 }
 
+/**
+ *
+ * @param headers
+ * @param rows
+ */
 function importEvaluationsFromRows(headers, rows) {
     const idx = (name) => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
     const lookup = {
@@ -2210,6 +2348,9 @@ function importEvaluationsFromRows(headers, rows) {
     return added;
 }
 
+/**
+ *
+ */
 function logoutProfile() {
     if (hasPendingSyncs()) {
         openPendingSyncModal('logoutProfile');
@@ -2218,6 +2359,9 @@ function logoutProfile() {
     continueLogoutProfile();
 }
 
+/**
+ *
+ */
 function continueLogoutProfile() {
     if (confirm('Log out? Unsaved changes will remain in local storage.')) {
         // Ensure any open modals/overlays are closed so interactions aren't blocked
@@ -2316,6 +2460,9 @@ try {
 } catch (_) { /* ignore */ }
 
 // Connection Status
+/**
+ *
+ */
 function updateConnectionStatus() {
     const C = (typeof window !== 'undefined' && window.CONSTANTS) || {};
     const STATUS = (C.STATUS_MESSAGES) || { ONLINE: 'Connected - Sync available', OFFLINE: 'Offline - Changes saved locally' };
@@ -2346,6 +2493,9 @@ if (typeof globalLifecycle !== 'undefined') {
 }
 
 // Helper stubs for functions referenced from evaluation.js
+/**
+ *
+ */
 function calculateFitrepAverage() {
     // Excel-style aliases for the 13/14 attributes
     const traitAliases = {
@@ -2408,6 +2558,10 @@ function calculateFitrepAverage() {
 // Add: sorting state and setter
 let gridSort = 'DateDesc';
 
+/**
+ *
+ * @param value
+ */
 function setGridSort(value) {
     gridSort = value;
     renderProfileGrid();
@@ -2428,6 +2582,10 @@ function setGridSort(value) {
 // Avg = AVERAGEIF(R:R,"<>H",T:T)  -> average of fitrepAverage where fitrepAverage > 0
 // Low = MINIFS(T:T,R:R,"<>H")     -> minimum of fitrepAverage where fitrepAverage > 0
 // # Rpts = COUNTA(C:C) - COUNTIF(R:R,"H") - 1 -> total - zeros - 1
+/**
+ *
+ * @param evals
+ */
 function renderRankSummary(evals) {
     const container = document.getElementById('profileGridContainer');
     if (!container) return;
@@ -2487,6 +2645,9 @@ function renderRankSummary(evals) {
 }
 
 // Compute High / Avg / Low / # Rpts from the table's Avg column
+/**
+ *
+ */
 function renderRankSummaryFromDom() {
     const tbody = document.querySelector('#profileGrid tbody');
     if (!tbody) return;
@@ -2569,6 +2730,9 @@ function renderRankSummaryFromDom() {
 
 
 // Auto-open Dashboard on load if a profile exists
+/**
+ *
+ */
 function showProfileDashboardOnLoad() {
     const loginCard = document.getElementById('profileLoginCard');
     const dashboardCard = document.getElementById('profileDashboardCard');
@@ -2621,6 +2785,9 @@ function showProfileDashboardOnLoad() {
 }
 
 // Profile persistence helpers and GitHub stubs (added)
+/**
+ *
+ */
 function loadProfileFromStorage() {
     try {
         const profJson = localStorage.getItem('current_profile');
@@ -2635,12 +2802,21 @@ function loadProfileFromStorage() {
     }
 }
 
+/**
+ *
+ * @param name
+ * @param email
+ */
 function generateProfileKey(name, email) {
     const n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
     const e = String(email || '').toLowerCase().trim();
     return `rs:${n}|${e}`;
 }
 
+/**
+ *
+ * @param profileKey
+ */
 function loadProfileFromLocal(profileKey) {
     try {
         return JSON.parse(localStorage.getItem(`profile:${profileKey}`) || 'null');
@@ -2650,6 +2826,11 @@ function loadProfileFromLocal(profileKey) {
     }
 }
 
+/**
+ *
+ * @param profileKey
+ * @param profile
+ */
 function saveProfileToLocal(profileKey, profile) {
     try {
         localStorage.setItem(`profile:${profileKey}`, JSON.stringify(profile));
@@ -2658,6 +2839,10 @@ function saveProfileToLocal(profileKey, profile) {
     }
 }
 
+/**
+ *
+ * @param profileKey
+ */
 function loadEvaluationsFromLocal(profileKey) {
     try {
         return JSON.parse(localStorage.getItem(`evaluations:${profileKey}`) || '[]');
@@ -2667,6 +2852,11 @@ function loadEvaluationsFromLocal(profileKey) {
     }
 }
 
+/**
+ *
+ * @param profileKey
+ * @param evaluations
+ */
 function saveEvaluationsToLocal(profileKey, evaluations) {
     try {
         localStorage.setItem(`evaluations:${profileKey}`, JSON.stringify(evaluations));
@@ -2676,11 +2866,20 @@ function saveEvaluationsToLocal(profileKey, evaluations) {
 }
 
 // Optional GitHub integration stubs (safe no-ops)
+/**
+ *
+ * @param profileKey
+ */
 async function fetchProfileFromGitHub(profileKey) {
     // No GitHub configured; return null to keep app fully offline-capable
     return null;
 }
 
+/**
+ *
+ * @param local
+ * @param remote
+ */
 function mergeProfiles(local, remote) {
     if (!local) return remote || null;
     if (!remote) return local;
@@ -2692,6 +2891,10 @@ function mergeProfiles(local, remote) {
     };
 }
 
+/**
+ *
+ * @param evaluation
+ */
 async function syncEvaluationToGitHub(evaluation) {
     try {
         // Validate username (required for per-user file path)
@@ -2740,6 +2943,11 @@ async function syncEvaluationToGitHub(evaluation) {
 }
 
 // Helper function to merge evaluations with conflict resolution
+/**
+ *
+ * @param localEvaluations
+ * @param remoteEvaluations
+ */
 function mergeEvaluations(localEvaluations = [], remoteEvaluations = []) {
     const byId = new Map();
 
@@ -2781,9 +2989,9 @@ function mergeEvaluations(localEvaluations = [], remoteEvaluations = []) {
  * @param {string} name Marine name.
  * @param {string} rank Rank label.
  * @param {string} profileKey Local profile key.
- * @param {Object|null} localProfile Existing local profile.
+ * @param {object | null} localProfile Existing local profile.
  * @param {Array} localEvaluations Local evaluation list.
- * @returns {Promise<{profile:Object|null,evaluations:Array}>}
+ * @returns {Promise<{profile: object | null, evaluations: Array}>}
  */
 async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile, localEvaluations) {
     if (!navigator.onLine || typeof githubService === 'undefined') {
@@ -2862,6 +3070,9 @@ async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile,
 }
 
 // Control visibility of dashboard filters and Grid View based on rank selection
+/**
+ *
+ */
 function updateDashboardFiltersVisibility() {
     const filters = document.querySelector('.evaluation-filters');
     const gridBtn = document.getElementById('gridViewBtn');
@@ -2887,6 +3098,10 @@ function updateDashboardFiltersVisibility() {
 }
 
 // New: rank filter setter wired to button bar and dropdown
+/**
+ *
+ * @param rank
+ */
 function setRankFilter(rank) {
     selectedRankFilter = rank || '';
 
@@ -2918,6 +3133,10 @@ function setRankFilter(rank) {
 }
 
 // Only allow opening grid when a rank is selected
+/**
+ *
+ * @param show
+ */
 function toggleGridView(show) {
     if (show && !selectedRankFilter) {
         alert('Select a rank first to open Grid View.');
@@ -2937,12 +3156,15 @@ function toggleGridView(show) {
 }
 
 // Apply filters: rank always required to show filters; others applied only when rank selected
+/**
+ *
+ */
 function getFilteredEvaluations() {
     const rankVal = selectedRankFilter || '';
     const filtersVisible = !!selectedRankFilter;
 
     // Base filter by rank (normalize both sides to avoid label mismatches)
-    let list = profileEvaluations.filter(e => {
+    const list = profileEvaluations.filter(e => {
         const evalRankRaw = String(e.marineInfo?.rank || '');
         const evalRank = normalizeRankLabel(evalRankRaw);
         const selected = normalizeRankLabel(rankVal);
@@ -2970,6 +3192,9 @@ function getFilteredEvaluations() {
 }
 
 // Keep renderEvaluationsList and renderProfileGrid using getFilteredEvaluations()
+/**
+ *
+ */
 function renderProfileGrid() {
     const tbody = document.querySelector('#profileGrid tbody');
     if (!tbody) return;
@@ -3135,6 +3360,10 @@ function renderProfileGrid() {
 }
 
 // Helpers for grid view
+/**
+ *
+ * @param evaluation
+ */
 function getTraitGrades(evaluation) {
     const columnAliases = {
         'Performance': ['Performance'],
@@ -3197,6 +3426,10 @@ function getTraitGrades(evaluation) {
     return map;
 }
 
+/**
+ *
+ * @param evals
+ */
 function computeRvValues(evals) {
     // Excel-based RV per row: within evaluations with date <= current row date
     // Formula: RV = MAX(80, 90 + 10 * (score - avgPast) / (maxPast - avgPast)) if countPast >= 3, else 'N/A'
@@ -3226,6 +3459,11 @@ function computeRvValues(evals) {
     return rvMap;
 }
 
+/**
+ *
+ * @param evals
+ * @param rvMap
+ */
 function computeCumulativeRv(evals, rvMap) {
     // Excel-based Cum RV per row: use all non-zero FitRep scores in subset
     // Formula: CumRV = if score==0 -> 80
@@ -3266,6 +3504,10 @@ function computeCumulativeRv(evals, rvMap) {
     return cumMap;
 }
 
+/**
+ *
+ * @param rv
+ */
 function badgeForRv(rv) {
     if (rv === 'N/A' || !Number.isFinite(rv)) {
         return `<span class="rv-badge rv-mid">N/A</span>`;
@@ -3275,12 +3517,19 @@ function badgeForRv(rv) {
     return `<span class="rv-badge ${cls}">${display}</span>`;
 }
 
+/**
+ *
+ * @param s
+ */
 function capitalize(s) {
     if (!s) return '';
     return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // Add: CSV export based on current render order
+/**
+ *
+ */
 function exportProfileGridCsv() {
     // Export based on current filtered subset (rank-specific)
     const evals = [...getFilteredEvaluations()];
@@ -3356,6 +3605,10 @@ function exportProfileGridCsv() {
     URL.revokeObjectURL(url);
 }
 
+/**
+ *
+ * @param btn
+ */
 function toggleGridDetails(btn) {
     const row = btn.closest('tr');
     if (!row) return;
@@ -3367,6 +3620,10 @@ function toggleGridDetails(btn) {
     btn.textContent = isHidden ? 'Details ▲' : 'Details ▼';
 }
 
+/**
+ *
+ * @param rank
+ */
 function normalizeRankLabel(rank) {
     // Map common rank inputs to the desired display labels
     const map = {
@@ -3402,6 +3659,9 @@ function normalizeRankLabel(rank) {
 }
 
 // Show Dashboard directly from the login card
+/**
+ *
+ */
 function openProfileDashboardFromLogin() {
     const loginCard = document.getElementById('profileLoginCard');
     const dashboardCard = document.getElementById('profileDashboardCard');
@@ -3432,6 +3692,9 @@ function openProfileDashboardFromLogin() {
 }
 
 // Auto-open Dashboard on load if a profile exists
+/**
+ *
+ */
 function showProfileDashboardOnLoad() {
     const loginCard = document.getElementById('profileLoginCard');
     const dashboardCard = document.getElementById('profileDashboardCard');
@@ -3480,12 +3743,21 @@ function showProfileDashboardOnLoad() {
 }
 
 // Profile persistence helpers and GitHub stubs (added)
+/**
+ *
+ * @param name
+ * @param email
+ */
 function generateProfileKey(name, email) {
     const n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
     const e = String(email || '').toLowerCase().trim();
     return `rs:${n}|${e}`;
 }
 
+/**
+ *
+ * @param profileKey
+ */
 function loadProfileFromLocal(profileKey) {
     try {
         return JSON.parse(localStorage.getItem(`profile:${profileKey}`) || 'null');
@@ -3495,6 +3767,11 @@ function loadProfileFromLocal(profileKey) {
     }
 }
 
+/**
+ *
+ * @param profileKey
+ * @param profile
+ */
 function saveProfileToLocal(profileKey, profile) {
     try {
         localStorage.setItem(`profile:${profileKey}`, JSON.stringify(profile));
@@ -3503,6 +3780,10 @@ function saveProfileToLocal(profileKey, profile) {
     }
 }
 
+/**
+ *
+ * @param profileKey
+ */
 function loadEvaluationsFromLocal(profileKey) {
     try {
         return JSON.parse(localStorage.getItem(`evaluations:${profileKey}`) || '[]');
@@ -3512,6 +3793,11 @@ function loadEvaluationsFromLocal(profileKey) {
     }
 }
 
+/**
+ *
+ * @param profileKey
+ * @param evaluations
+ */
 function saveEvaluationsToLocal(profileKey, evaluations) {
     try {
         localStorage.setItem(`evaluations:${profileKey}`, JSON.stringify(evaluations));
@@ -3521,11 +3807,20 @@ function saveEvaluationsToLocal(profileKey, evaluations) {
 }
 
 // Optional GitHub integration stubs (safe no-ops)
+/**
+ *
+ * @param profileKey
+ */
 async function fetchProfileFromGitHub(profileKey) {
     // No GitHub configured; return null to keep app fully offline-capable
     return null;
 }
 
+/**
+ *
+ * @param local
+ * @param remote
+ */
 function mergeProfiles(local, remote) {
     if (!local) return remote || null;
     if (!remote) return local;
@@ -3537,6 +3832,10 @@ function mergeProfiles(local, remote) {
     };
 }
 
+/**
+ *
+ * @param evaluation
+ */
 async function syncEvaluationToGitHub(evaluation) {
     try {
         const userEmail = (currentProfile && currentProfile.rsEmail) || (evaluation?.rsInfo?.email) || '';
@@ -3581,11 +3880,17 @@ async function syncEvaluationToGitHub(evaluation) {
     }
 }
 // Inline availability feedback for Create Account username input
+/**
+ *
+ */
 function initUsernameAvailabilityWatcher() {
     // No-op: availability UI removed; server will enforce uniqueness on create
 }
 
 // Live validation hint binding (username, password strength, name, rank)
+/**
+ *
+ */
 function bindValidationHints() {
     const doc = document;
     const byId = (id) => doc.getElementById(id);

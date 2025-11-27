@@ -3,16 +3,27 @@
   const STORAGE_KEY = 'FORM_STATE_V1';
   const SESSION_KEY = 'FORM_STATE_SESSION_V1';
 
+  /**
+   *
+   * @param msg
+   * @param type
+   */
   function safeShowToast(msg, type) {
     try { if (typeof window.showToast === 'function') window.showToast(msg, type || 'info'); } catch (_) {}
   }
 
+  /**
+   *
+   */
   function getRedux() {
     if (typeof Redux !== 'undefined' && Redux && typeof Redux.createStore === 'function') return Redux;
     console.error('Redux global not found. Ensure CDN script is loaded.');
     return null;
   }
 
+  /**
+   *
+   */
   function loadPersisted() {
     try {
       const json = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(SESSION_KEY);
@@ -23,10 +34,18 @@
     }
   }
 
+  /**
+   *
+   * @param state
+   */
   function serialize(state) {
     try { return FormCore.serializeState(state); } catch (_) { return JSON.stringify(state); }
   }
 
+  /**
+   *
+   * @param state
+   */
   function persistState(state) {
     const payload = serialize(state);
     try {
@@ -58,6 +77,9 @@
     }
   }
 
+  /**
+   *
+   */
   function createStore() {
     const redux = getRedux();
     if (!redux || !FormCore) return null;

@@ -1,6 +1,9 @@
 const assert = require('assert');
 const FormCore = require('../js/formCore.js');
 
+/**
+ *
+ */
 function makeState() {
   return FormCore.createInitialState({
     steps: [
@@ -16,6 +19,9 @@ function makeState() {
   });
 }
 
+/**
+ *
+ */
 function run() {
   // INIT
   let state = makeState();

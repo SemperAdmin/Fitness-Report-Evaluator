@@ -74,7 +74,7 @@ async function withGitHub(operation, fallback = null) {
  * Load user data with automatic initialization and fallback
  *
  * @param {string} userEmail - User email
- * @returns {Promise<Object|null>} - User data or null
+ * @returns {Promise<object | null>} - User data or null
  */
 async function loadUserDataSafe(userEmail) {
     return withGitHub(
@@ -99,9 +99,9 @@ async function loadUserEvaluationsSafe(userEmail) {
 /**
  * Save user data with automatic initialization and cache invalidation
  *
- * @param {Object} userData - User data to save
+ * @param {object} userData - User data to save
  * @param {boolean} debounce - Whether to debounce the save (default: true)
- * @returns {Promise<Object|null>} - Save result or null
+ * @returns {Promise<object | null>} - Save result or null
  */
 async function saveUserDataSafe(userData, debounce = true) {
     return withGitHub(
@@ -113,10 +113,10 @@ async function saveUserDataSafe(userData, debounce = true) {
 /**
  * Save evaluation with automatic initialization and cache invalidation
  *
- * @param {Object} evaluation - Evaluation to save
+ * @param {object} evaluation - Evaluation to save
  * @param {string} userEmail - User email
  * @param {boolean} debounce - Whether to debounce the save (default: true)
- * @returns {Promise<Object|null>} - Save result or null
+ * @returns {Promise<object | null>} - Save result or null
  */
 async function saveEvaluationSafe(evaluation, userEmail, debounce = true) {
     return withGitHub(
@@ -130,7 +130,7 @@ async function saveEvaluationSafe(evaluation, userEmail, debounce = true) {
  *
  * @param {string} userEmail - User email
  * @param {string} evaluationId - Evaluation ID
- * @returns {Promise<Object|null>} - Evaluation detail or null
+ * @returns {Promise<object | null>} - Evaluation detail or null
  */
 async function getEvaluationDetailSafe(userEmail, evaluationId) {
     return withGitHub(
@@ -152,6 +152,9 @@ async function batchWithConcurrency(items, fn, concurrency = 5) {
     let index = 0;
 
     // Worker function that processes items sequentially
+    /**
+     *
+     */
     async function worker() {
         while (index < items.length) {
             const currentIndex = index++;
@@ -270,7 +273,7 @@ async function forceRefreshUserData(userEmail) {
  * Get network efficiency statistics
  * Useful for debugging and monitoring
  *
- * @returns {Object} - Statistics object
+ * @returns {object} - Statistics object
  */
 function getNetworkStats() {
     if (typeof githubService.getCacheStats === 'function') {

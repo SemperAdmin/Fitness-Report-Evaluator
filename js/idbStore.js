@@ -6,6 +6,9 @@
   const DB_VERSION = 1;
   let dbPromise = null;
 
+  /**
+   *
+   */
   function openDb() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
@@ -25,6 +28,11 @@
     return dbPromise;
   }
 
+  /**
+   *
+   * @param email
+   * @param entries
+   */
   async function putIndex(email, entries) {
     try {
       const db = await openDb();
@@ -41,6 +49,10 @@
     }
   }
 
+  /**
+   *
+   * @param email
+   */
   async function getIndex(email) {
     try {
       const db = await openDb();
@@ -57,6 +69,12 @@
     }
   }
 
+  /**
+   *
+   * @param email
+   * @param id
+   * @param evaluation
+   */
   async function putDetail(email, id, evaluation) {
     try {
       const db = await openDb();
@@ -73,6 +91,11 @@
     }
   }
 
+  /**
+   *
+   * @param email
+   * @param id
+   */
   async function getDetail(email, id) {
     try {
       const db = await openDb();

@@ -7,6 +7,9 @@
  * LifecycleManager - Centralized cleanup system
  */
 class LifecycleManager {
+    /**
+     *
+     */
     constructor() {
         this.listeners = [];
         this.timers = [];
@@ -17,6 +20,10 @@ class LifecycleManager {
 
     /**
      * Register an event listener for automatic cleanup
+     * @param target
+     * @param event
+     * @param handler
+     * @param options
      */
     addEventListener(target, event, handler, options) {
         target.addEventListener(event, handler, options);
@@ -26,6 +33,9 @@ class LifecycleManager {
 
     /**
      * Remove a specific event listener
+     * @param target
+     * @param event
+     * @param handler
      */
     removeEventListener(target, event, handler) {
         target.removeEventListener(event, handler);
@@ -36,6 +46,9 @@ class LifecycleManager {
 
     /**
      * Register a setTimeout for automatic cleanup
+     * @param callback
+     * @param delay
+     * @param {...any} args
      */
     setTimeout(callback, delay, ...args) {
         const id = setTimeout(() => {
@@ -48,6 +61,7 @@ class LifecycleManager {
 
     /**
      * Clear a specific timeout
+     * @param id
      */
     clearTimeout(id) {
         clearTimeout(id);
@@ -56,6 +70,9 @@ class LifecycleManager {
 
     /**
      * Register a setInterval for automatic cleanup
+     * @param callback
+     * @param delay
+     * @param {...any} args
      */
     setInterval(callback, delay, ...args) {
         const id = setInterval(callback, delay, ...args);
@@ -65,6 +82,7 @@ class LifecycleManager {
 
     /**
      * Clear a specific interval
+     * @param id
      */
     clearInterval(id) {
         clearInterval(id);
@@ -73,6 +91,8 @@ class LifecycleManager {
 
     /**
      * Track large objects for cleanup
+     * @param obj
+     * @param cleanupFn
      */
     trackObject(obj, cleanupFn) {
         this.objects.add(obj);
@@ -83,6 +103,7 @@ class LifecycleManager {
 
     /**
      * Untrack an object
+     * @param obj
      */
     untrackObject(obj) {
         this.objects.delete(obj);
@@ -144,12 +165,21 @@ const globalLifecycle = new LifecycleManager();
  * WeakMap-based cache with automatic cleanup
  */
 class ManagedCache {
+    /**
+     *
+     * @param maxSize
+     */
     constructor(maxSize = 100) {
         this.cache = new Map();
         this.maxSize = maxSize;
         this.accessOrder = [];
     }
 
+    /**
+     *
+     * @param key
+     * @param value
+     */
     set(key, value) {
         // Remove oldest if at capacity
         if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
@@ -167,6 +197,10 @@ class ManagedCache {
         this.accessOrder.push(key);
     }
 
+    /**
+     *
+     * @param key
+     */
     get(key) {
         if (!this.cache.has(key)) {
             return undefined;
@@ -182,10 +216,18 @@ class ManagedCache {
         return this.cache.get(key);
     }
 
+    /**
+     *
+     * @param key
+     */
     has(key) {
         return this.cache.has(key);
     }
 
+    /**
+     *
+     * @param key
+     */
     delete(key) {
         const index = this.accessOrder.indexOf(key);
         if (index > -1) {
@@ -194,17 +236,24 @@ class ManagedCache {
         return this.cache.delete(key);
     }
 
+    /**
+     *
+     */
     clear() {
         this.cache.clear();
         this.accessOrder = [];
     }
 
+    /**
+     *
+     */
     size() {
         return this.cache.size;
     }
 
     /**
      * Prune cache to remove old entries
+     * @param keepCount
      */
     prune(keepCount = Math.floor(this.maxSize / 2)) {
         const toRemove = this.accessOrder.length - keepCount;
@@ -219,6 +268,10 @@ class ManagedCache {
  * Component with lifecycle hooks
  */
 class ManagedComponent {
+    /**
+     *
+     * @param name
+     */
     constructor(name) {
         this.name = name;
         this.lifecycle = new LifecycleManager();
@@ -227,6 +280,10 @@ class ManagedComponent {
 
     /**
      * Add event listener with automatic cleanup
+     * @param target
+     * @param event
+     * @param handler
+     * @param options
      */
     addEventListener(target, event, handler, options) {
         return this.lifecycle.addEventListener(target, event, handler, options);
@@ -234,6 +291,9 @@ class ManagedComponent {
 
     /**
      * Set timeout with automatic cleanup
+     * @param callback
+     * @param delay
+     * @param {...any} args
      */
     setTimeout(callback, delay, ...args) {
         return this.lifecycle.setTimeout(callback, delay, ...args);
@@ -241,6 +301,9 @@ class ManagedComponent {
 
     /**
      * Set interval with automatic cleanup
+     * @param callback
+     * @param delay
+     * @param {...any} args
      */
     setInterval(callback, delay, ...args) {
         return this.lifecycle.setInterval(callback, delay, ...args);
@@ -248,6 +311,8 @@ class ManagedComponent {
 
     /**
      * Track object for cleanup
+     * @param obj
+     * @param cleanupFn
      */
     trackObject(obj, cleanupFn) {
         this.lifecycle.trackObject(obj, cleanupFn);
@@ -288,6 +353,9 @@ class ManagedComponent {
  * Memory monitor for debugging
  */
 class MemoryMonitor {
+    /**
+     *
+     */
     constructor() {
         this.snapshots = [];
         this.maxSnapshots = 50;
@@ -295,6 +363,7 @@ class MemoryMonitor {
 
     /**
      * Take memory snapshot
+     * @param label
      */
     snapshot(label = 'unnamed') {
         const snapshot = {
@@ -320,6 +389,8 @@ class MemoryMonitor {
 
     /**
      * Compare two snapshots
+     * @param label1
+     * @param label2
      */
     compare(label1, label2) {
         const snap1 = this.snapshots.find(s => s.label === label1);

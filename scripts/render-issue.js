@@ -5,6 +5,10 @@
 // node-fetch v3 is ESM-only; use dynamic import to stay compatible in CJS
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
+/**
+ *
+ * @param extra
+ */
 function buildEnvContext(extra = {}) {
   const env = process.env || {};
   const ctx = {
@@ -22,6 +26,13 @@ function buildEnvContext(extra = {}) {
   return ctx;
 }
 
+/**
+ *
+ * @param title
+ * @param description
+ * @param envContext
+ * @param logs
+ */
 function formatBody(title, description, envContext, logs) {
   const lines = [
     `Title: ${title}`,
@@ -45,6 +56,17 @@ function formatBody(title, description, envContext, logs) {
   return lines.join('\n');
 }
 
+/**
+ *
+ * @param root0
+ * @param root0.event
+ * @param root0.title
+ * @param root0.description
+ * @param root0.labels
+ * @param root0.assignees
+ * @param root0.logs
+ * @param root0.extraContext
+ */
 async function createIssue({ event, title, description, labels = [], assignees = [], logs, extraContext = {} }) {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPO || 'SemperAdmin/Fitness-Report-Evaluator';

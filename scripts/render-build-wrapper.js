@@ -7,6 +7,12 @@
 const { spawn } = require('child_process');
 const createIssue = require('./render-issue');
 
+/**
+ *
+ * @param cmd
+ * @param args
+ * @param opts
+ */
 function runCommand(cmd, args = [], opts = {}) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { shell: true, stdio: 'pipe', ...opts });

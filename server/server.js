@@ -123,7 +123,7 @@ function parseCookies(cookieHeader) {
  *
  * @param {string} name - Cookie name.
  * @param {string} value - Cookie value (will be URI encoded).
- * @param {Object} [opts] - Optional attributes for the cookie.
+ * @param {object} [opts] - Optional attributes for the cookie.
  * @param {number} [opts.maxAge] - Max age in seconds.
  * @param {Date} [opts.expires] - Absolute expiration date.
  * @param {string} [opts.path] - Cookie path. Defaults to "/".
@@ -159,7 +159,7 @@ const COOKIE_SAMESITE = COOKIE_SECURE ? 'None' : 'Lax';
  * Sign a session payload using HMAC SHA-256 and a server secret.
  * Produces a compact token: `base64(json).hex(hmac)`.
  *
- * @param {Object} payload - Session data including `u` and optional `exp`.
+ * @param {object} payload - Session data including `u` and optional `exp`.
  * @returns {string} Token suitable for a cookie or header.
  */
 function signSessionPayload(payload) {
@@ -172,7 +172,7 @@ function signSessionPayload(payload) {
  * Validates signature and expiration. Returns parsed object or `null`.
  *
  * @param {string} token - Token in `data.signature` format.
- * @returns {Object|null} Parsed session data `{ u, exp }` or `null`.
+ * @returns {object | null} Parsed session data `{ u, exp }` or `null`.
  */
 function verifySessionToken(token) {
   if (!token || typeof token !== 'string') return null;
@@ -327,6 +327,10 @@ console.log('[env] FITREP_DATA set:', Boolean(process.env.FITREP_DATA));
 console.log('[env] ALLOW_DEV_TOKEN:', process.env.ALLOW_DEV_TOKEN === 'true');
 console.log('[env] CORS_ORIGINS:', CORS_ORIGINS);
 
+/**
+ *
+ * @param email
+ */
 function emailPrefix(email) {
   return String(email || '').trim().toLowerCase().split('@')[0];
 }
@@ -336,12 +340,23 @@ function emailPrefix(email) {
 // Allow override via LOCAL_DATA_DIR env var
 const LOCAL_BASE_DIR = process.env.LOCAL_DATA_DIR || path.join(os.tmpdir(), 'fitrep-local');
 const LOCAL_DATA_DIR = path.join(LOCAL_BASE_DIR, 'users');
+/**
+ *
+ */
 async function ensureLocalDir() {
   try { await fsp.mkdir(LOCAL_DATA_DIR, { recursive: true }); } catch (_) {}
 }
+/**
+ *
+ * @param prefix
+ */
 function localUserPath(prefix) {
   return path.join(LOCAL_DATA_DIR, `${prefix}.json`);
 }
+/**
+ *
+ * @param prefix
+ */
 async function readLocalUser(prefix) {
   try {
     const p = localUserPath(prefix);
@@ -351,6 +366,11 @@ async function readLocalUser(prefix) {
     return null;
   }
 }
+/**
+ *
+ * @param prefix
+ * @param userObj
+ */
 async function writeLocalUser(prefix, userObj) {
   await ensureLocalDir();
   const p = localUserPath(prefix);
@@ -368,7 +388,7 @@ async function writeLocalUser(prefix, userObj) {
  * and fall back to a minimal valid structure on errors.
  *
  * @param {string} yamlStr - Raw YAML content.
- * @returns {Object} Minimal normalized evaluation object.
+ * @returns {object} Minimal normalized evaluation object.
  * @example
  * // Returns object with `traitEvaluations: [{ section, trait, grade, ...}]`
  */
@@ -471,7 +491,7 @@ function parseEvaluationYamlMinimal(yamlStr) {
  *
  * Time complexity: O(1) per request. Space: O(N) for distinct IPs.
  *
- * @param {Object} params - Configuration options.
+ * @param {object} params - Configuration options.
  * @param {number} params.windowMs - Time window in milliseconds.
  * @param {number} params.limit - Max requests allowed per window per IP.
  * @returns {import('express').RequestHandler} Express middleware.
@@ -533,6 +553,9 @@ class ValidationCache {
     this.ttl = ttlMs;
     this.map = new Map(); // key -> { value, expires }
   }
+  /**
+   *
+   */
   _now() { return Date.now(); }
   /**
    * Get a cached value by key, touching entry for LRU behavior.
@@ -601,7 +624,7 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
         const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
 
         // Get existing SHA if present
-        let sha = '';
+        const sha = '';
         const getResp = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${fitrepToken}`,
@@ -904,11 +927,11 @@ app.get(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROU
 /**
  * Build data JSON compatible with the data repository schema.
  *
- * @param {Object} userData - Minimal user profile info.
+ * @param {object} userData - Minimal user profile info.
  * @param {string} [userData.rsName] - Reporting senior name.
  * @param {string} [userData.rsEmail] - Reporting senior username/email.
  * @param {string} [userData.rsRank] - Reporting senior rank.
- * @returns {Object} Structured JSON used for export.
+ * @returns {object} Structured JSON used for export.
  */
 function buildUserDataJson(userData) {
   const now = new Date().toISOString();
@@ -1016,11 +1039,11 @@ function isValidRank(rank) {
  * immutable fields from an existing record.
  *
  * @param {string} userEmail - Reporting senior username/email.
- * @param {Object} evaluation - Parsed evaluation object.
- * @param {Object|null} existingUser - Current stored user (if present).
+ * @param {object} evaluation - Parsed evaluation object.
+ * @param {object | null} existingUser - Current stored user (if present).
  * @param {string} _newEvaluationFilePath - Path hint (unused; kept for API).
  * @param {string} now - ISO timestamp for `lastUpdated`.
- * @returns {Object} Updated aggregate user object.
+ * @returns {object} Updated aggregate user object.
  */
 function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEvaluationFilePath, now) {
   const obj = {

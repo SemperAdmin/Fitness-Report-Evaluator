@@ -36,8 +36,8 @@ class DataIntegrityManager {
     /**
      * Wrap data with metadata and checksum
      * @param {*} data - Data to wrap
-     * @param {Object} options - Options
-     * @returns {Object} - Wrapped data
+     * @param {object} options - Options
+     * @returns {object} - Wrapped data
      */
     static wrapData(data, options = {}) {
         const wrapped = {
@@ -59,8 +59,8 @@ class DataIntegrityManager {
 
     /**
      * Unwrap and validate data
-     * @param {Object} wrapped - Wrapped data
-     * @param {Object} options - Validation options
+     * @param {object} wrapped - Wrapped data
+     * @param {object} options - Validation options
      * @returns {*} - Unwrapped data or null if invalid
      */
     static unwrapData(wrapped, options = {}) {
@@ -128,8 +128,8 @@ class DataIntegrityManager {
     /**
      * Validate data structure
      * @param {*} data - Data to validate
-     * @param {Object} schema - Validation schema
-     * @returns {Object} - Validation result
+     * @param {object} schema - Validation schema
+     * @returns {object} - Validation result
      */
     static validateSchema(data, schema) {
         if (!schema || typeof schema !== 'object') {
@@ -179,8 +179,8 @@ class DataIntegrityManager {
     /**
      * Attempt to repair corrupted data
      * @param {*} data - Corrupted data
-     * @param {Object} options - Repair options
-     * @returns {Object} - Repair result
+     * @param {object} options - Repair options
+     * @returns {object} - Repair result
      */
     static repairData(data, options = {}) {
         const repairs = [];
@@ -243,6 +243,12 @@ class DataIntegrityManager {
  * IndexedDB Store with Versioning
  */
 class VersionedIndexedDB {
+    /**
+     *
+     * @param dbName
+     * @param version
+     * @param schema
+     */
     constructor(dbName, version, schema) {
         this.dbName = dbName;
         this.version = version;
@@ -288,6 +294,9 @@ class VersionedIndexedDB {
 
     /**
      * Run schema migrations
+     * @param db
+     * @param oldVersion
+     * @param newVersion
      */
     migrate(db, oldVersion, newVersion) {
         // Always ensure base stores exist before running migrations
@@ -323,6 +332,8 @@ class VersionedIndexedDB {
 
     /**
      * Get data from store
+     * @param storeName
+     * @param key
      */
     async get(storeName, key) {
         const db = await this.open();
@@ -343,6 +354,8 @@ class VersionedIndexedDB {
 
     /**
      * Put data into store
+     * @param storeName
+     * @param data
      */
     async put(storeName, data) {
         const db = await this.open();
@@ -363,6 +376,8 @@ class VersionedIndexedDB {
 
     /**
      * Delete data from store
+     * @param storeName
+     * @param key
      */
     async delete(storeName, key) {
         const db = await this.open();
@@ -383,6 +398,7 @@ class VersionedIndexedDB {
 
     /**
      * Get all data from store
+     * @param storeName
      */
     async getAll(storeName) {
         const db = await this.open();
@@ -403,6 +419,7 @@ class VersionedIndexedDB {
 
     /**
      * Clear all data from store
+     * @param storeName
      */
     async clear(storeName) {
         const db = await this.open();
@@ -423,6 +440,9 @@ class VersionedIndexedDB {
 
     /**
      * Query store by index
+     * @param storeName
+     * @param indexName
+     * @param value
      */
     async queryByIndex(storeName, indexName, value) {
         const db = await this.open();

@@ -1,5 +1,10 @@
 window.AdminCharts = (function() {
   let chart;
+  /**
+   *
+   * @param ctxId
+   * @param data
+   */
   function renderGradeDistribution(ctxId, data) {
     const canvas = document.getElementById(ctxId);
     if (!canvas) return;
@@ -17,6 +22,11 @@ window.AdminCharts = (function() {
       options: { scales: { y: { beginAtZero: true } } }
     });
   }
+  /**
+   *
+   * @param ctxId
+   * @param tiers
+   */
   function renderPerformanceTiers(ctxId, tiers) {
     const canvas = document.getElementById(ctxId);
     if (!canvas) return;
@@ -43,6 +53,12 @@ window.AdminCharts = (function() {
       }
     });
   }
+  /**
+   *
+   * @param ctxId
+   * @param labels
+   * @param values
+   */
   function renderSectionAverages(ctxId, labels, values) {
     const canvas = document.getElementById(ctxId);
     if (!canvas) return;
@@ -58,6 +74,12 @@ window.AdminCharts = (function() {
       options: { scales: { y: { beginAtZero: true } } }
     });
   }
+  /**
+   *
+   * @param ctxId
+   * @param labels
+   * @param values
+   */
   function renderRankDistribution(ctxId, labels, values) {
     const canvas = document.getElementById(ctxId);
     if (!canvas) return;

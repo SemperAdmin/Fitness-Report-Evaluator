@@ -28,6 +28,9 @@
  * @class GitHubDataService
  */
 class GitHubDataService {
+    /**
+     *
+     */
     constructor() {
         this.token = null;
         this.initialized = false;
@@ -195,8 +198,8 @@ class GitHubDataService {
      *
      * @private
      * @param {string} [method='GET'] HTTP method.
-     * @param {Object|null} [body=null] JSON body.
-     * @returns {Object} Fetch options object.
+     * @param {object | null} [body=null] JSON body.
+     * @returns {object} Fetch options object.
      */
     _getGitHubApiRequestOptions(method = 'GET', body = null) {
         const options = {
@@ -302,7 +305,7 @@ class GitHubDataService {
     /**
      * Serialize profile metadata to JSON string
      *
-     * @param {Object} userData - User profile metadata
+     * @param {object} userData - User profile metadata
      * @returns {string} JSON string
      */
     serializeData(userData) {
@@ -350,9 +353,9 @@ class GitHubDataService {
 
     /**
      * Build YAML content for a single evaluation mirroring save-evaluation.yml schema
-     * @param {Object} evaluation
+     * @param {object} evaluation
      * @param {string} userEmail
-     * @param {Object} createdBy - { name, email, rank }
+     * @param {object} createdBy - { name, email, rank }
      * @returns {string} YAML string
      */
     buildEvaluationYaml(evaluation, userEmail, createdBy = {}) {
@@ -486,7 +489,7 @@ class GitHubDataService {
      * Minimal YAML parser for evaluation files we generate
      * Extracts key fields needed by the UI without a full YAML dependency
      * @param {string} yamlStr
-     * @returns {Object} Evaluation-like object
+     * @returns {object} Evaluation-like object
      */
     parseEvaluationYamlMinimal(yamlStr) {
         const get = (re) => {
@@ -510,7 +513,7 @@ class GitHubDataService {
         const rsRank = get(/\brs:[\s\S]*?\n\s{2}rank:\s*"([^"]+)"/);
 
         // Parse trait evaluations (minimal, regex-based)
-        let traits = [];
+        const traits = [];
         try {
             const afterHeader = yamlStr.split('traitEvaluations:')[1] || '';
             const itemRe = /-\s*\r?\n(?:\s{2,}section:\s*"([^"]+)")\s*\r?\n(?:\s{2,}trait:\s*"([^"]+)")\s*\r?\n(?:\s{2,}grade:\s*"([A-G])")\s*\r?\n(?:\s{2,}gradeNumber:\s*([0-9]+))\s*\r?\n(?:\s{2,}justification:\s*"([^\"]*)")/g;
@@ -547,9 +550,9 @@ class GitHubDataService {
     /**
      * Build a lightweight index entry from an evaluation
      * Used for evaluations/index.json listing
-     * @param {Object} evaluation
+     * @param {object} evaluation
      * @param {string} userEmail
-     * @returns {Object}
+     * @returns {object}
      */
     buildIndexEntry(evaluation, userEmail) {
         const localPart = (userEmail.split('@')[0] || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
@@ -612,7 +615,7 @@ class GitHubDataService {
     /**
      * Upsert a single entry into index.json
      * @param {string} userEmail
-     * @param {Object} evaluation
+     * @param {object} evaluation
      */
     async upsertEvaluationIndex(userEmail, evaluation) {
         try {
@@ -636,7 +639,7 @@ class GitHubDataService {
      * Fetch full evaluation detail by ID (JSON or YAML)
      * @param {string} userEmail
      * @param {string} evaluationId
-     * @returns {Promise<Object|null>}
+     * @returns {Promise<object | null>}
      */
     async getEvaluationDetail(userEmail, evaluationId) {
         try {
@@ -729,7 +732,7 @@ class GitHubDataService {
      * Complexity: O(n) requests for n evaluations; O(n) space.
      *
      * @param {string} userEmail Email (used to derive file prefix).
-     * @returns {Promise<Array<Object>>} List of evaluations.
+     * @returns {Promise<Array<object>>} List of evaluations.
      */
     async loadUserEvaluations(userEmail) {
         // Backend fallback when not initialized with a token
@@ -925,7 +928,7 @@ class GitHubDataService {
      * @param {string} content - File content (will be Base64 encoded)
      * @param {string} commitMessage - Git commit message
      * @param {string|null} sha - File SHA (required for updates, null for new files)
-     * @returns {Promise<Object>} GitHub API response
+     * @returns {Promise<object>} GitHub API response
      */
     async createOrUpdateFile(filePath, content, commitMessage, sha = null) {
         if (!this.initialized) {
@@ -1014,7 +1017,7 @@ class GitHubDataService {
      *
      * @param {string} filePath - Path to file in repository
      * @param {string} commitMessage - Commit message for deletion
-     * @returns {Promise<Object>} GitHub API response
+     * @returns {Promise<object>} GitHub API response
      */
     async deleteFile(filePath, commitMessage) {
         if (!this.initialized) {
@@ -1072,7 +1075,7 @@ class GitHubDataService {
      * Get file content from repository
      *
      * @param {string} filePath - Path to file in repository
-     * @returns {Promise<Object|null>} Parsed JSON content or null if not found
+     * @returns {Promise<object | null>} Parsed JSON content or null if not found
      */
     async getFileContent(filePath) {
         if (!this.initialized) {
@@ -1114,12 +1117,12 @@ class GitHubDataService {
      * Save user profile and evaluations to GitHub
      * Main method to persist data with retry logic for race conditions
      *
-     * @param {Object} userData - User profile and evaluation data
+     * @param {object} userData - User profile and evaluation data
      * @param {string} userData.rsName - Reporting Senior name
      * @param {string} userData.rsEmail - Reporting Senior email
      * @param {string} userData.rsRank - Reporting Senior rank
      * @param {Array} userData.evaluations - Array of evaluation objects
-     * @returns {Promise<Object>} Result object with success status
+     * @returns {Promise<object>} Result object with success status
      */
     async saveUserData(userData) {
         // Normalize input shape to support both legacy flat and nested { profile, evaluations }
@@ -1317,7 +1320,7 @@ class GitHubDataService {
      * Load user profile and evaluations from GitHub
      *
      * @param {string} userEmail - User's email address
-     * @returns {Promise<Object|null>} User data or null if not found
+     * @returns {Promise<object | null>} User data or null if not found
      */
     async loadUserData(userEmail) {
         // If no token available, attempt backend load endpoint as a secure fallback
@@ -1373,9 +1376,9 @@ class GitHubDataService {
      * Save a single evaluation to GitHub
      * Appends to existing user data file
      *
-     * @param {Object} evaluation - Evaluation object
+     * @param {object} evaluation - Evaluation object
      * @param {string} userEmail - User's email address
-     * @returns {Promise<Object>} Result object
+     * @returns {Promise<object>} Result object
      */
     async saveEvaluation(evaluation, userEmail) {
         try {
@@ -1437,9 +1440,9 @@ class GitHubDataService {
     /**
      * Save a unique file for a single evaluation under the member's directory
      * Path: users/{email_normalized}/evaluations/{evaluationId}.json
-     * @param {Object} evaluation
+     * @param {object} evaluation
      * @param {string} userEmail
-     * @returns {Promise<Object>} Result object
+     * @returns {Promise<object>} Result object
      */
     async saveEvaluationUniqueFile(evaluation, userEmail) {
         if (!evaluation?.evaluationId) {

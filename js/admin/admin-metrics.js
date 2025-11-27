@@ -1,5 +1,13 @@
 window.AdminMetrics = (function() {
+  /**
+   *
+   * @param n
+   */
   function formatCount(n) { return typeof n === 'number' ? n.toLocaleString() : '—'; }
+  /**
+   *
+   * @param metrics
+   */
   function renderOverview(metrics) {
     const m = metrics || {};
     setText('metricTotalUsers', formatCount(m.totalUsers));
@@ -9,6 +17,10 @@ window.AdminMetrics = (function() {
     setText('metricEval30d', formatCount(m.eval30d));
     setText('metricAvgPerUser', formatCount(m.avgPerUser));
   }
+  /**
+   *
+   * @param perf
+   */
   function renderPerformance(perf) {
     const p = perf || {};
     // Grade distribution bar
@@ -36,6 +48,10 @@ window.AdminMetrics = (function() {
       const s = document.getElementById('sectionAveragesSkeleton'); if (s) s.style.display = 'none';
     } catch (_) {}
   }
+  /**
+   *
+   * @param eng
+   */
   function renderEngagement(eng) {
     const e = eng || {};
     // Top Users table
@@ -166,6 +182,11 @@ window.AdminMetrics = (function() {
       const s = document.getElementById('rankDistributionSkeleton'); if (s) s.style.display = 'none';
     } catch (_) {}
   }
+  /**
+   *
+   * @param id
+   * @param text
+   */
   function setText(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
   return { renderOverview, renderPerformance, renderEngagement };
 })();
