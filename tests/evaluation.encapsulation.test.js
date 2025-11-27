@@ -6,6 +6,10 @@ const vm = require('vm');
 global.window = global;
 global.document = {};
 
+/**
+ *
+ * @param relPath
+ */
 function requireScript(relPath) {
   const code = fs.readFileSync(relPath, 'utf8');
   vm.runInThisContext(code, { filename: relPath });

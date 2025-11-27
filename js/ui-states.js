@@ -6,6 +6,11 @@
   const DISPLAY = (C.UI_SETTINGS && C.UI_SETTINGS.DISPLAY) || { BLOCK: 'block', NONE: 'none' };
   const CSS = (C.UI_SETTINGS && C.UI_SETTINGS.CSS) || { ACTIVE: 'active' };
   // Button state helpers
+  /**
+   *
+   * @param btn
+   * @param loading
+   */
   function setLoading(btn, loading) {
     if (!btn) return;
     const isLoading = Boolean(loading);
@@ -15,6 +20,11 @@
     btn.disabled = isLoading || btn.dataset.forceDisabled === 'true';
   }
 
+  /**
+   *
+   * @param btn
+   * @param disabled
+   */
   function setDisabled(btn, disabled) {
     if (!btn) return;
     const isDisabled = Boolean(disabled);
@@ -24,6 +34,11 @@
   }
 
   // Helper to wrap async actions with loading state
+  /**
+   *
+   * @param btn
+   * @param fn
+   */
   async function withLoading(btn, fn) {
     try {
       setLoading(btn, true);
@@ -37,8 +52,17 @@
 
   // Unsaved changes tracking (lightweight fallback if FormStore/FormCore are absent)
   let dirty = false;
+  /**
+   *
+   */
   function markDirty() { dirty = true; document.body.classList.add('has-unsaved'); }
+  /**
+   *
+   */
   function clearDirty() { dirty = false; document.body.classList.remove('has-unsaved'); }
+  /**
+   *
+   */
   function hasUnsavedChanges() {
     try {
       if (window.FormStore && window.FormCore) {
@@ -49,6 +73,10 @@
     return dirty;
   }
 
+  /**
+   *
+   * @param root
+   */
   function initDirtyTracking(root = document) {
     const fields = root.querySelectorAll('input, textarea, select');
     fields.forEach(el => {
@@ -57,6 +85,9 @@
     });
   }
 
+  /**
+   *
+   */
   function guardNavigation() {
     try {
       if (window.FormNav && typeof window.FormNav.confirmLeave === 'function') {

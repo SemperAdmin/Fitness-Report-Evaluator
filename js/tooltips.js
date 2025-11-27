@@ -20,6 +20,9 @@
   let tooltipEl = null;
   const TIP_ID = 'sa-tooltip';
 
+  /**
+   *
+   */
   function ensureEl() {
     if (tooltipEl) return tooltipEl;
     tooltipEl = document.createElement('div');
@@ -34,6 +37,10 @@
     return tooltipEl;
   }
 
+  /**
+   *
+   * @param trigger
+   */
   function getConfig(trigger) {
     const cfg = { ...DEFAULTS };
     const sd = parseInt(trigger.getAttribute('data-tooltip-delay') || '', 10);
@@ -47,6 +54,11 @@
     return cfg;
   }
 
+  /**
+   *
+   * @param trigger
+   * @param cfg
+   */
   function place(trigger, cfg) {
     const tip = ensureEl();
     const rect = trigger.getBoundingClientRect();
@@ -82,6 +94,10 @@
     tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
 
+  /**
+   *
+   * @param trigger
+   */
   function show(trigger) {
     const text = trigger.getAttribute('data-tooltip');
     if (!text) return;
@@ -114,6 +130,10 @@
     STATE.activeTrigger = trigger;
   }
 
+  /**
+   *
+   * @param trigger
+   */
   function hide(trigger) {
     const tip = ensureEl();
     tip.classList.remove('show');
@@ -128,12 +148,20 @@
     STATE.activeTrigger = null;
   }
 
+  /**
+   *
+   * @param trigger
+   */
   function scheduleShow(trigger) {
     clearTimeout(STATE.showTimer);
     const cfg = getConfig(trigger);
     STATE.showTimer = setTimeout(() => show(trigger), cfg.showDelay);
   }
 
+  /**
+   *
+   * @param trigger
+   */
   function scheduleHide(trigger) {
     clearTimeout(STATE.hideTimer);
     const cfg = getConfig(trigger);

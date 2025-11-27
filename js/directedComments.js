@@ -1,6 +1,6 @@
 // Directed Comments Data Structure and Functions
-let selectedDirectedComments = [];
-let directedCommentsData = {};
+const selectedDirectedComments = [];
+const directedCommentsData = {};
 
 const directedComments = {
     awards: {
@@ -114,6 +114,9 @@ const directedComments = {
 };
 
 // showDirectedCommentsScreen()
+/**
+ *
+ */
 function showDirectedCommentsScreen() {
     document.querySelectorAll('.evaluation-card, .review-card, .section-i-generation-card, .summary-card').forEach(card => {
         card.classList.remove('active');
@@ -129,6 +132,9 @@ function showDirectedCommentsScreen() {
     renderDirectedCommentsGrid();
 }
 
+/**
+ *
+ */
 function renderDirectedCommentsGrid() {
     const grid = document.getElementById('directedCommentsGrid');
     grid.innerHTML = '';
@@ -152,6 +158,10 @@ function renderDirectedCommentsGrid() {
     updateSelectedCommentsSection();
 }
 
+/**
+ *
+ * @param commentKey
+ */
 function toggleDirectedComment(commentKey) {
     const index = selectedDirectedComments.indexOf(commentKey);
     if (index > -1) {
@@ -165,6 +175,9 @@ function toggleDirectedComment(commentKey) {
     renderDirectedCommentsGrid();
 }
 
+/**
+ *
+ */
 function updateSelectedCommentsSection() {
     const section = document.getElementById('selectedCommentsSection');
     const form = document.getElementById('selectedCommentsForm');
@@ -225,6 +238,12 @@ function updateSelectedCommentsSection() {
     });
 }
 
+/**
+ *
+ * @param commentKey
+ * @param fieldKey
+ * @param value
+ */
 function updateDirectedCommentData(commentKey, fieldKey, value) {
     if (!directedCommentsData[commentKey]) {
         directedCommentsData[commentKey] = {};
@@ -240,6 +259,10 @@ function updateDirectedCommentData(commentKey, fieldKey, value) {
     updateCommentPreview(commentKey);
 }
 
+/**
+ *
+ * @param commentKey
+ */
 function updateCommentPreview(commentKey) {
     const comment = directedComments[commentKey];
     const data = directedCommentsData[commentKey] || {};
@@ -256,6 +279,9 @@ function updateCommentPreview(commentKey) {
     previewElement.textContent = preview;
 }
 
+/**
+ *
+ */
 function generateDirectedCommentsText() {
     let commentsText = '';
     
@@ -276,9 +302,12 @@ function generateDirectedCommentsText() {
 }
 
 // finalizeDirectedComments()
+/**
+ *
+ */
 function finalizeDirectedComments() {
     // Validate required fields
-    let missingFields = [];
+    const missingFields = [];
     selectedDirectedComments.forEach(commentKey => {
         const comment = directedComments[commentKey];
         const data = directedCommentsData[commentKey] || {};
@@ -306,6 +335,9 @@ function finalizeDirectedComments() {
 }
 
 // skipDirectedComments()
+/**
+ *
+ */
 function skipDirectedComments() {
     if (selectedDirectedComments.length > 0) {
         if (!confirm('You have selected directed comments but haven\'t completed them. Are you sure you want to skip?')) {

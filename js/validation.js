@@ -12,6 +12,9 @@ const VALIDATION_RULES = {
     DEVELOPING_PERFORMER_MAX_AVERAGE: 3.5
 };
 
+/**
+ *
+ */
 function validateEvaluation() {
     validationWarnings = [];
     
@@ -30,6 +33,9 @@ function validateEvaluation() {
     return validationWarnings;
 }
 
+/**
+ *
+ */
 function validateGradeConsistency() {
     const grades = Object.values(evaluationResults).map(r => r.gradeNumber);
     const average = grades.reduce((sum, grade) => sum + grade, 0) / grades.length;
@@ -71,6 +77,9 @@ function validateGradeConsistency() {
     }
 }
 
+/**
+ *
+ */
 function validatePromotionConsistency() {
     if (!evaluationMeta.sectionIComments) return;
     
@@ -114,6 +123,9 @@ function validatePromotionConsistency() {
     }
 }
 
+/**
+ *
+ */
 function validateJustificationQuality() {
     const shortJustifications = [];
     const emptyJustifications = [];
@@ -184,6 +196,9 @@ function validateJustificationQuality() {
     }
 }
 
+/**
+ *
+ */
 function validatePerformanceTierConsistency() {
     if (!evaluationMeta.sectionIComments) return;
     
@@ -228,6 +243,9 @@ function validatePerformanceTierConsistency() {
     }
 }
 
+/**
+ *
+ */
 function validateGradeInflation() {
     const grades = Object.values(evaluationResults).map(r => r.gradeNumber);
     const highGradeCount = grades.filter(g => g >= 6).length; // F and G grades
@@ -256,6 +274,10 @@ function validateGradeInflation() {
     }
 }
 
+/**
+ *
+ * @param text
+ */
 function isGenericJustification(text) {
     const genericPhrases = [
         'performs well', 'does a good job', 'meets expectations', 'adequate performance',
@@ -268,6 +290,13 @@ function isGenericJustification(text) {
            !lowerText.includes('achieved') && !lowerText.includes('implemented');
 }
 
+/**
+ *
+ * @param id
+ * @param type
+ * @param message
+ * @param recommendation
+ */
 function addWarning(id, type, message, recommendation) {
     validationWarnings.push({
         id: id,
@@ -278,6 +307,9 @@ function addWarning(id, type, message, recommendation) {
     });
 }
 
+/**
+ *
+ */
 function displayValidationWarnings() {
     const container = document.getElementById('validationWarnings');
     if (!container) return;

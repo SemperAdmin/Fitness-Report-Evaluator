@@ -44,6 +44,9 @@ const promotionTemplates = {
     }
 };
 
+/**
+ *
+ */
 function showPromotionEndorsement() {
     document.getElementById('promotionEndorsementCard').classList.add('active');
     
@@ -55,6 +58,10 @@ function showPromotionEndorsement() {
     renderPromotionOptions(analysis.tier);
 }
 
+/**
+ *
+ * @param performanceTier
+ */
 function renderPromotionOptions(performanceTier) {
     const optionsContainer = document.getElementById('promotionOptions');
     const tierDisplay = document.getElementById('promotionTierInfo');
@@ -108,6 +115,11 @@ function renderPromotionOptions(performanceTier) {
     });
 }
 
+/**
+ *
+ * @param type
+ * @param template
+ */
 function selectPromotionRecommendation(type, template) {
     // Clear previous selections
     document.querySelectorAll('.promotion-option').forEach(opt => {
@@ -128,6 +140,9 @@ function selectPromotionRecommendation(type, template) {
     }
 }
 
+/**
+ *
+ */
 function showCompetitiveCategorySection() {
     const section = document.getElementById('competitiveCategorySection');
     section.classList.add('active');
@@ -143,11 +158,17 @@ function showCompetitiveCategorySection() {
     `;
 }
 
+/**
+ *
+ */
 function hideCompetitiveCategorySection() {
     const section = document.getElementById('competitiveCategorySection');
     section.classList.remove('active');
 }
 
+/**
+ *
+ */
 function handleCategoryChange() {
     const select = document.getElementById('competitiveCategorySelect');
     const customInput = document.getElementById('customCategoryInput');
@@ -168,6 +189,9 @@ function handleCategoryChange() {
     }
 }
 
+/**
+ *
+ */
 function handleCustomCategoryInput() {
     const input = document.getElementById('customCategoryText');
     competitiveCategory = input.value.trim();
@@ -177,6 +201,9 @@ function handleCustomCategoryInput() {
     }
 }
 
+/**
+ *
+ */
 function handleRankingInput() {
     const rankingInput = document.getElementById('rankingInput');
     const totalInput = document.getElementById('totalPopulationInput');
@@ -189,6 +216,9 @@ function handleRankingInput() {
     }
 }
 
+/**
+ *
+ */
 function updatePromotionPreview() {
     if (promotionRecommendation && (promotionRecommendation.type === 'accelerated' || 
         (competitiveCategory && ranking && totalPopulation))) {
@@ -196,6 +226,9 @@ function updatePromotionPreview() {
     }
 }
 
+/**
+ *
+ */
 function showPromotionPreview() {
     const previewSection = document.getElementById('promotionPreviewSection');
     const previewText = document.getElementById('promotionPreviewText');
@@ -231,12 +264,18 @@ function showPromotionPreview() {
     evaluationMeta.promotionEndorsement = promotionStatement;
 }
 
+/**
+ *
+ */
 function regeneratePromotionStatement() {
     if (promotionRecommendation && promotionRecommendation.template.statements) {
         showPromotionPreview();
     }
 }
 
+/**
+ *
+ */
 function skipPromotionEndorsement() {
     if (confirm('Promotion endorsement is required for FITREP completion. Are you sure you want to skip?')) {
         evaluationMeta.promotionEndorsement = '';
@@ -245,6 +284,9 @@ function skipPromotionEndorsement() {
     }
 }
 
+/**
+ *
+ */
 function finalizePromotionEndorsement() {
     if (!promotionRecommendation) {
         alert('Please select a promotion recommendation before continuing.');

@@ -1,4 +1,4 @@
-;(function (global) {
+(function (global) {
   'use strict';
 
   const memoryLogs = [];
@@ -12,10 +12,17 @@
     maxStored: 500
   };
 
+  /**
+   *
+   */
   function nowIso() {
     try { return new Date().toISOString(); } catch (_) { return String(Date.now()); }
   }
 
+  /**
+   *
+   * @param err
+   */
   function toErrorObject(err) {
     if (!err) return { name: 'UnknownError', message: 'Unknown error', stack: '' };
     if (err instanceof Error) {
@@ -25,6 +32,10 @@
     return { name: 'NonError', message: typeof err === 'string' ? err : JSON.stringify(err), stack: '' };
   }
 
+  /**
+   *
+   * @param payload
+   */
   function consoleSink(payload) {
     try {
       const tag = `[ErrorLogger:${payload.severity}]`;
@@ -32,6 +43,10 @@
     } catch (_) {}
   }
 
+  /**
+   *
+   * @param payload
+   */
   function storageSink(payload) {
     try {
       const key = 'fitrep_error_logs';
@@ -42,6 +57,10 @@
     } catch (_) {}
   }
 
+  /**
+   *
+   * @param payload
+   */
   async function remoteSink(payload) {
     if (!config.remoteEnabled) return;
     try {
@@ -66,6 +85,10 @@
     } catch (_) {}
   }
 
+  /**
+   *
+   * @param payload
+   */
   async function dispatch(payload) {
     memoryLogs.unshift(payload);
     if (memoryLogs.length > config.maxStored) memoryLogs.length = config.maxStored;
@@ -75,6 +98,10 @@
     if (payload.severity === 'critical') showErrorBanner(payload);
   }
 
+  /**
+   *
+   * @param payload
+   */
   function showErrorBanner(payload) {
     try {
       const existing = document.getElementById('globalErrorBanner');

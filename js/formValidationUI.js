@@ -2,6 +2,11 @@
 // Depends on window.FormValidationCore
 
 (function(){
+  /**
+   *
+   * @param fn
+   * @param wait
+   */
   function debounce(fn, wait){
     let t = null;
     return function(...args){
@@ -9,6 +14,10 @@
       t = setTimeout(() => fn.apply(this, args), wait);
     };
   }
+  /**
+   *
+   * @param field
+   */
   function ensureMessageEl(field){
     const group = field.closest('.form-group') || field.parentElement;
     if (!group) return null;
@@ -22,6 +31,10 @@
     }
     return el;
   }
+  /**
+   *
+   * @param field
+   */
   function ensureSuccessIcon(field){
     const group = field.closest('.form-group') || field.parentElement;
     if (!group) return null;
@@ -35,6 +48,11 @@
     return icon;
   }
 
+  /**
+   *
+   * @param field
+   * @param state
+   */
   function updateFieldUI(field, state){
     const msgEl = ensureMessageEl(field);
     const iconEl = ensureSuccessIcon(field);
@@ -58,6 +76,10 @@
     }
   }
 
+  /**
+   *
+   * @param field
+   */
   function getFieldLabel(field){
     const label = (field.getAttribute('aria-label')
       || (field.id && document.querySelector(`label[for="${field.id}"]`)?.textContent)
@@ -65,6 +87,10 @@
     return String(label).trim();
   }
 
+  /**
+   *
+   * @param field
+   */
   function validateField(field){
     const core = window.FormValidationCore;
     if (!core) return { valid: true, message: '' };
@@ -74,6 +100,12 @@
     return res;
   }
 
+  /**
+   *
+   * @param field
+   * @param res
+   * @param serverValidators
+   */
   async function tryServerValidate(field, res, serverValidators){
     try {
       const id = field.id || field.name || '';
@@ -92,6 +124,11 @@
     }
   }
 
+  /**
+   *
+   * @param field
+   * @param opts
+   */
   function attachFieldListeners(field, opts){
     const wait = Number(opts?.debounceMs || 300);
 
@@ -115,6 +152,10 @@
     });
   }
 
+  /**
+   *
+   * @param container
+   */
   function validateForm(container){
     const fields = container.querySelectorAll('input.form-input, textarea.form-input, select.form-input');
     let allValid = true;
@@ -125,6 +166,11 @@
     return allValid;
   }
 
+  /**
+   *
+   * @param container
+   * @param options
+   */
   function attachToContainer(container, options = {}){
     const fields = container.querySelectorAll('input.form-input, textarea.form-input, select.form-input');
     fields.forEach(f => attachFieldListeners(f, options));
@@ -153,6 +199,11 @@
     }
   }
 
+  /**
+   *
+   * @param container
+   * @param message
+   */
   function showSuccessBanner(container, message){
     try {
       const msg = String(message || container?.dataset?.successMessage || 'Saved successfully.');

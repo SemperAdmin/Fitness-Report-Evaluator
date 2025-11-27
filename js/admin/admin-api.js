@@ -1,10 +1,19 @@
 window.AdminAPI = (function() {
 const base = (window.CONSTANTS?.ROUTES?.API?.ADMIN_BASE) || '/api/admin';
+  /**
+   *
+   * @param path
+   */
   async function get(path) {
     const resp = await fetch(`${base}${path}`, { credentials: 'include' });
     if (!resp.ok) throw new Error(`GET ${path} failed: ${resp.status}`);
     return resp.json();
   }
+  /**
+   *
+   * @param path
+   * @param body
+   */
   async function post(path, body) {
     const resp = await fetch(`${base}${path}`, {
       method: 'POST',

@@ -12,7 +12,14 @@
  * - Reduced API rate limit usage
  */
 
+/**
+ *
+ */
 class CachedGitHubService {
+    /**
+     *
+     * @param githubService
+     */
     constructor(githubService) {
         this.service = githubService;
         this.network = window.networkEfficiency;
@@ -43,6 +50,7 @@ class CachedGitHubService {
     /**
      * Initialize service with caching
      * Ensures only one initialization happens even if called multiple times
+     * @param token
      */
     async initialize(token) {
         // If already initialized with this token, return immediately
@@ -103,6 +111,7 @@ class CachedGitHubService {
 
     /**
      * Load user evaluations with caching
+     * @param userEmail
      */
     async loadUserEvaluations(userEmail) {
         return this.network.request({
@@ -119,6 +128,7 @@ class CachedGitHubService {
 
     /**
      * Load user data with caching
+     * @param userEmail
      */
     async loadUserData(userEmail) {
         return this.network.request({
@@ -135,6 +145,8 @@ class CachedGitHubService {
 
     /**
      * Get evaluation detail with caching
+     * @param userEmail
+     * @param evaluationId
      */
     async getEvaluationDetail(userEmail, evaluationId) {
         return this.network.request({
@@ -151,6 +163,7 @@ class CachedGitHubService {
 
     /**
      * Load evaluation index with caching
+     * @param userEmail
      */
     async loadEvaluationIndex(userEmail) {
         return this.network.request({
@@ -167,6 +180,7 @@ class CachedGitHubService {
 
     /**
      * Get file SHA with caching
+     * @param filePath
      */
     async getFileSha(filePath) {
         return this.network.request({
@@ -183,6 +197,7 @@ class CachedGitHubService {
 
     /**
      * Get file content with caching
+     * @param filePath
      */
     async getFileContent(filePath) {
         return this.network.request({
@@ -199,6 +214,7 @@ class CachedGitHubService {
 
     /**
      * Get raw file content with caching
+     * @param filePath
      */
     async getRawFileContent(filePath) {
         return this.network.request({
@@ -215,6 +231,7 @@ class CachedGitHubService {
 
     /**
      * List directory with caching
+     * @param dirPath
      */
     async listDirectory(dirPath) {
         return this.network.request({
@@ -231,6 +248,8 @@ class CachedGitHubService {
 
     /**
      * Save user data with debouncing and cache invalidation
+     * @param userData
+     * @param debounce
      */
     async saveUserData(userData, debounce = true) {
         const userEmail = userData.email;
@@ -255,6 +274,9 @@ class CachedGitHubService {
 
     /**
      * Save evaluation with debouncing and cache invalidation
+     * @param evaluation
+     * @param userEmail
+     * @param debounce
      */
     async saveEvaluation(evaluation, userEmail, debounce = true) {
         // Invalidate related caches
@@ -280,6 +302,9 @@ class CachedGitHubService {
 
     /**
      * Save evaluation to unique file with debouncing and cache invalidation
+     * @param evaluation
+     * @param userEmail
+     * @param debounce
      */
     async saveEvaluationUniqueFile(evaluation, userEmail, debounce = true) {
         // Invalidate related caches
@@ -305,6 +330,8 @@ class CachedGitHubService {
 
     /**
      * Save evaluation index with cache invalidation
+     * @param userEmail
+     * @param entries
      */
     async saveEvaluationIndex(userEmail, entries) {
         // Invalidate related caches
@@ -316,6 +343,8 @@ class CachedGitHubService {
 
     /**
      * Upsert evaluation index with cache invalidation
+     * @param userEmail
+     * @param evaluation
      */
     async upsertEvaluationIndex(userEmail, evaluation) {
         // Invalidate related caches
@@ -327,6 +356,10 @@ class CachedGitHubService {
 
     /**
      * Create or update file with cache invalidation
+     * @param filePath
+     * @param content
+     * @param commitMessage
+     * @param sha
      */
     async createOrUpdateFile(filePath, content, commitMessage, sha = null) {
         // Invalidate file caches
@@ -339,6 +372,8 @@ class CachedGitHubService {
 
     /**
      * Delete file with cache invalidation
+     * @param filePath
+     * @param commitMessage
      */
     async deleteFile(filePath, commitMessage) {
         // Invalidate file caches
@@ -351,6 +386,8 @@ class CachedGitHubService {
 
     /**
      * Delete user file with cache invalidation
+     * @param userEmail
+     * @param commitMessage
      */
     async deleteUserFile(userEmail, commitMessage) {
         // Invalidate all user-related caches
@@ -361,6 +398,7 @@ class CachedGitHubService {
 
     /**
      * Migrate legacy profile evaluations (no caching)
+     * @param userEmail
      */
     async migrateLegacyProfileEvaluations(userEmail) {
         // Invalidate caches after migration
@@ -371,6 +409,8 @@ class CachedGitHubService {
 
     /**
      * Build index entry (no network call, pass through)
+     * @param evaluation
+     * @param userEmail
      */
     buildIndexEntry(evaluation, userEmail) {
         return this.service.buildIndexEntry?.(evaluation, userEmail);
@@ -378,6 +418,7 @@ class CachedGitHubService {
 
     /**
      * Invalidate all caches for a user
+     * @param userEmail
      */
     invalidateUserCache(userEmail) {
         this.network.invalidateCache(`github://user-data/${userEmail}`);
@@ -388,6 +429,8 @@ class CachedGitHubService {
 
     /**
      * Invalidate cache for specific evaluation
+     * @param userEmail
+     * @param evaluationId
      */
     invalidateEvaluationCache(userEmail, evaluationId) {
         this.network.invalidateCache(`github://evaluation/${userEmail}/${evaluationId}`);
@@ -402,6 +445,7 @@ class CachedGitHubService {
 
     /**
      * Force refresh - clear cache and fetch fresh data
+     * @param userEmail
      */
     async forceRefreshUserEvaluations(userEmail) {
         this.invalidateUserCache(userEmail);
@@ -417,6 +461,7 @@ class CachedGitHubService {
 
     /**
      * Prefetch common data
+     * @param userEmail
      */
     async prefetchUserData(userEmail) {
         try {

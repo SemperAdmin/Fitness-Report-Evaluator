@@ -76,6 +76,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Add Single Evaluation entrypoint used by index.html button
+/**
+ *
+ */
 function startStandaloneMode() {
     // Clear any RS-session flag and profile context
     try { sessionStorage.removeItem('login_source'); } catch (_) {}
@@ -108,6 +111,9 @@ function startStandaloneMode() {
 }
 
 // Login-first routing helper
+/**
+ *
+ */
 function showRSLoginFirst() {
     // Hide global header chrome while on the login card
     try { document.body.classList.add('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
@@ -156,6 +162,11 @@ function showRSLoginFirst() {
 // --- Global Tooltip Helpers ---
 let __tooltipHideTimer = null;
 
+/**
+ *
+ * @param event
+ * @param tooltipId
+ */
 function showTooltip(event, tooltipId) {
     try {
         const tip = document.getElementById(tooltipId);
@@ -190,6 +201,10 @@ function showTooltip(event, tooltipId) {
     }
 }
 
+/**
+ *
+ * @param tooltipId
+ */
 function hideTooltip(tooltipId) {
     const tip = document.getElementById(tooltipId);
     const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
@@ -203,6 +218,9 @@ function hideTooltip(tooltipId) {
 }
 
 // Backward-compat alias for legacy/cached markup
+/**
+ *
+ */
 function showProfileLogin() {
     return showRSLoginFirst();
 }

@@ -7,6 +7,9 @@
 const { spawn } = require('child_process');
 const createIssue = require('./render-issue');
 
+/**
+ *
+ */
 async function maybeCreateSuccessIssue() {
   const should = String(process.env.CREATE_ISSUE_ON_DEPLOY_SUCCESS || '').toLowerCase() === 'true';
   if (!should) return;

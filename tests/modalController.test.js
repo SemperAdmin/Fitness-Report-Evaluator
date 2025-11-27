@@ -1,6 +1,9 @@
 const assert = require('assert');
 const { ModalStack } = require('../js/modals.js');
 
+/**
+ *
+ */
 function run() {
   const stack = new ModalStack();
 

@@ -9,7 +9,14 @@
  * - Consistent API across storage types
  */
 
+/**
+ *
+ */
 class UnifiedStorageManager {
+    /**
+     *
+     * @param options
+     */
     constructor(options = {}) {
         this.dbName = options.dbName || 'fitrep-unified-db';
         this.version = options.version || 3;
@@ -136,6 +143,10 @@ class UnifiedStorageManager {
 
     /**
      * Set item with data integrity
+     * @param storeName
+     * @param key
+     * @param value
+     * @param options
      */
     async setItem(storeName, key, value, options = {}) {
         await this.initialize();
@@ -183,6 +194,9 @@ class UnifiedStorageManager {
 
     /**
      * Get item with data integrity validation
+     * @param storeName
+     * @param key
+     * @param options
      */
     async getItem(storeName, key, options = {}) {
         await this.initialize();
@@ -256,6 +270,8 @@ class UnifiedStorageManager {
 
     /**
      * Remove item
+     * @param storeName
+     * @param key
      */
     async removeItem(storeName, key) {
         await this.initialize();
@@ -282,6 +298,8 @@ class UnifiedStorageManager {
 
     /**
      * Get all items from store
+     * @param storeName
+     * @param options
      */
     async getAllItems(storeName, options = {}) {
         await this.initialize();
@@ -335,6 +353,7 @@ class UnifiedStorageManager {
 
     /**
      * Clear store
+     * @param storeName
      */
     async clearStore(storeName) {
         await this.initialize();
@@ -374,6 +393,10 @@ class UnifiedStorageManager {
 
     /**
      * Query items by index (IndexedDB only, fallback to filter)
+     * @param storeName
+     * @param indexName
+     * @param value
+     * @param options
      */
     async queryByIndex(storeName, indexName, value, options = {}) {
         await this.initialize();

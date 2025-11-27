@@ -11,6 +11,12 @@ const LOCAL_BASE_DIR = process.env.LOCAL_DATA_DIR || path.join(__dirname, 'local
 const LOCAL_DATA_DIR = path.join(LOCAL_BASE_DIR, 'users');
 
 // Admin guard: requires session and isAdmin flag
+/**
+ *
+ * @param req
+ * @param res
+ * @param next
+ */
 function requireAdmin(req, res, next) {
   try {
     if (req.session && req.session.isAdmin === true) return next();
@@ -201,6 +207,10 @@ router.get('/metrics/performance', requireAdmin, async (req, res) => {
     const gradeValues = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7 };
     const bySectionValues = { D: [], E: [], F: [], G: [] };
 
+    /**
+     *
+     * @param obj
+     */
     async function processEvaluationObject(obj) {
       try {
         const ev = obj && obj.evaluation ? obj.evaluation : obj;
@@ -310,6 +320,10 @@ router.get('/metrics/performance', requireAdmin, async (req, res) => {
     const highGradePercent = totalTraits > 0 ? parseFloat(((highCount / totalTraits) * 100).toFixed(2)) : 0;
     const lowGradePercent = totalTraits > 0 ? parseFloat(((lowCount / totalTraits) * 100).toFixed(2)) : 0;
 
+    /**
+     *
+     * @param arr
+     */
     function mean(arr) { return arr.length ? parseFloat((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2)) : 0; }
     const avgGradeBySection = {
       D_mission: mean(bySectionValues.D),
@@ -340,6 +354,10 @@ router.get('/metrics/engagement', requireAdmin, async (req, res) => {
     const recentRegistrations = [];
     const userRankDistribution = {};
 
+    /**
+     *
+     * @param profile
+     */
     function pushRecent(profile) {
       try {
         recentRegistrations.push({
@@ -351,6 +369,10 @@ router.get('/metrics/engagement', requireAdmin, async (req, res) => {
       } catch (_) { /* ignore */ }
     }
 
+    /**
+     *
+     * @param rank
+     */
     function addRank(rank) {
       const r = String(rank || '').trim();
       if (!r) return;
@@ -549,6 +571,11 @@ router.get('/users/list', requireAdmin, async (req, res) => {
 
     // Helper to normalize a user record
     const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'semperadmin').trim().toLowerCase();
+    /**
+     *
+     * @param prefix
+     * @param obj
+     */
     function normalizeUser(prefix, obj) {
       const name = obj?.rsName || obj?.name || '';
       const email = obj?.rsEmail || obj?.email || '';

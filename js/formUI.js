@@ -2,11 +2,19 @@
 (function () {
   if (!window.FormStore || !window.FormCore) return;
 
+  /**
+   *
+   * @param id
+   */
   function qs(id) { return document.getElementById(id); }
   const progressFill = qs('progressFill');
   const progressText = qs('progressText');
   const autoSaveIndicator = qs('autoSaveIndicator');
 
+  /**
+   *
+   * @param state
+   */
   function renderState(state) {
     const percent = FormCore.selectors.getProgressPercent(state);
     if (progressFill) {

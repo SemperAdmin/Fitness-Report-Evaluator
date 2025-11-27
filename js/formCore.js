@@ -14,6 +14,10 @@
     { id: 'review', title: 'Review' }
   ];
 
+  /**
+   *
+   * @param opts
+   */
   function createInitialState(opts = {}) {
     const steps = Array.isArray(opts.steps) && opts.steps.length ? opts.steps : defaultSteps;
     const fieldsByStep = opts.fieldsByStep || {};
@@ -49,6 +53,11 @@
   };
 
   // Dependency graph structure: { [fieldKey]: [{ target: 'otherFieldKey', compute: (state) => value }] }
+  /**
+   *
+   * @param state
+   * @param dependencies
+   */
   function applyDependencies(state, dependencies) {
     try {
       const current = getCurrentStep(state);
@@ -73,13 +82,25 @@
     return state;
   }
 
+  /**
+   *
+   * @param state
+   */
   function getCurrentStep(state) {
     return state.steps.find(s => s.id === state.currentStepId) || state.steps[0];
   }
 
+  /**
+   *
+   * @param state
+   */
   function serializeState(state) {
     return JSON.stringify(state);
   }
+  /**
+   *
+   * @param json
+   */
   function deserializeState(json) {
     try {
       const obj = JSON.parse(json);
@@ -103,6 +124,11 @@
     APPLY_DEPENDENCIES: 'form/APPLY_DEPENDENCIES'
   };
 
+  /**
+   *
+   * @param state
+   * @param action
+   */
   function reducer(state = createInitialState(), action = {}) {
     switch (action.type) {
       case types.INIT: {

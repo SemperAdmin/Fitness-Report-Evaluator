@@ -41,6 +41,10 @@
   }
   };
 
+  /**
+   *
+   * @param dataRules
+   */
   function parseRules(dataRules) {
   // data-rules="required|minLength:2|maxLength:20"
   if (!dataRules) return [];
@@ -55,6 +59,11 @@
     });
   }
 
+  /**
+   *
+   * @param value
+   * @param rules
+   */
   function validateValue(value, rules = []) {
   let isValid = true;
   let failedRule = null;
@@ -68,6 +77,11 @@
   return { isValid, failedRule };
   }
 
+  /**
+   *
+   * @param fieldLabel
+   * @param rule
+   */
   function errorMessageFor(fieldLabel, rule) {
   const label = String(fieldLabel || 'Field');
   const name = rule?.name || 'required';
@@ -114,6 +128,13 @@
   }
 
 // Validate a single field value with labeled rules
+  /**
+   *
+   * @param root0
+   * @param root0.value
+   * @param root0.label
+   * @param root0.dataRules
+   */
   function validateField({ value, label, dataRules }) {
   const rules = Array.isArray(dataRules) ? dataRules : parseRules(dataRules);
   const { isValid, failedRule } = validateValue(value, rules);
@@ -124,6 +145,10 @@
   }
 
 // Validate all fields in a payload object: { fieldName: { value, label, dataRules } }
+  /**
+   *
+   * @param payload
+   */
   function validateFormPayload(payload) {
   const result = { valid: true, fields: {}, messages: [] };
   for (const [key, meta] of Object.entries(payload || {})) {

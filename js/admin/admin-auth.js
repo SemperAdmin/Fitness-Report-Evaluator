@@ -1,10 +1,16 @@
 window.AdminAuth = (function() {
   let sessionInfoEl;
+  /**
+   *
+   */
   function init() {
     sessionInfoEl = document.getElementById('sessionInfo');
     // On load, attempt to detect an existing admin session created via normal login
     checkSession();
   }
+  /**
+   *
+   */
   async function checkSession() {
     try {
       const res = await window.AdminAPI?.get?.('/session');

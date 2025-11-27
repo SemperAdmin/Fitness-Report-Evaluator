@@ -19,6 +19,10 @@ global.localStorage = {
   removeItem: (k) => { _store.delete(k); }
 };
 
+/**
+ *
+ * @param relPath
+ */
 function requireScript(relPath) {
   const code = fs.readFileSync(relPath, 'utf8');
   vm.runInThisContext(code, { filename: relPath });
@@ -53,6 +57,9 @@ if (!Array.isArray(stored) || stored.length < 1) {
 
 // Test: wrap rethrows and logs
 let threw = false;
+/**
+ *
+ */
 function boom() { throw new Error('Boom'); }
 const wrapped = global.ErrorLogger.wrap(boom, { module: 'tests', action: 'wrap' });
 try { wrapped(); } catch (e) { threw = true; }

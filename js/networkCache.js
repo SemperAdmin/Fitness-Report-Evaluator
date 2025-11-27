@@ -12,6 +12,10 @@
  * Request Cache with TTL and invalidation
  */
 class RequestCache {
+    /**
+     *
+     * @param options
+     */
     constructor(options = {}) {
         this.maxSize = options.maxSize || 100;
         this.defaultTTL = options.defaultTTL || 5 * 60 * 1000; // 5 minutes
@@ -27,6 +31,9 @@ class RequestCache {
 
     /**
      * Generate cache key from request parameters
+     * @param method
+     * @param url
+     * @param body
      */
     generateKey(method, url, body = null) {
         const parts = [method, url];
@@ -38,6 +45,7 @@ class RequestCache {
 
     /**
      * Get cached response if valid
+     * @param key
      */
     get(key) {
         const entry = this.cache.get(key);
@@ -64,6 +72,9 @@ class RequestCache {
 
     /**
      * Set cached response
+     * @param key
+     * @param response
+     * @param ttl
      */
     set(key, response, ttl = null) {
         const expiresAt = Date.now() + (ttl || this.defaultTTL);
@@ -92,6 +103,7 @@ class RequestCache {
 
     /**
      * Invalidate cache entries matching pattern
+     * @param pattern
      */
     invalidate(pattern) {
         let count = 0;
@@ -166,6 +178,9 @@ class RequestCache {
  * Request Deduplicator - prevents duplicate in-flight requests
  */
 class RequestDeduplicator {
+    /**
+     *
+     */
     constructor() {
         this.inFlight = new Map();
         this.stats = {
@@ -177,6 +192,8 @@ class RequestDeduplicator {
     /**
      * Execute request with deduplication
      * If same request is already in-flight, wait for it instead of making duplicate
+     * @param key
+     * @param requestFn
      */
     async execute(key, requestFn) {
         // Check if request already in-flight
@@ -219,6 +236,9 @@ class RequestDeduplicator {
  * Debouncer - delays execution until no more calls
  */
 class Debouncer {
+    /**
+     *
+     */
     constructor() {
         this.timers = new Map();
     }
@@ -246,6 +266,7 @@ class Debouncer {
 
     /**
      * Cancel debounced function
+     * @param key
      */
     cancel(key) {
         if (this.timers.has(key)) {
@@ -269,6 +290,9 @@ class Debouncer {
  * Throttler - limits execution to once per time period
  */
 class Throttler {
+    /**
+     *
+     */
     constructor() {
         this.lastExecution = new Map();
     }
@@ -295,6 +319,7 @@ class Throttler {
 
     /**
      * Reset throttle for a key
+     * @param key
      */
     reset(key) {
         this.lastExecution.delete(key);
@@ -313,6 +338,10 @@ class Throttler {
  * Combines caching, deduplication, debouncing, and throttling
  */
 class NetworkEfficiencyManager {
+    /**
+     *
+     * @param options
+     */
     constructor(options = {}) {
         this.cache = new RequestCache({
             maxSize: options.cacheMaxSize || 100,
@@ -381,10 +410,10 @@ class NetworkEfficiencyManager {
 
     /**
      * Execute a cached request with deduplication
-     * @param {Object} options - Request options
+     * @param {object} options - Request options
      * @param {string} options.method - HTTP method
      * @param {string} options.url - Request URL
-     * @param {Object} options.body - Request body (optional)
+     * @param {object} options.body - Request body (optional)
      * @param {Function} options.requestFn - Function that returns a Promise
      * @param {number} options.ttl - Cache TTL in ms (optional)
      * @param {boolean} options.cache - Whether to cache (default: true)
@@ -440,6 +469,9 @@ class NetworkEfficiencyManager {
 
     /**
      * Debounced request - delays execution until calls stop
+     * @param key
+     * @param requestFn
+     * @param delay
      */
     debouncedRequest(key, requestFn, delay = 300) {
         return new Promise((resolve, reject) => {
@@ -456,6 +488,9 @@ class NetworkEfficiencyManager {
 
     /**
      * Throttled request - limits execution frequency
+     * @param key
+     * @param requestFn
+     * @param limit
      */
     throttledRequest(key, requestFn, limit = 1000) {
         return new Promise((resolve, reject) => {
@@ -476,6 +511,7 @@ class NetworkEfficiencyManager {
 
     /**
      * Invalidate cache entries
+     * @param pattern
      */
     invalidateCache(pattern) {
         return this.cache.invalidate(pattern);

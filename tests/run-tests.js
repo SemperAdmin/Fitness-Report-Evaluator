@@ -1,5 +1,9 @@
 const { spawn } = require('child_process');
 
+/**
+ *
+ * @param file
+ */
 function runNodeTest(file) {
   return new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'pipe'] });

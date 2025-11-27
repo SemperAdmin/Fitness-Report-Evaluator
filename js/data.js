@@ -202,6 +202,9 @@ const enhancedFirepData = {
 };
 
 // Data verification function
+/**
+ *
+ */
 function verifyFirepData() {
     console.log('=== FITREP Data Verification ===');
     console.log('firepData object:', firepData);

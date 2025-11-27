@@ -11,6 +11,7 @@
 const StorageValidators = {
     /**
      * Validate profile data
+     * @param data
      */
     profile: (data) => {
         const schema = {
@@ -29,6 +30,7 @@ const StorageValidators = {
 
     /**
      * Validate evaluation data
+     * @param data
      */
     evaluation: (data) => {
         const schema = {
@@ -49,6 +51,7 @@ const StorageValidators = {
 
     /**
      * Validate session data
+     * @param data
      */
     session: (data) => {
         const schema = {
@@ -64,6 +67,7 @@ const StorageValidators = {
 
     /**
      * Validate preferences data
+     * @param data
      */
     preferences: (data) => {
         // Preferences are flexible, just ensure it's an object
@@ -107,6 +111,8 @@ const StorageRepairDefaults = {
 class ProfileStorage {
     /**
      * Save profile
+     * @param profileKey
+     * @param profileData
      */
     static async save(profileKey, profileData) {
         return await window.unifiedStorage.setItem('profiles', profileKey, profileData, {
@@ -118,6 +124,7 @@ class ProfileStorage {
 
     /**
      * Load profile
+     * @param profileKey
      */
     static async load(profileKey) {
         return await window.unifiedStorage.getItem('profiles', profileKey, {
@@ -141,6 +148,7 @@ class ProfileStorage {
 
     /**
      * Delete profile
+     * @param profileKey
      */
     static async delete(profileKey) {
         return await window.unifiedStorage.removeItem('profiles', profileKey);
@@ -148,6 +156,7 @@ class ProfileStorage {
 
     /**
      * Get profiles by email
+     * @param email
      */
     static async getByEmail(email) {
         return await window.unifiedStorage.queryByIndex('profiles', 'email', email, {
@@ -162,6 +171,8 @@ class ProfileStorage {
 class EvaluationStorage {
     /**
      * Generate evaluation key
+     * @param email
+     * @param evaluationId
      */
     static generateKey(email, evaluationId) {
         return `${email}|${evaluationId}`;
@@ -169,6 +180,9 @@ class EvaluationStorage {
 
     /**
      * Save evaluation
+     * @param email
+     * @param evaluationId
+     * @param evaluationData
      */
     static async save(email, evaluationId, evaluationData) {
         const key = this.generateKey(email, evaluationId);
@@ -184,6 +198,8 @@ class EvaluationStorage {
 
     /**
      * Load evaluation
+     * @param email
+     * @param evaluationId
      */
     static async load(email, evaluationId) {
         const key = this.generateKey(email, evaluationId);
@@ -200,6 +216,7 @@ class EvaluationStorage {
 
     /**
      * Get all evaluations for user
+     * @param email
      */
     static async getAllForUser(email) {
         return await window.unifiedStorage.queryByIndex('evaluations', 'email', email, {
@@ -218,6 +235,8 @@ class EvaluationStorage {
 
     /**
      * Delete evaluation
+     * @param email
+     * @param evaluationId
      */
     static async delete(email, evaluationId) {
         const key = this.generateKey(email, evaluationId);
@@ -226,6 +245,8 @@ class EvaluationStorage {
 
     /**
      * Save evaluation index (summary list)
+     * @param email
+     * @param indexEntries
      */
     static async saveIndex(email, indexEntries) {
         return await window.unifiedStorage.setItem('evaluationIndexes', email, indexEntries, {
@@ -236,6 +257,7 @@ class EvaluationStorage {
 
     /**
      * Load evaluation index
+     * @param email
      */
     static async loadIndex(email) {
         return await window.unifiedStorage.getItem('evaluationIndexes', email, {
@@ -253,6 +275,8 @@ class EvaluationStorage {
 class SessionStorage {
     /**
      * Save session data
+     * @param sessionKey
+     * @param sessionData
      */
     static async save(sessionKey, sessionData) {
         return await window.unifiedStorage.setItem('sessions', sessionKey, sessionData, {
@@ -263,6 +287,7 @@ class SessionStorage {
 
     /**
      * Load session data
+     * @param sessionKey
      */
     static async load(sessionKey) {
         return await window.unifiedStorage.getItem('sessions', sessionKey, {
@@ -276,6 +301,7 @@ class SessionStorage {
 
     /**
      * Save current session
+     * @param data
      */
     static async saveCurrent(data) {
         return await this.save('current', data);
@@ -313,6 +339,8 @@ class SessionStorage {
 class PreferencesStorage {
     /**
      * Save preference
+     * @param key
+     * @param value
      */
     static async save(key, value) {
         return await window.unifiedStorage.setItem('preferences', key, value, {
@@ -322,6 +350,8 @@ class PreferencesStorage {
 
     /**
      * Load preference
+     * @param key
+     * @param defaultValue
      */
     static async load(key, defaultValue = null) {
         const value = await window.unifiedStorage.getItem('preferences', key);
@@ -337,6 +367,7 @@ class PreferencesStorage {
 
     /**
      * Delete preference
+     * @param key
      */
     static async delete(key) {
         return await window.unifiedStorage.removeItem('preferences', key);

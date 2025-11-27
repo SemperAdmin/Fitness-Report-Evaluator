@@ -1,6 +1,9 @@
 // Voice Recognition Functions
 let voiceRecognition = null;
 
+/**
+ *
+ */
 function initializeVoiceRecognition() {
     if ('webkitSpeechRecognition' in window) {
         voiceRecognition = new webkitSpeechRecognition();
@@ -33,6 +36,9 @@ function initializeVoiceRecognition() {
     }
 }
 
+/**
+ *
+ */
 function toggleVoiceInput() {
     const btn = document.getElementById('voiceBtn');
     if (!voiceRecognition) {

@@ -25,6 +25,9 @@ const STORAGE_KEYS = {
 };
 
 // Auto-save functionality with lifecycle management
+/**
+ *
+ */
 function initializeAutoSave() {
     // Helper to manage intervals/listeners with lifecycle manager
     const managedSetInterval = (callback, ms) => {
@@ -101,6 +104,9 @@ function initializeAutoSave() {
     }, 5000);
 }
 
+/**
+ *
+ */
 function markUnsavedChanges() {
     hasUnsavedChanges = true;
     activityEvents.push(Date.now());
@@ -114,12 +120,19 @@ function markUnsavedChanges() {
     }, DEBOUNCE_MS);
 }
 
+/**
+ *
+ */
 function markChangesSaved() {
     hasUnsavedChanges = false;
     lastSaveTime = new Date();
     updateAutoSaveIndicator('saved');
 }
 
+/**
+ *
+ * @param status
+ */
 function updateAutoSaveIndicator(status) {
     const indicator = document.getElementById('autoSaveIndicator');
     if (!indicator) return;
@@ -151,6 +164,10 @@ function updateAutoSaveIndicator(status) {
     }
 }
 
+/**
+ *
+ * @param date
+ */
 function formatTime(date) {
     if (!date) return '';
     const now = new Date();
@@ -162,6 +179,9 @@ function formatTime(date) {
 }
 
 // Enhanced save/load functions
+/**
+ *
+ */
 function saveProgressToStorage() {
     updateAutoSaveIndicator('saving');
 
@@ -258,6 +278,9 @@ function saveProgressToStorage() {
     }
 }
 
+/**
+ *
+ */
 function loadProgressFromStorage() {
     try {
         const savedData = localStorage.getItem(STORAGE_KEYS.currentSession);
@@ -278,6 +301,10 @@ function loadProgressFromStorage() {
     }
 }
 
+/**
+ *
+ * @param sessionData
+ */
 function restoreSession(sessionData) {
     try {
         // Restore application state
@@ -358,6 +385,10 @@ function restoreSession(sessionData) {
     }
 }
 
+/**
+ *
+ * @param sessionData
+ */
 function saveToSessionHistory(sessionData) {
     try {
         let history = JSON.parse(localStorage.getItem(STORAGE_KEYS.sessionHistory) || '[]');
@@ -384,6 +415,9 @@ function saveToSessionHistory(sessionData) {
     }
 }
 
+/**
+ *
+ */
 function getSessionHistory() {
     try {
         return JSON.parse(localStorage.getItem(STORAGE_KEYS.sessionHistory) || '[]');
@@ -395,6 +429,9 @@ function getSessionHistory() {
 }
 
 // Session recovery
+/**
+ *
+ */
 function checkForPreviousSession() {
     const savedSession = loadProgressFromStorage();
     
@@ -413,6 +450,10 @@ function checkForPreviousSession() {
     return false;
 }
 
+/**
+ *
+ * @param sessionData
+ */
 function showSessionRecoveryBanner(sessionData) {
     const banner = document.getElementById('sessionRecoveryBanner');
     if (!banner) return;
@@ -429,6 +470,9 @@ function showSessionRecoveryBanner(sessionData) {
     window.pendingSessionRestore = sessionData;
 }
 
+/**
+ *
+ */
 function recoverSession() {
     if (window.pendingSessionRestore) {
         restoreSession(window.pendingSessionRestore);
@@ -436,6 +480,9 @@ function recoverSession() {
     }
 }
 
+/**
+ *
+ */
 function dismissRecovery() {
     const banner = document.getElementById('sessionRecoveryBanner');
     if (banner) {
@@ -445,6 +492,9 @@ function dismissRecovery() {
 }
 
 // Export/Import functions
+/**
+ *
+ */
 function exportToJSON() {
     const exportData = {
         version: '1.0',
@@ -472,6 +522,10 @@ function exportToJSON() {
     showToast('Evaluation data exported successfully!', 'success');
 }
 
+/**
+ *
+ * @param file
+ */
 function importFromJSON(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -511,10 +565,16 @@ function importFromJSON(file) {
 }
 
 // Manual save/load functions
+/**
+ *
+ */
 function saveProgress() {
     return performSaveWithRetry();
 }
 
+/**
+ *
+ */
 function loadProgress() {
     const savedSession = loadProgressFromStorage();
     if (savedSession) {
@@ -527,6 +587,9 @@ function loadProgress() {
 }
 
 // Clear all data
+/**
+ *
+ */
 function clearAllData() {
     if (confirm('This clears local data. Sync/export first? Continue?')) {
         Object.values(STORAGE_KEYS).forEach(key => {
@@ -538,6 +601,9 @@ function clearAllData() {
 }
 
 // Initialize persistence system
+/**
+ *
+ */
 function initializePersistence() {
     initializeAutoSave();
     
@@ -562,6 +628,11 @@ window.autoSave = {
     retryNow: () => performSaveWithRetry(),
     forceSave: () => { hasUnsavedChanges = true; return performSaveWithRetry(); }
 };
+/**
+ *
+ * @param prev
+ * @param next
+ */
 function diffSession(prev, next) {
     const changed = {};
     Object.keys(next || {}).forEach(k => {
@@ -575,14 +646,23 @@ function diffSession(prev, next) {
     return changed;
 }
 
+/**
+ *
+ */
 function persistQueue() {
     try { localStorage.setItem('fitrep_save_queue', JSON.stringify(saveQueue)); } catch(_){}
 }
 
+/**
+ *
+ */
 function loadQueue() {
     try { saveQueue = JSON.parse(localStorage.getItem('fitrep_save_queue')||'[]'); } catch(_) { saveQueue = []; }
 }
 
+/**
+ *
+ */
 async function flushSaveQueue() {
     loadQueue();
     if (!navigator.onLine || !saveQueue.length) return;
@@ -600,6 +680,11 @@ async function flushSaveQueue() {
     persistQueue();
 }
 
+/**
+ *
+ * @param attempts
+ * @param baseDelayMs
+ */
 async function performSaveWithRetry(attempts = 3, baseDelayMs = 400) {
     let tryCount = 0;
     updateAutoSaveIndicator('saving');

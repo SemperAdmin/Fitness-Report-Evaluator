@@ -101,6 +101,9 @@ const sectionITemplates = {
 };
 
 // Section I Analysis and Generation Functions
+/**
+ *
+ */
 function analyzeTraitEvaluations() {
     const grades = Object.values(evaluationResults).map(r => r.gradeNumber);
     const total = grades.length;
@@ -134,6 +137,9 @@ function analyzeTraitEvaluations() {
     };
 }
 
+/**
+ *
+ */
 function extractKeyAccomplishments() {
     const accomplishments = [];
     
@@ -175,6 +181,10 @@ function extractKeyAccomplishments() {
     return accomplishments.sort((a, b) => b.gradeNumber - a.gradeNumber);
 }
 
+/**
+ *
+ * @param sectionTitle
+ */
 function getTraitSectionKey(sectionTitle) {
     const sectionMap = {
         'Mission Accomplishment': 'mission',
@@ -186,6 +196,9 @@ function getTraitSectionKey(sectionTitle) {
     return sectionMap[sectionTitle] || 'general';
 }
 
+/**
+ *
+ */
 function analyzePerformancePatterns() {
     const results = Object.values(evaluationResults);
     const patterns = {
@@ -245,6 +258,9 @@ function analyzePerformancePatterns() {
     return patterns;
 }
 
+/**
+ *
+ */
 function generateSectionIComment() {
     const analysis = analyzeTraitEvaluations();
     const accomplishments = extractKeyAccomplishments();
@@ -324,6 +340,11 @@ function generateSectionIComment() {
     updateSectionIWordCount();
 }
 
+/**
+ *
+ * @param performanceTier
+ * @param patterns
+ */
 function generateEnhancedPromotionEndorsement(performanceTier, patterns) {
     let promotionStatement = '';
     
@@ -378,14 +399,26 @@ function generateEnhancedPromotionEndorsement(performanceTier, patterns) {
     return promotionStatement;
 }
 
+/**
+ *
+ * @param array
+ */
 function getRandomFromArray(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
+/**
+ *
+ * @param templates
+ */
 function getRandomTemplate(templates) {
     return templates[Math.floor(Math.random() * templates.length)];
 }
 
+/**
+ *
+ * @param analysis
+ */
 function updateAnalysisDisplay(analysis) {
     const statsContainer = document.getElementById('analysisStats');
     const tierDisplay = document.getElementById('performanceTierDisplay');
@@ -419,6 +452,10 @@ function updateAnalysisDisplay(analysis) {
     displayValidationWarnings();
 }
 
+/**
+ *
+ * @param analysis
+ */
 function updateGradeGroupsDisplay(analysis) {
     const gradeGroupsContainer = document.getElementById('gradeGroupsContainer');
     if (!gradeGroupsContainer) return;
@@ -504,6 +541,9 @@ function updateGradeGroupsDisplay(analysis) {
     `;
 }
 
+/**
+ *
+ */
 function getGradeGroups() {
     const groups = {
         fgGrades: [], // F and G grades
@@ -534,11 +574,18 @@ function getGradeGroups() {
     return groups;
 }
 
+/**
+ *
+ * @param style
+ */
 function regenerateWithStyle(style) {
     currentGenerationStyle = style;
     generateSectionIComment();
 }
 
+/**
+ *
+ */
 function updateSectionIWordCount() {
     const textarea = document.getElementById('sectionITextarea');
     const counter = document.getElementById('sectionIWordCount');
@@ -559,6 +606,9 @@ function updateSectionIWordCount() {
 }
 
 // skipSectionI()
+/**
+ *
+ */
 function skipSectionI() {
     if (generatedSectionI && confirm('You have generated a Section I comment. Are you sure you want to skip it?')) {
         generatedSectionI = '';
@@ -572,6 +622,9 @@ function skipSectionI() {
 }
 
 // finalizeSectionI()
+/**
+ *
+ */
 function finalizeSectionI() {
     const sectionIText = document.getElementById('sectionITextarea').value.trim();
     
@@ -590,6 +643,9 @@ function finalizeSectionI() {
 }
 
 // showSectionIGeneration()
+/**
+ *
+ */
 function showSectionIGeneration() {
     // Hide other cards
     document.querySelectorAll('.evaluation-card, .directed-comments-card, .review-card, .summary-card').forEach(card => {

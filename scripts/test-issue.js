@@ -10,6 +10,10 @@ try { require('dotenv').config(); } catch (_) {}
 
 const createIssue = require('./render-issue');
 
+/**
+ *
+ * @param str
+ */
 function parseCsv(str) {
   return String(str || '')
     .split(',')

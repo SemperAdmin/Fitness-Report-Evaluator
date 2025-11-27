@@ -40,6 +40,12 @@
     }
   };
 
+  /**
+   *
+   * @param tag
+   * @param attrs
+   * @param text
+   */
   function createEl(tag, attrs, text) {
     const el = document.createElement(tag);
     if (attrs) {
@@ -215,6 +221,11 @@
     });
   };
 
+  /**
+   *
+   * @param wrapper
+   * @param panel
+   */
   function openModal(wrapper, panel) {
     state.modalOpen = true;
     state.lastFocused = document.activeElement;
@@ -225,6 +236,10 @@
     if (firstInput) firstInput.focus();
   }
 
+  /**
+   *
+   * @param wrapper
+   */
   function closeModal(wrapper) {
     state.modalOpen = false;
     wrapper.style.display = 'none';
@@ -232,6 +247,11 @@
     try { if (state.lastFocused && state.lastFocused.focus) state.lastFocused.focus(); } catch (_) {}
   }
 
+  /**
+   *
+   * @param container
+   * @param e
+   */
   function trapFocus(container, e) {
     const focusable = container.querySelectorAll('a[href], button, textarea, input, select');
     const focusables = Array.prototype.slice.call(focusable).filter(el => !el.disabled && el.offsetParent !== null);

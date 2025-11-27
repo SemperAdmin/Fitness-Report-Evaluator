@@ -18,6 +18,10 @@ const roots = [path.join(__dirname, '..', 'js'), path.join(__dirname, '..', 'ser
 let totalFunctions = 0;
 let documented = 0;
 
+/**
+ *
+ * @param file
+ */
 function scanFile(file) {
   const text = fs.readFileSync(file, 'utf8');
   const lines = text.split(/\r?\n/);
@@ -43,6 +47,10 @@ function scanFile(file) {
   }
 }
 
+/**
+ *
+ * @param dir
+ */
 function walk(dir) {
   const ents = fs.readdirSync(dir, { withFileTypes: true });
   for (const ent of ents) {
