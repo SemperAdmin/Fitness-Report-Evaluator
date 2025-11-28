@@ -104,6 +104,11 @@ async function saveUserHandler(req, res) {
       return res.status(400).json({ error: 'Missing required fields: rsEmail, rsName, rsRank' });
     }
 
+    // SECURITY: Ensure user can only update their own profile
+    if (!req.session?.rsEmail || (req.session.rsEmail !== rsEmail && req.session.rsEmail !== previousEmail)) {
+      return res.status(403).json({ error: 'Unauthorized: Cannot update another user\'s profile' });
+    }
+
     const storageMode = getStorageMode();
 
     if (storageMode === 'supabase' && isSupabaseAvailable()) {
