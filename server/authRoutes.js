@@ -190,6 +190,10 @@ async function loginHandler(req, res) {
     const { username: rawUsername, email, password } = req.body || {};
     const username = String(rawUsername || email || '').trim();
 
+    // === ADD THIS LINE ===
+    console.log(`[DEBUG LOGIN] Server received login attempt for user: ${username}`);
+    // === END ADDITION ===
+
     // Validation
     if (!username || !password) {
       return res.status(400).json({ error: 'Missing username/email or password' });
