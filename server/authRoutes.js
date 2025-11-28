@@ -242,6 +242,9 @@ async function loginSupabase({ username, password }, req, res) {
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatch) {
+      // === ADD THIS LOG HERE ===
+      console.log(`[DEBUG LOGIN] FAILED: Password mismatch for user: ${username}`);
+      // === END ADDITION ===
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
