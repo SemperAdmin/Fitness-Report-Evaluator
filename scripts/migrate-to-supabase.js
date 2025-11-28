@@ -55,6 +55,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // Local data paths
 const LOCAL_USERS_DIR = path.join(__dirname, '../server/local-data/users');
 
+// GitHub configuration
+const GITHUB_DATA_REPO = process.env.DATA_REPO || 'SemperAdmin/Fitness-Report-Evaluator-Data';
+const GITHUB_TOKEN = process.env.FITREP_DATA;
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
 // Statistics
 const stats = {
   usersProcessed: 0,
@@ -174,6 +179,146 @@ async function loadLocalEvaluations(rsEmail) {
         });
       } catch (err) {
         log(`  Error reading ${file}: ${err.message}`, 'warn');
+      }
+    }
+
+    return evaluations;
+  } catch (err) {
+    log(`  Error loading evaluations for ${rsEmail}: ${err.message}`, 'warn');
+    return [];
+  }
+}
+
+/**
+ * Load user JSON files from GitHub Data repository
+ */
+async function loadGitHubUsers() {
+  if (!GITHUB_TOKEN) {
+    log('GitHub token (FITREP_DATA) not configured', 'error');
+    return [];
+  }
+
+  try {
+    const apiUrl = `https://api.github.com/repos/${GITHUB_DATA_REPO}/contents/users`;
+
+    log(`Fetching user list from GitHub: ${GITHUB_DATA_REPO}/users`, 'verbose');
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+    }
+
+    const files = await response.json();
+    const jsonFiles = files.filter((f) => f.type === 'file' && f.name.endsWith('.json'));
+
+    log(`Found ${jsonFiles.length} user files in GitHub repo`, 'verbose');
+
+    const users = [];
+    for (const file of jsonFiles) {
+      try {
+        // Fetch file content
+        const fileResponse = await fetch(file.url, {
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+          },
+        });
+
+        if (!fileResponse.ok) {
+          log(`Error fetching ${file.name}: ${fileResponse.statusText}`, 'warn');
+          continue;
+        }
+
+        const fileData = await fileResponse.json();
+        const content = Buffer.from(fileData.content, 'base64').toString('utf8');
+        const userData = JSON.parse(content);
+
+        // Filter by specific user if specified
+        if (options.specificUser && userData.rsEmail !== options.specificUser) {
+          continue;
+        }
+
+        users.push({
+          filename: file.name,
+          data: userData,
+        });
+      } catch (err) {
+        log(`Error reading ${file.name}: ${err.message}`, 'warn');
+      }
+    }
+
+    return users;
+  } catch (err) {
+    log(`Error loading users from GitHub: ${err.message}`, 'error');
+    return [];
+  }
+}
+
+/**
+ * Load evaluation files for a user from GitHub repository
+ */
+async function loadGitHubEvaluations(rsEmail) {
+  if (!GITHUB_TOKEN) {
+    return [];
+  }
+
+  try {
+    const emailPrefix = rsEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    const apiUrl = `https://api.github.com/repos/${GITHUB_DATA_REPO}/contents/users/${emailPrefix}/evaluations`;
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (response.status === 404) {
+      // No evaluations directory for this user
+      return [];
+    }
+
+    if (!response.ok) {
+      log(`  Error fetching evaluations for ${rsEmail}: ${response.statusText}`, 'warn');
+      return [];
+    }
+
+    const files = await response.json();
+    const dataFiles = files.filter((f) => f.type === 'file' && (f.name.endsWith('.json') || f.name.endsWith('.yaml')));
+
+    log(`  Found ${dataFiles.length} evaluation files for ${rsEmail}`, 'verbose');
+
+    const evaluations = [];
+    for (const file of dataFiles) {
+      try {
+        const fileResponse = await fetch(file.url, {
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+          },
+        });
+
+        if (!fileResponse.ok) {
+          log(`  Error fetching ${file.name}: ${fileResponse.statusText}`, 'warn');
+          continue;
+        }
+
+        const fileData = await fileResponse.json();
+        const content = Buffer.from(fileData.content, 'base64').toString('utf8');
+        const evalData = JSON.parse(content);
+
+        evaluations.push({
+          filename: file.name,
+          data: evalData,
+        });
+      } catch (err) {
+        log(`  Error reading ${file.name}: ${err.message}`, 'warn');
       }
     }
 
@@ -398,11 +543,14 @@ async function migrate() {
   try {
     // Load users based on source
     let users = [];
+    let loadEvaluationsFunc;
+
     if (options.source === 'local') {
       users = await loadLocalUsers();
+      loadEvaluationsFunc = loadLocalEvaluations;
     } else if (options.source === 'github') {
-      log('GitHub source not yet implemented. Use --source=local', 'error');
-      process.exit(1);
+      users = await loadGitHubUsers();
+      loadEvaluationsFunc = loadGitHubEvaluations;
     } else {
       log(`Unknown source: ${options.source}`, 'error');
       process.exit(1);
@@ -424,7 +572,7 @@ async function migrate() {
       }
 
       // Load and migrate evaluations for this user
-      const evaluations = await loadLocalEvaluations(userFile.data.rsEmail);
+      const evaluations = await loadEvaluationsFunc(userFile.data.rsEmail);
 
       if (evaluations.length > 0) {
         log(`  Found ${evaluations.length} evaluations`, 'info');
