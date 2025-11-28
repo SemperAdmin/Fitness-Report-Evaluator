@@ -338,6 +338,84 @@ async function getEvaluationsByUser(rsEmail) {
 }
 
 /**
+ * Get all evaluations with traits for a user (optimized - single query with join)
+ * @param {string} rsEmail - User email
+ * @returns {Promise<{data: Array|null, error: Error|null}>}
+ */
+async function getFullEvaluationsByUser(rsEmail) {
+  if (!isSupabaseAvailable()) {
+    return { data: null, error: new Error('Supabase not available') };
+  }
+
+  try {
+    const client = getClient(true);
+
+    // Get user
+    const { data: user, error: userError } = await getUserByEmail(rsEmail);
+    if (userError || !user) {
+      return { data: null, error: userError || new Error('User not found') };
+    }
+
+    // Get evaluations with traits in a single query using JOIN
+    const { data: evaluations, error } = await client
+      .from('evaluations')
+      .select(`
+        *,
+        trait_evaluations (
+          id,
+          section,
+          trait,
+          grade,
+          grade_number
+        )
+      `)
+      .eq('user_id', user.id)
+      .order('completed_date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    // Format to match frontend JSON structure
+    const formatted = (evaluations || []).map((eval) => ({
+      version: eval.version,
+      savedAt: eval.saved_at,
+      rsEmail: eval.rs_email,
+      rsName: eval.rs_name,
+      rsRank: eval.rs_rank,
+      evaluation: {
+        evaluationId: eval.evaluation_id,
+        occasion: eval.occasion,
+        completedDate: eval.completed_date,
+        fitrepAverage: eval.fitrep_average?.toString(),
+        marineInfo: {
+          name: eval.marine_name,
+          rank: eval.marine_rank,
+          evaluationPeriod: {
+            from: eval.evaluation_period_from,
+            to: eval.evaluation_period_to,
+          },
+        },
+        rsInfo: {
+          name: eval.rs_name,
+          email: eval.rs_email,
+          rank: eval.rs_rank,
+        },
+        sectionIComments: eval.section_i_comments,
+        traitEvaluations: eval.trait_evaluations || [],
+        syncStatus: eval.sync_status,
+      },
+    }));
+
+    return { data: formatted, error: null };
+  } catch (err) {
+    console.error('Error getting full evaluations:', err);
+    return { data: null, error: err };
+  }
+}
+
+/**
  * Get a single evaluation with all traits
  * @param {string} evaluationId - Evaluation ID
  * @returns {Promise<{data: Object|null, error: Error|null}>}
@@ -455,6 +533,7 @@ module.exports = {
   // Evaluation operations
   saveEvaluation,
   getEvaluationsByUser,
+  getFullEvaluationsByUser,
   getEvaluationById,
   deleteEvaluation,
 };

@@ -12,6 +12,7 @@ const { getStorageMode, isSupabaseAvailable } = require('./supabaseClient');
 const {
   saveEvaluation,
   getEvaluationsByUser,
+  getFullEvaluationsByUser,
   getEvaluationById,
   deleteEvaluation,
 } = require('./supabaseService');
@@ -334,19 +335,11 @@ async function exportEvaluationsHandler(req, res) {
     const storageMode = getStorageMode();
 
     if (storageMode === 'supabase' && isSupabaseAvailable()) {
-      const { data: evaluations, error } = await getEvaluationsByUser(rsEmail);
+      // Use optimized single-query function to avoid N+1 problem
+      const { data: fullEvaluations, error } = await getFullEvaluationsByUser(rsEmail);
 
       if (error) {
         return res.status(500).json({ error: 'Failed to export evaluations' });
-      }
-
-      // Get full details for each evaluation
-      const fullEvaluations = [];
-      for (const eval of evaluations) {
-        const { data } = await getEvaluationById(eval.evaluation_id);
-        if (data) {
-          fullEvaluations.push(data);
-        }
       }
 
       res.setHeader('Content-Type', 'application/json');
