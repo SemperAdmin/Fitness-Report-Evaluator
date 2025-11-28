@@ -1950,6 +1950,7 @@ function exportProfile() {
 }
 
 // Manage Data dropdown logic and CSV import/template export
+let manageMenuOutsideHandler = null;
 function toggleSubMenu() {
     const menu = document.getElementById('subMenu');
     const chevron = document.querySelector('#mainToggleButton .btn-icon-chevron');
@@ -1960,6 +1961,10 @@ function toggleSubMenu() {
         menu.classList.remove('active');
         if (chevron) chevron.classList.remove('rotated');
         if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+        if (manageMenuOutsideHandler) {
+            document.removeEventListener('click', manageMenuOutsideHandler, true);
+            manageMenuOutsideHandler = null;
+        }
         try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
     } else {
         menu.classList.add('active');
@@ -1969,6 +1974,19 @@ function toggleSubMenu() {
         const firstItem = menu.querySelector('button');
         try { if (firstItem) firstItem.focus(); } catch (_) {}
         try { if (window.A11y) A11y.announce('Manage data menu expanded'); } catch (_) {}
+        manageMenuOutsideHandler = (e) => {
+            const withinMenu = menu.contains(e.target);
+            const withinToggle = toggleBtn && toggleBtn.contains(e.target);
+            if (!withinMenu && !withinToggle) {
+                menu.classList.remove('active');
+                if (chevron) chevron.classList.remove('rotated');
+                if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+                document.removeEventListener('click', manageMenuOutsideHandler, true);
+                manageMenuOutsideHandler = null;
+                try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
+            }
+        };
+        document.addEventListener('click', manageMenuOutsideHandler, true);
     }
 }
 
