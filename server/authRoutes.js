@@ -229,10 +229,13 @@ async function loginSupabase({ username, password }, req, res) {
     // Get user from database
     const { data: user, error } = await getUserByEmail(username);
 
+    // === ADD THIS LOG HERE ===
     if (error) {
-      console.error('Supabase getUserByEmail error:', error);
-      return res.status(500).json({ error: 'Login failed' });
+        console.error(`[DEBUG LOGIN] getUserByEmail error:`, error);
+        return res.status(500).json({ error: 'Login failed' });
     }
+    console.log(`[DEBUG LOGIN] getUserByEmail returned:`, user ? 'FOUND' : 'NOT FOUND');
+    // === END ADDITION ===
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid username or password' });
