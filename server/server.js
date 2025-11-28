@@ -14,6 +14,17 @@ const crypto = require('crypto');
 let CONSTANTS;
 try { CONSTANTS = require('../js/constants.js'); } catch (_) { CONSTANTS = null; }
 
+// Supabase integration modules
+const { getStorageMode, isSupabaseAvailable } = require('./supabaseClient');
+const { createAccountHandler, loginHandler } = require('./authRoutes');
+const { loadUserHandler, saveUserHandler } = require('./userRoutes');
+const {
+  saveEvaluationHandler,
+  listEvaluationsHandler,
+  getEvaluationHandler,
+  deleteEvaluationHandler,
+} = require('./evaluationRoutes');
+
 const app = express();
 app.use(express.json());
 // Accept URL-encoded bodies to enable simple cross-origin POST without preflight
@@ -572,7 +583,25 @@ const validationCache = new ValidationCache(512, 90_000);
 // Reserved labels that should not be used by users
 const RESERVED_LABELS = new Set(['admin','system','null','undefined','root','owner','support','staff']);
 
+// Determine storage backend at startup
+const STORAGE_MODE = getStorageMode();
+console.log(`🗄️  Storage mode: ${STORAGE_MODE}`);
+if (STORAGE_MODE === 'supabase') {
+  if (isSupabaseAvailable()) {
+    console.log('✅ Supabase connected successfully');
+  } else {
+    console.warn('⚠️  Supabase configured but not available, falling back to legacy storage');
+  }
+}
+
+// Account creation endpoint - use Supabase if configured
 app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_CREATE) || '/api/account/create'), authRateLimit, async (req, res) => {
+  // Route to Supabase handler if enabled
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return createAccountHandler(req, res);
+  }
+
+  // Legacy GitHub/local storage implementation
   try {
     const { rank, name, email, password, username: rawUsername } = req.body || {};
     const username = String(rawUsername || email || '').trim();
@@ -731,7 +760,14 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
   }
 });
 
+// Login endpoint - use Supabase if configured
 app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_LOGIN) || '/api/account/login'), authRateLimit, async (req, res) => {
+  // Route to Supabase handler if enabled
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return loginHandler(req, res);
+  }
+
+  // Legacy GitHub/local storage implementation
   try {
     const { email, password, username: rawUsername } = req.body || {};
     const username = String(rawUsername || email || '').trim();
@@ -1037,7 +1073,14 @@ function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEval
 }
 
 // Save user data: either direct write via FITREP_DATA or dispatch workflow via DISPATCH_TOKEN
+// User save endpoint - use Supabase if configured
 app.post('/api/user/save', saveRateLimit, requireAuth, async (req, res) => {
+  // Route to Supabase handler if enabled
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return saveUserHandler(req, res);
+  }
+
+  // Legacy GitHub/local storage implementation
   try {
     const { userData } = req.body || {};
     if (!userData || !userData.rsEmail) {
@@ -1267,7 +1310,14 @@ app.post('/api/user/save', saveRateLimit, requireAuth, async (req, res) => {
 
 // Save a single evaluation as a unique file and update aggregate user file
 // Path: users/{email_local}/evaluations/{evaluationId}.json
+// Evaluation save endpoint - use Supabase if configured
 app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) => {
+  // Route to Supabase handler if enabled
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return saveEvaluationHandler(req, res);
+  }
+
+  // Legacy GitHub/local storage implementation
   try {
     const { evaluation, userEmail } = req.body || {};
     if (!evaluation || !evaluation.evaluationId) {
@@ -1427,7 +1477,14 @@ app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) =>
 });
 
 // List evaluations for a user. Uses server token when available; falls back to local storage.
+// Evaluations list endpoint - use Supabase if configured
 app.get('/api/evaluations/list', requireAuth, async (req, res) => {
+  // Route to Supabase handler if enabled
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return listEvaluationsHandler(req, res);
+  }
+
+  // Legacy GitHub/local storage implementation
   try {
     const username = String((req.query.username || req.query.email || '')).trim();
     if (!username) return res.status(400).json({ error: 'Missing username query param' });
@@ -1545,7 +1602,14 @@ app.get('/api/evaluations/list', requireAuth, async (req, res) => {
 });
 
 // Load user data via server using FITREP_DATA
+// User load endpoint - use Supabase if configured
 app.get('/api/user/load', requireAuth, async (req, res) => {
+  // Route to Supabase handler if enabled
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return loadUserHandler(req, res);
+  }
+
+  // Legacy GitHub/local storage implementation
   try {
     const username = String((req.query.username || req.query.email || '')).trim();
     if (!username) return res.status(400).json({ error: 'Missing username query param' });
