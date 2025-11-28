@@ -1,0 +1,306 @@
+{
+  "entries": [
+    {
+      "id": "eval-20251103-ssgt-1-977cca4f",
+      "occasion": "CH",
+      "completedDate": "2025-11-03T02:03:16.445Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "1",
+        "rank": "SSgt"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "Col"
+      },
+      "file": "users/furby203824/evaluations/eval-20251103-ssgt-1-977cca4f.yml"
+    },
+    {
+      "id": "eval-20251103-ssgt-1-ec3cf6f9",
+      "occasion": "CH",
+      "completedDate": "2025-11-03T02:03:20.934Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "1",
+        "rank": "SSgt"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "Col"
+      },
+      "file": "users/furby203824/evaluations/eval-20251103-ssgt-1-ec3cf6f9.yml"
+    },
+    {
+      "id": "eval-20251106-sgtmaj-test-fd65912f",
+      "occasion": "DC",
+      "completedDate": "2025-11-06T06:37:20.506Z",
+      "fitrepAverage": "3.31",
+      "marine": {
+        "name": "test",
+        "rank": "SgtMaj"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251106-sgtmaj-test-fd65912f.yml"
+    },
+    {
+      "id": "eval-20251106-sgtmaj-test-dfbd8acc",
+      "occasion": "GC",
+      "completedDate": "2025-11-06T06:43:36.300Z",
+      "fitrepAverage": "4.08",
+      "marine": {
+        "name": "test",
+        "rank": "SgtMaj"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251106-sgtmaj-test-dfbd8acc.yml"
+    },
+    {
+      "id": "eval-20251106-cwo4-test-33dc4027",
+      "occasion": "GC",
+      "completedDate": "2025-11-06T07:16:00.736Z",
+      "fitrepAverage": "1.00",
+      "marine": {
+        "name": "test",
+        "rank": "CWO4"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251106-cwo4-test-33dc4027.yml"
+    },
+    {
+      "id": "eval-20251106-ltcol-1-d0600986",
+      "occasion": "GC",
+      "completedDate": "2025-11-06T07:38:06.507Z",
+      "fitrepAverage": "2.57",
+      "marine": {
+        "name": "1",
+        "rank": "LtCol"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251106-ltcol-1-d0600986.yml"
+    },
+    {
+      "id": "eval-20251106-ltcol-1-d4c2788b",
+      "occasion": "GC",
+      "completedDate": "2025-11-06T07:38:34.722Z",
+      "fitrepAverage": "2.57",
+      "marine": {
+        "name": "1",
+        "rank": "LtCol"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251106-ltcol-1-d4c2788b.yml"
+    },
+    {
+      "id": "eval-20251106-col-test-c9c7f310",
+      "occasion": "RT",
+      "completedDate": "2025-11-06T08:03:01.891Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "test",
+        "rank": "Col"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251106-col-test-c9c7f310.yml"
+    },
+    {
+      "id": "eval-20251106-col-test-ffa20d65",
+      "occasion": "GC",
+      "completedDate": "2025-11-06T08:09:58.204Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "test",
+        "rank": "Col"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251106-col-test-ffa20d65.yml"
+    },
+    {
+      "id": "eval-20251107-wo-test-3865d6b5",
+      "occasion": "DC",
+      "completedDate": "2025-11-07T05:46:33.361Z",
+      "fitrepAverage": "2.14",
+      "marine": {
+        "name": "test",
+        "rank": "WO"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251107-wo-test-3865d6b5.yml"
+    },
+    {
+      "id": "eval-20251107-cwo4-test-39e2bc98",
+      "occasion": "GC",
+      "completedDate": "2025-11-07T07:09:23.476Z",
+      "fitrepAverage": "1.00",
+      "marine": {
+        "name": "test",
+        "rank": "CWO4"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251107-cwo4-test-39e2bc98.yml"
+    },
+    {
+      "id": "eval-20251107-ssgt-test-41f788b4",
+      "occasion": "GC",
+      "completedDate": "2025-11-07T07:49:10.175Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "test",
+        "rank": "SSgt"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251107-ssgt-test-41f788b4.yml"
+    },
+    {
+      "id": "eval-20251118-unknown-unknown-e41cf60e",
+      "occasion": null,
+      "completedDate": "2025-11-18T04:25:44.666Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "",
+        "rank": "Unknown"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251118-unknown-unknown-e41cf60e.yml"
+    },
+    {
+      "id": "eval-20251118-unknown-unknown-f06eb70b",
+      "occasion": null,
+      "completedDate": "2025-11-18T04:49:08.735Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "",
+        "rank": "Unknown"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251118-unknown-unknown-f06eb70b.yml"
+    },
+    {
+      "id": "eval-20251118-unknown-unknown-560ee17e",
+      "occasion": null,
+      "completedDate": "2025-11-18T04:55:41.296Z",
+      "fitrepAverage": "2.00",
+      "marine": {
+        "name": "",
+        "rank": "Unknown"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251118-unknown-unknown-560ee17e.yml"
+    },
+    {
+      "id": "bulk-2025-11-19-1763523512425-0",
+      "occasion": "FD",
+      "completedDate": "2025-11-19T03:38:32.425Z",
+      "fitrepAverage": "2.43",
+      "marine": {
+        "name": "Marine 5",
+        "rank": "CWO3"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/bulk-2025-11-19-1763523512425-0.yml"
+    },
+    {
+      "id": "bulk-2025-11-19-1763523512425-1",
+      "occasion": "FD",
+      "completedDate": "2025-11-19T03:38:32.425Z",
+      "fitrepAverage": "2.43",
+      "marine": {
+        "name": "Marine 6",
+        "rank": "CWO3"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/bulk-2025-11-19-1763523512425-1.yml"
+    },
+    {
+      "id": "bulk-2025-11-19-1763523512425-2",
+      "occasion": "FD",
+      "completedDate": "2025-11-19T03:38:32.425Z",
+      "fitrepAverage": "2.43",
+      "marine": {
+        "name": "Marine 7",
+        "rank": "CWO3"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/bulk-2025-11-19-1763523512425-2.yml"
+    },
+    {
+      "id": "bulk-2025-11-19-1763523512425-3",
+      "occasion": "FD",
+      "completedDate": "2025-11-19T03:38:32.425Z",
+      "fitrepAverage": "2.43",
+      "marine": {
+        "name": "Marine 8",
+        "rank": "CWO3"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/bulk-2025-11-19-1763523512425-3.yml"
+    },
+    {
+      "id": "eval-20251127-ssgt-test-f3bc77e5",
+      "occasion": "TR",
+      "completedDate": "2025-11-27T22:18:24.896Z",
+      "fitrepAverage": "3.15",
+      "marine": {
+        "name": "test",
+        "rank": "SSgt"
+      },
+      "rs": {
+        "name": "Shorter, Stephen N.",
+        "rank": "MSgt"
+      },
+      "file": "users/furby203824/evaluations/eval-20251127-ssgt-test-f3bc77e5.yml",
+      "_rowId": null
+    }
+  ],
+  "updatedAt": "2025-11-27T22:18:28.208Z"
+}

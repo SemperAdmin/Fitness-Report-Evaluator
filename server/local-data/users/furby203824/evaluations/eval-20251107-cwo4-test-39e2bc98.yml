@@ -1,0 +1,112 @@
+---
+version: "1.0"
+id: "eval-20251107-cwo4-test-39e2bc98"
+occasion: "GC"
+completedDate: "2025-11-07T07:09:23.476Z"
+fitrepAverage: "1.00"
+marine:
+  name: "test"
+  rank: "CWO4"
+  evaluationPeriod:
+    from: "2024-11-06"
+    to: "2025-11-07"
+rs:
+  name: "Shorter, Stephen N."
+  email: "Furby203824"
+  rank: "MSgt"
+sectionIComments: "A Marine who operates at the level expected for rank but has room for improvement. Performs routine tasks adequately but requires supervision for complex assignments. Shows improvement in supervisory skills but needs additional mentoring. Demonstrates basic understanding of professional standards. Promote."
+directedComments: null
+traitEvaluations:
+  -
+    section: "Mission Accomplishment"
+    trait: "Performance"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Mission Accomplishment"
+    trait: "Proficiency"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Individual Character"
+    trait: "Courage"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Individual Character"
+    trait: "Effectiveness Under Stress"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Individual Character"
+    trait: "Initiative"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Leadership"
+    trait: "Leading Subordinates"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Leadership"
+    trait: "Developing Subordinates"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Leadership"
+    trait: "Setting the Example"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Leadership"
+    trait: "Ensuring Well-being of Subordinates"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Leadership"
+    trait: "Communication Skills"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Intellect and Wisdom"
+    trait: "Professional Military Education (PME)"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Intellect and Wisdom"
+    trait: "Decision Making Ability"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Intellect and Wisdom"
+    trait: "Judgment"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+  -
+    section: "Fulfillment of Evaluation Responsibilities"
+    trait: "Evaluations"
+    grade: "A"
+    gradeNumber: 1
+    justification: "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+createdAt: "2025-11-07T07:09:24.975Z"
+createdBy:
+  name: "Shorter, Stephen N."
+  email: "Furby203824"
+  rank: "MSgt"
+profileRef: "users/furby203824.json"
+source:
+  application: "Fitness-Report-Evaluator"
+  workflow: "save-evaluation"

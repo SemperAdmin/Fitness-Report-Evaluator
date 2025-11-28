@@ -1,0 +1,112 @@
+---
+version: "1.0"
+id: "bulk-2025-11-19-1763523512425-3"
+occasion: "FD"
+completedDate: "2025-11-19T03:38:32.425Z"
+fitrepAverage: "2.43"
+marine:
+  name: "Marine 8"
+  rank: "CWO3"
+  evaluationPeriod:
+    from: "11/5/2025"
+    to: "11/5/2025"
+rs:
+  name: "Shorter, Stephen N."
+  email: "Furby203824"
+  rank: "MSgt"
+sectionIComments: null
+directedComments: null
+traitEvaluations:
+  -
+    section: "Mission Accomplishment"
+    trait: "Performance"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Mission Accomplishment"
+    trait: "Proficiency"
+    grade: "C"
+    gradeNumber: 3
+    justification: ""
+  -
+    section: "Individual Character"
+    trait: "Courage"
+    grade: "G"
+    gradeNumber: 7
+    justification: ""
+  -
+    section: "Individual Character"
+    trait: "Stress Tolerance"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Individual Character"
+    trait: "Initiative"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Leadership"
+    trait: "Leading"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Leadership"
+    trait: "Developing Others"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Leadership"
+    trait: "Setting the Example"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Leadership"
+    trait: "Well-Being/Health"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Leadership"
+    trait: "Communication Skills"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Intellect and Wisdom"
+    trait: "Professional Military Education"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Intellect and Wisdom"
+    trait: "Decision Making"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Intellect and Wisdom"
+    trait: "Judgement"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+  -
+    section: "Fulfillment of Evaluation Responsibilities"
+    trait: "Evals"
+    grade: "B"
+    gradeNumber: 2
+    justification: ""
+createdAt: "2025-11-19T03:39:02.855Z"
+createdBy:
+  name: "Shorter, Stephen N."
+  email: "Furby203824"
+  rank: "MSgt"
+profileRef: "users/furby203824.json"
+source:
+  application: "Fitness-Report-Evaluator"
+  workflow: "save-evaluation"

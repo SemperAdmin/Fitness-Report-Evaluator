@@ -96,6 +96,24 @@ function log(message, level = 'info') {
   console.log(`${prefix} ${message}`);
 }
 
+
+/**
+ * Checks for known non-date status strings (like "pending", "local-only")
+ * and converts them to null for safe database insertion into TIMESTAMPTZ columns.
+ * @param {string} value - The date string candidate.
+ * @returns {string|null} - The original value or null if it was a status string.
+ */
+function sanitizeDate(value) {
+  if (typeof value === 'string') {
+    const lowerValue = value.toLowerCase();
+    if (lowerValue === 'pending' || lowerValue === 'local-only' || value.trim() === '') {
+      return null;
+    }
+  }
+  return value;
+}
+
+
 // ============================================================================
 // DATA LOADING FUNCTIONS
 // ============================================================================
@@ -303,20 +321,19 @@ async function migrateEvaluation(evalData, userId) {
       evaluation_id: evaluation.evaluationId,
       version: evalData.version || '1.0',
       occasion: evaluation.occasion,
-      completed_date: evaluation.completedDate,
+      completed_date: sanitizeDate(evaluation.completedDate),
       fitrep_average: evaluation.fitrepAverage
         ? parseFloat(evaluation.fitrepAverage)
         : null,
       marine_name: evaluation.marineInfo?.name,
       marine_rank: evaluation.marineInfo?.rank,
-      evaluation_period_from: evaluation.marineInfo?.evaluationPeriod?.from,
-      evaluation_period_to: evaluation.marineInfo?.evaluationPeriod?.to,
+      evaluation_period_from: sanitizeDate(evaluation.marineInfo?.evaluationPeriod?.from), // UPDATED
+      evaluation_period_to: sanitizeDate(evaluation.marineInfo?.evaluationPeriod?.to),     // UPDATED
       rs_name: evaluation.rsInfo?.name || evalData.rsName,
       rs_email: evaluation.rsInfo?.email || evalData.rsEmail,
       rs_rank: evaluation.rsInfo?.rank || evalData.rsRank,
       section_i_comments: evaluation.sectionIComments,
-      sync_status: evaluation.syncStatus || 'synced',
-      saved_at: evalData.savedAt || new Date().toISOString(),
+      saved_at: sanitizeDate(evalData.savedAt || new Date().toISOString()),               // UPDATED
     };
 
     // Insert evaluation

@@ -1,0 +1,130 @@
+{
+  "version": "1.0",
+  "savedAt": "2025-11-05T19:14:18.682Z",
+  "rsEmail": "Furby203824",
+  "rsName": "Shorter, Stephen N.",
+  "rsRank": "MSgt",
+  "evaluation": {
+    "evaluationId": "eval-20251105-2ndlt-marines_name-9fb2ac44",
+    "rsInfo": {
+      "name": "Shorter, Stephen N.",
+      "email": "Furby203824",
+      "rank": "MSgt"
+    },
+    "marineInfo": {
+      "name": "Marines Name",
+      "rank": "2ndLt",
+      "evaluationPeriod": {
+        "from": "2024-11-05",
+        "to": "2025-11-05"
+      }
+    },
+    "occasion": "FD",
+    "completedDate": "2025-11-05T19:14:01.004Z",
+    "fitrepAverage": "2.43",
+    "traitEvaluations": {
+      "D_performance": {
+        "section": "Mission Accomplishment",
+        "trait": "Performance",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "D_proficiency": {
+        "section": "Mission Accomplishment",
+        "trait": "Proficiency",
+        "grade": "C",
+        "gradeNumber": 3,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "E_courage": {
+        "section": "Individual Character",
+        "trait": "Courage",
+        "grade": "G",
+        "gradeNumber": 7,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "E_effectiveness_under_stress": {
+        "section": "Individual Character",
+        "trait": "Effectiveness Under Stress",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "E_initiative": {
+        "section": "Individual Character",
+        "trait": "Initiative",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "F_leading_subordinates": {
+        "section": "Leadership",
+        "trait": "Leading Subordinates",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "F_developing_subordinates": {
+        "section": "Leadership",
+        "trait": "Developing Subordinates",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "F_setting_example": {
+        "section": "Leadership",
+        "trait": "Setting the Example",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "F_ensuring_wellbeing": {
+        "section": "Leadership",
+        "trait": "Ensuring Well-being of Subordinates",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "F_communication_skills": {
+        "section": "Leadership",
+        "trait": "Communication Skills",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "G_pme": {
+        "section": "Intellect and Wisdom",
+        "trait": "Professional Military Education (PME)",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "G_decision_making": {
+        "section": "Intellect and Wisdom",
+        "trait": "Decision Making Ability",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "G_judgment": {
+        "section": "Intellect and Wisdom",
+        "trait": "Judgment",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      },
+      "H_evaluations": {
+        "section": "Fulfillment of Evaluation Responsibilities",
+        "trait": "Evaluations",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Results achieved during the reporting period. How well those duties inherent to a Marine's billet, plus all additional duties, formally and informally assigned, were carried out. Reflects a Marine's aptitude, competence, and commitment to the unit's success above personal reward. Indicators are time and resource management, task prioritization, and tenacity to achieve positive ends consistently."
+      }
+    },
+    "sectionIComments": "A Marine who operates at the level expected for rank but has room for improvement. Shows understanding of fundamental duties but needs improvement in execution. Exhibits potential for leadership growth with proper guidance and experience. Shows potential for growth in personal and professional conduct. Particularly noteworthy performance in courage (G). Promote.",
+    "directedComments": "Directed Comment: Section A, Item 8j – MRO is recommended for reenlistment.",
+    "savedToProfile": true,
+    "syncStatus": "pending"
+  }
+}

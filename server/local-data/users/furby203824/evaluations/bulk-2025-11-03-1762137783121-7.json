@@ -1,0 +1,123 @@
+{
+  "version": "1.0",
+  "savedAt": "2025-11-03T02:43:43.172Z",
+  "rsEmail": "Furby203824",
+  "rsName": "Shorter, Stephen N.",
+  "rsRank": "MSgt",
+  "evaluation": {
+    "evaluationId": "bulk-2025-11-03-1762137783121-7",
+    "rsInfo": {
+      "name": "Shorter, Stephen N.",
+      "email": "Furby203824",
+      "rank": "MSgt"
+    },
+    "marineInfo": {
+      "name": "(Marine 13)",
+      "rank": "Sgt",
+      "evaluationPeriod": {
+        "from": "3/31/2008",
+        "to": "3/31/2008"
+      }
+    },
+    "occasion": "AN",
+    "completedDate": "2025-11-03T02:43:03.121Z",
+    "fitrepAverage": "2.23",
+    "traitEvaluations": [
+      {
+        "section": "Mission Accomplishment",
+        "trait": "Performance",
+        "grade": "C",
+        "gradeNumber": 3,
+        "justification": ""
+      },
+      {
+        "section": "Mission Accomplishment",
+        "trait": "Proficiency",
+        "grade": "C",
+        "gradeNumber": 3,
+        "justification": ""
+      },
+      {
+        "section": "Individual Character",
+        "trait": "Courage",
+        "grade": "C",
+        "gradeNumber": 3,
+        "justification": ""
+      },
+      {
+        "section": "Individual Character",
+        "trait": "Stress Tolerance",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Individual Character",
+        "trait": "Initiative",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Leadership",
+        "trait": "Leading",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Leadership",
+        "trait": "Developing Others",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Leadership",
+        "trait": "Setting the Example",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Leadership",
+        "trait": "Well-Being/Health",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Leadership",
+        "trait": "Communication Skills",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Intellect and Wisdom",
+        "trait": "Professional Military Education",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Intellect and Wisdom",
+        "trait": "Decision Making",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      },
+      {
+        "section": "Intellect and Wisdom",
+        "trait": "Judgement",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": ""
+      }
+    ],
+    "sectionIComments": "",
+    "directedComments": "",
+    "savedToProfile": true,
+    "syncStatus": "local-only"
+  }
+}

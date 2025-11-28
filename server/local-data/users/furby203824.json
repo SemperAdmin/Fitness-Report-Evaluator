@@ -1,10 +1,8 @@
 {
-  "rsEmail": "furby203824",
-  "rsName": "Furby Dev",
-  "rsRank": "Capt",
-  "passwordHash": "$2a$12$EAjn85RS83ANzSuJsWzlqeNg/mSwKzQoapSbPGZKDjwT6NYuQF6Ky",
-  "evaluationFiles": [],
-  "evaluations": [],
-  "createdDate": "2025-11-05T05:25:38.660Z",
-  "lastUpdated": "2025-11-05T05:25:38.660Z"
+  "rsEmail": "Furby203824",
+  "rsName": "Shorter, Stephen N.",
+  "rsRank": "MSgt",
+  "createdDate": "2025-11-03T02:10:18.140Z",
+  "lastUpdated": "2025-11-27T22:18:25.944Z",
+  "passwordHash": "$2a$12$t22qXV0zc/AoYcyjcEtze.NlJUPx.dnte0MCk9lX/j8btNU/TgFc."
 }

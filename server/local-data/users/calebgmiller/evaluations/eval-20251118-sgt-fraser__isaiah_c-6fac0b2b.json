@@ -1,0 +1,123 @@
+{
+  "version": "1.0",
+  "savedAt": "2025-11-18T19:47:42.918Z",
+  "rsEmail": "calebgmiller",
+  "rsName": "Miller, Caleb G.",
+  "rsRank": "Capt",
+  "evaluation": {
+    "evaluationId": "eval-20251118-sgt-fraser__isaiah_c-6fac0b2b",
+    "rsInfo": {
+      "name": "Miller, Caleb G.",
+      "email": "calebgmiller",
+      "rank": "Capt"
+    },
+    "marineInfo": {
+      "name": "Fraser, Isaiah C",
+      "rank": "Sgt",
+      "evaluationPeriod": {
+        "from": "2022-03-22",
+        "to": "2022-07-23"
+      }
+    },
+    "occasion": "TR",
+    "completedDate": "2025-11-18T19:47:41.578Z",
+    "fitrepAverage": "1.77",
+    "traitEvaluations": {
+      "D_performance": {
+        "section": "Mission Accomplishment",
+        "trait": "Performance",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "-Responsible for over 22,000 request orders, 800 work orders, 500 phone calls, 320 SIPR\nVTC, 127 NIPR VTC, 78 SIPR installs and 20 NIPR installs dispersed across the INDO\nPACIFIC.\n-Ensured continuous computer network defense.\n-Provided technical guidance in support of Marine and Joint Forces operating in the\nINDOPACIFIC region."
+      },
+      "D_proficiency": {
+        "section": "Mission Accomplishment",
+        "trait": "Proficiency",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "-Responsible for over 22,000 request orders, 800 work orders, 500 phone calls, 320 SIPR\nVTC, 127 NIPR VTC, 78 SIPR installs and 20 NIPR installs dispersed across the INDO\nPACIFIC.\n-Ensured continuous computer network defense.\n-Provided technical guidance in support of Marine and Joint Forces operating in the\nINDOPACIFIC region."
+      },
+      "E_courage": {
+        "section": "Individual Character",
+        "trait": "Courage",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Holds Marines accountable. Brings up issues to higher without reservation."
+      },
+      "E_effectiveness_under_stress": {
+        "section": "Individual Character",
+        "trait": "Effectiveness Under Stress",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Not an environment to where this could be tested accurately."
+      },
+      "E_initiative": {
+        "section": "Individual Character",
+        "trait": "Initiative",
+        "grade": "A",
+        "gradeNumber": 1,
+        "justification": "Carried be his junior Marines."
+      },
+      "F_leading_subordinates": {
+        "section": "Leadership",
+        "trait": "Leading Subordinates",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Benefits from Marines being fire and forget."
+      },
+      "F_developing_subordinates": {
+        "section": "Leadership",
+        "trait": "Developing Subordinates",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Fire and forget Marines."
+      },
+      "F_setting_example": {
+        "section": "Leadership",
+        "trait": "Setting the Example",
+        "grade": "A",
+        "gradeNumber": 1,
+        "justification": "Appearance and daily activity are subpar."
+      },
+      "F_ensuring_wellbeing": {
+        "section": "Leadership",
+        "trait": "Ensuring Well-being of Subordinates",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Fire and forget Marines."
+      },
+      "F_communication_skills": {
+        "section": "Leadership",
+        "trait": "Communication Skills",
+        "grade": "A",
+        "gradeNumber": 1,
+        "justification": "Information has to be pulled."
+      },
+      "G_pme": {
+        "section": "Intellect and Wisdom",
+        "trait": "Professional Military Education (PME)",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "PME complete."
+      },
+      "G_decision_making": {
+        "section": "Intellect and Wisdom",
+        "trait": "Decision Making Ability",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Not an enviornment where this could be tested."
+      },
+      "G_judgment": {
+        "section": "Intellect and Wisdom",
+        "trait": "Judgment",
+        "grade": "B",
+        "gradeNumber": 2,
+        "justification": "Not an environment where this could be tested."
+      }
+    },
+    "sectionIComments": "A developing Marine who shows improvement and commitment to professional growth. Demonstrates the leadership and technical skills required to accomplish assigned billet responsibilities. Exhibits potential for leadership growth with proper guidance and experience. Demonstrates basic understanding of professional standards. Promote.",
+    "directedComments": "Directed Comment: Section A, Item 6a – MRO completed Sergeants Course on 20220418.\n\nDirected Comment: Section A, Item 8j – MRO is recommended for reenlistment.",
+    "savedToProfile": true,
+    "syncStatus": "pending"
+  }
+}
