@@ -350,13 +350,8 @@ async function getFullEvaluationsByUser(rsEmail) {
   try {
     const client = getClient(true);
 
-    // Get user
-    const { data: user, error: userError } = await getUserByEmail(rsEmail);
-    if (userError || !user) {
-      return { data: null, error: userError || new Error('User not found') };
-    }
-
     // Get evaluations with traits in a single query using JOIN
+    // Using denormalized rs_email column for optimal performance (1 query instead of 2)
     const { data: evaluations, error } = await client
       .from('evaluations')
       .select(`
@@ -369,7 +364,7 @@ async function getFullEvaluationsByUser(rsEmail) {
           grade_number
         )
       `)
-      .eq('user_id', user.id)
+      .eq('rs_email', rsEmail)
       .order('completed_date', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
 
@@ -403,7 +398,13 @@ async function getFullEvaluationsByUser(rsEmail) {
           rank: eval.rs_rank,
         },
         sectionIComments: eval.section_i_comments,
-        traitEvaluations: eval.trait_evaluations || [],
+        traitEvaluations: (eval.trait_evaluations || []).map((trait) => ({
+          id: trait.id,
+          section: trait.section,
+          trait: trait.trait,
+          grade: trait.grade,
+          gradeNumber: trait.grade_number,
+        })),
         syncStatus: eval.sync_status,
       },
     }));
