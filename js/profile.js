@@ -2493,6 +2493,9 @@ function continueLogoutProfile() {
         const header = document.querySelector('.header');
         const warning = document.getElementById('dataWarning');
         const mode = document.getElementById('modeSelectionCard');
+        const login = document.getElementById('profileLoginCard');
+        const loginFields = document.getElementById('loginFields');
+        const typewriter = document.getElementById('loginTypewriter');
 
         // Restore app chrome and clear login class; set home-mode
         try {
@@ -2523,12 +2526,18 @@ function continueLogoutProfile() {
         });
 
         // Show the welcome Mode Selection card via centralized exclusive toggle
+        // Show RS Login by default after logout
         try {
             if (window.UIStates && typeof window.UIStates.toggleExclusive === 'function') {
-                window.UIStates.toggleExclusive('modeSelectionCard', 'profileLoginCard');
+                window.UIStates.toggleExclusive('profileLoginCard', 'modeSelectionCard');
             }
         } catch (_) { }
-        if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
+        if (mode) { mode.classList.remove('active'); mode.style.display = 'none'; }
+        if (login) { login.classList.add('active'); login.style.display = 'block'; }
+        if (loginFields) { loginFields.style.display = 'block'; }
+        const createSection = document.getElementById('createAccountSection');
+        if (createSection) { createSection.style.display = 'none'; }
+        if (typewriter) { typewriter.style.display = 'none'; }
 
         window.scrollTo({ top: 0, behavior: 'auto' });
     }

@@ -109,8 +109,8 @@ function startStandaloneMode() {
 
 // Login-first routing helper
 function showRSLoginFirst() {
-    // Hide global header chrome while on the login card
-    try { document.body.classList.add('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
+    // Ensure global header chrome is visible on the login card
+    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
     const login = document.getElementById('profileLoginCard');
     const loginFields = document.getElementById('loginFields');
     const createSection = document.getElementById('createAccountSection');
@@ -127,7 +127,7 @@ function showRSLoginFirst() {
     const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
         ? window.CONSTANTS.UI_SETTINGS
         : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
-    if (header) header.style.display = UI.DISPLAY.HIDE;
+    if (header) header.style.display = UI.DISPLAY.SHOW;
     if (warning) warning.style.display = UI.DISPLAY.HIDE;
     if (mode) { mode.classList.remove(UI.CSS.ACTIVE); mode.style.display = UI.DISPLAY.HIDE; }
 
@@ -146,9 +146,9 @@ function showRSLoginFirst() {
         login.style.display = UI.DISPLAY.SHOW;
 
         // Ensure a clean login state: show fields, hide create-account and animation
-        if (typewriter) typewriter.style.display = UI.DISPLAY.HIDE;
-        if (createSection) createSection.style.display = UI.DISPLAY.HIDE;
-        if (loginFields) loginFields.style.display = UI.DISPLAY.SHOW;
+    if (typewriter) typewriter.style.display = UI.DISPLAY.HIDE;
+    if (createSection) createSection.style.display = UI.DISPLAY.HIDE;
+    if (loginFields) loginFields.style.display = UI.DISPLAY.SHOW;
     }
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
@@ -166,12 +166,22 @@ function showTooltip(event, tooltipId) {
         // Using fixed positioning; viewport-relative coords
         const top = rect.bottom + 8;
         const left = rect.left;
+        tip.classList.remove('tooltip-centered');
         tip.style.top = `${top}px`;
         tip.style.left = `${left}px`;
         const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
             ? window.CONSTANTS.UI_SETTINGS
             : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
+        if (tip.parentNode !== document.body) {
+            document.body.appendChild(tip);
+        }
+        tip.style.zIndex = '100000';
+        tip.classList.add('active');
         tip.style.display = UI.DISPLAY.SHOW;
+
+        if (event && event.type === 'click') {
+            tip.classList.add('tooltip-centered');
+        }
 
         // Clear previous timer and set a new auto-hide
         if (__tooltipHideTimer) clearTimeout(__tooltipHideTimer);
@@ -195,7 +205,11 @@ function hideTooltip(tooltipId) {
     const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
         ? window.CONSTANTS.UI_SETTINGS
         : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
-    if (tip) tip.style.display = UI.DISPLAY.HIDE;
+    if (tip) {
+        tip.classList.remove('active');
+        tip.classList.remove('tooltip-centered');
+        tip.style.display = UI.DISPLAY.HIDE;
+    }
     if (__tooltipHideTimer) {
         clearTimeout(__tooltipHideTimer);
         __tooltipHideTimer = null;

@@ -2337,7 +2337,7 @@ body {
     border-radius: 8px;
     font-size: 13px;
     line-height: 1.6;
-    z-index: 10000;
+    z-index: 100000;
     max-width: 300px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     pointer-events: auto;
@@ -2440,6 +2440,13 @@ body {
 .tooltip-content.active {
     display: block;
     animation: fadeIn 0.2s ease;
+}
+
+.tooltip-content.tooltip-centered {
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%);
+    max-width: min(90vw, 600px);
 }
 
 .storage-option {
