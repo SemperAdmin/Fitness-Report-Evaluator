@@ -1142,6 +1142,9 @@ class GitHubDataService {
                 rsRank: userData?.rsRank || '',
                 branch: userData?.branch || '',
                 contactEmail: userData?.contactEmail || '',
+                username: (userData?.rsEmail ? userData.rsEmail.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() : ''),
+                full_name: userData?.rsName || '',
+                rank: userData?.rsRank || '',
                 ...(userData?.previousEmail ? { previousEmail: userData.previousEmail } : {})
             };
         })();
@@ -1262,6 +1265,9 @@ class GitHubDataService {
                 rsRank: normalized.rsRank ?? (existingUser?.rsRank || ''),
                 branch: normalized.branch ?? (existingUser?.branch || 'USMC'),
                 contactEmail: normalized.contactEmail ?? (existingUser?.contactEmail || ''),
+                username: normalized.username ?? (existingUser?.username || ''),
+                full_name: normalized.full_name ?? (existingUser?.full_name || ''),
+                rank: normalized.rank ?? (existingUser?.rank || ''),
                 createdDate: existingUser?.createdDate || now,
                 lastUpdated: now
             };

@@ -1285,6 +1285,9 @@ function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEval
     rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
     branch: evaluation?.rsInfo?.branch ?? existingUser?.branch ?? 'USMC',
     contactEmail: evaluation?.rsInfo?.email ?? existingUser?.contactEmail ?? '',
+    username: sanitizePrefix(userEmail),
+    full_name: evaluation?.rsInfo?.name ?? existingUser?.full_name ?? '',
+    rank: evaluation?.rsInfo?.rank ?? existingUser?.rank ?? '',
     createdDate: existingUser?.createdDate || now,
     lastUpdated: now
   };
@@ -1397,7 +1400,11 @@ app.post('/api/user/save', saveRateLimit, requireAuth, async (req, res) => {
         rsEmail: userData.rsEmail,
         rsName: userData.rsName ?? existingUser?.rsName ?? '',
         rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
+        branch: userData.branch ?? existingUser?.branch ?? 'USMC',
         contactEmail: userData.contactEmail ?? existingUser?.contactEmail ?? '',
+        username: sanitizePrefix(userData.rsEmail),
+        full_name: userData.rsName ?? existingUser?.full_name ?? '',
+        rank: userData.rsRank ?? existingUser?.rank ?? '',
         createdDate: existingUser?.createdDate || previousUser?.createdDate || now,
         lastUpdated: now
       };
@@ -1511,7 +1518,11 @@ app.post('/api/user/save', saveRateLimit, requireAuth, async (req, res) => {
         rsEmail: userData.rsEmail,
         rsName: userData.rsName ?? existingUser?.rsName ?? '',
         rsRank: userData.rsRank ?? existingUser?.rsRank ?? '',
+        branch: userData.branch ?? existingUser?.branch ?? 'USMC',
         contactEmail: userData.contactEmail ?? existingUser?.contactEmail ?? '',
+        username: sanitizePrefix(userData.rsEmail),
+        full_name: userData.rsName ?? existingUser?.full_name ?? '',
+        rank: userData.rsRank ?? existingUser?.rank ?? '',
         createdDate: existingUser?.createdDate || previousUser?.createdDate || now,
         lastUpdated: now
       };
@@ -2244,6 +2255,9 @@ app.post('/api/admin/normalize-users', async (req, res) => {
           rsRank: obj.rsRank || obj.rank || '',
           branch: obj.branch || 'USMC',
           contactEmail: obj.contactEmail || '',
+          username,
+          full_name: obj.full_name || obj.rsName || obj.name || '',
+          rank: obj.rank || obj.rsRank || '',
           createdDate: obj.createdDate || now,
           lastUpdated: now
         };
