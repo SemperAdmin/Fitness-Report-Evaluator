@@ -12,8 +12,40 @@
  */
 
 const bcrypt = require('bcryptjs');
-const { getStorageMode, isSupabaseAvailable } = require('./supabaseClient');
+const supabaseClient = require('./supabaseClient');
+const { getStorageMode, isSupabaseAvailable, supabase, supabaseAdmin } = supabaseClient;
+const MilitaryData = require('../js/militaryData.js');
 const { createUser, getUserByEmail } = require('./supabaseService');
+
+const crypto = require('crypto');
+const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
+const inferredHostedSecure = (
+  process.env.COOKIE_SECURE === 'true' ||
+  process.env.NODE_ENV === 'production' ||
+  (process.env.RENDER_EXTERNAL_URL && String(process.env.RENDER_EXTERNAL_URL).startsWith('https')) ||
+  (process.env.VERCEL && process.env.VERCEL === '1')
+);
+const COOKIE_SECURE = inferredHostedSecure;
+const COOKIE_SAMESITE = COOKIE_SECURE ? 'None' : 'Lax';
+
+function serializeCookie(name, value, opts = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  if (opts.maxAge != null) parts.push(`Max-Age=${Math.floor(opts.maxAge)}`);
+  if (opts.expires) parts.push(`Expires=${opts.expires.toUTCString()}`);
+  parts.push(`Path=${opts.path || '/'}`);
+  const same = (opts.sameSite || 'Lax');
+  parts.push(`SameSite=${same}`);
+  if (opts.httpOnly) parts.push('HttpOnly');
+  if (opts.secure) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function signSessionPayload(payload) {
+  const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  const h = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('hex');
+  return `${data}.${h}`;
+}
 
 // ============================================================================
 // VALIDATION HELPERS
@@ -35,19 +67,18 @@ function isValidUsername(username) {
 }
 
 /**
- * Validate rank format
+ * Validate rank against MilitaryData
  * @param {string} rank - Rank to validate
  * @returns {boolean} True if valid
  */
 function isValidRank(rank) {
   if (!rank || typeof rank !== 'string') return false;
   const trimmed = rank.trim();
-  // Allow common USMC ranks
-  const validRanks = [
-    'Pvt', 'PFC', 'LCpl', 'Cpl', 'Sgt', 'SSgt', 'GySgt', 'MSgt', 'MGySgt', 'SgtMaj',
-    '2ndLt', '1stLt', 'Capt', 'Maj', 'LtCol', 'Col', 'BGen', 'MajGen', 'LtGen', 'Gen',
-  ];
-  return validRanks.includes(trimmed) || (trimmed.length > 0 && trimmed.length < 20);
+
+  // Get all valid rank values
+  const allRanks = MilitaryData.getAllRanks().map(r => r.value);
+
+  return allRanks.includes(trimmed);
 }
 
 /**
@@ -87,7 +118,7 @@ function isStrongPassword(password) {
  */
 async function createAccountHandler(req, res) {
   try {
-    const { rank, name, email, password, username: rawUsername } = req.body || {};
+    const { rank, branch, name, email, password, username: rawUsername } = req.body || {};
     const username = String(rawUsername || email || '').trim();
 
     // Validation
@@ -115,15 +146,12 @@ async function createAccountHandler(req, res) {
       });
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 12);
-
     // Route to appropriate storage backend
     const storageMode = getStorageMode();
 
     if (storageMode === 'supabase' && isSupabaseAvailable()) {
       return await createAccountSupabase(
-        { username, name, rank, passwordHash },
+        { username, name, rank, branch, password },
         res
       );
     } else {
@@ -140,34 +168,102 @@ async function createAccountHandler(req, res) {
 }
 
 /**
- * Create account using Supabase
+ * Create account using Supabase Auth
  */
-async function createAccountSupabase({ username, name, rank, passwordHash }, res) {
+async function createAccountSupabase({ username, name, rank, branch, password }, res) {
   try {
-    // Check if user already exists
-    const { data: existing } = await getUserByEmail(username);
-
-    if (existing) {
-      return res.status(409).json({ error: 'An account with this email already exists' });
+    const toAuthEmail = (u) => {
+      const s = String(u || '').trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(s) ? s : `${s}@local.dev`;
+    };
+    const authEmail = toAuthEmail(username);
+    // 1. Try sign up with Supabase Auth (best-effort)
+    let userId = null;
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: authEmail,
+        password: password,
+        options: {
+          data: {
+            full_name: name,
+            rank: rank,
+            branch: branch || 'USMC',
+            username: username,
+          },
+        },
+      });
+      if (authError) {
+        console.error('Supabase Auth signUp error:', authError);
+      } else {
+        userId = authData?.user?.id || null;
+      }
+    } catch (e) {
+      console.error('Supabase Auth signUp exception:', e?.message || e);
     }
 
-    // Create new user
-    const { data, error } = await createUser({
-      rsEmail: username,
-      rsName: name,
-      rsRank: rank,
-      passwordHash,
-    });
+    const { getClient } = require('./supabaseClient');
+    const adminClient = getClient(true);
+    const passwordHash = await bcrypt.hash(password, 12);
+    // 2. Create user record in public.users
+    let userData = null;
+    let userError = null;
+    try {
+      const resp = await adminClient
+        .from('users')
+        .insert({
+          id: userId,
+          email: authEmail,
+          name: name,
+          rank: rank,
+          branch: branch || 'USMC',
+          username: username,
+          password_hash: passwordHash,
+          created_date: new Date().toISOString(),
+          last_updated: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      userData = resp.data;
+      userError = resp.error || null;
+    } catch (e) {
+      userError = e;
+    }
 
-    if (error) {
-      console.error('Supabase createUser error:', error);
-      return res.status(500).json({ error: error.message || 'Failed to create account' });
+    if (userError) {
+      console.warn('Admin insert failed; attempting anon insert:', userError?.message || userError);
+      try {
+        const resp2 = await supabase
+          .from('users')
+          .insert({
+            // omit id to use DB default when auth user missing
+            email: authEmail,
+            name: name,
+            rank: rank,
+            branch: branch || 'USMC',
+            username: username,
+            password_hash: passwordHash,
+            created_date: new Date().toISOString(),
+            last_updated: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        userData = resp2.data;
+        userError = resp2.error || null;
+      } catch (e2) {
+        userError = e2;
+      }
+    }
+
+    if (userError) {
+      console.error('Supabase users insert error:', userError);
+      return res.status(500).json({ error: (userError.message || String(userError)) });
     }
 
     return res.json({
       ok: true,
-      userId: data.id,
-      email: data.rs_email,
+      userId: userId,
+      email: userData.email,
       method: 'supabase',
     });
   } catch (err) {
@@ -222,41 +318,140 @@ async function loginHandler(req, res) {
 }
 
 /**
- * Login using Supabase
+ * Login using Supabase Auth
  */
 async function loginSupabase({ username, password }, req, res) {
   try {
-    // Get user from database
-    const { data: user, error } = await getUserByEmail(username);
-
-    // === ADD THIS LOG HERE ===
-    if (error) {
-        console.error(`[DEBUG LOGIN] getUserByEmail error:`, error);
-        return res.status(500).json({ error: 'Login failed' });
+    const toAuthEmail = (u) => {
+      const s = String(u || '').trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(s) ? s : `${s}@local.dev`;
+    };
+    const authEmail = toAuthEmail(username);
+    // 1. Authenticate with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: authEmail,
+      password: password,
+    });
+    if (authError) {
+      console.error(`[DEBUG LOGIN] Supabase Auth failed:`, authError.message);
+      try {
+        const { getClient } = require('./supabaseClient');
+        let rows = null;
+        try {
+          const adminClient = getClient(true);
+          const { data } = await adminClient
+            .from('users')
+            .select('*')
+            .ilike('username', username)
+            .limit(1);
+          rows = data;
+        } catch (e) {
+          const { supabase } = require('./supabaseClient');
+          const { data } = await supabase
+            .from('users')
+            .select('*')
+            .ilike('username', username)
+            .limit(1);
+          rows = data;
+        }
+        const byEmail = Array.isArray(rows) ? rows[0] : rows;
+        console.log('[DEBUG LOGIN] Fallback lookup rs_email match:', !!byEmail, 'has hash:', byEmail && typeof byEmail.password_hash === 'string' && byEmail.password_hash.length > 0);
+        const allowNoHash = String(process.env.ALLOW_DEV_LOGIN_NO_HASH || '').trim().toLowerCase() === 'true';
+        if (!byEmail) {
+          return res.status(401).json({ error: 'Invalid username or password' });
+        }
+        let ok = false;
+        if (byEmail.password_hash && typeof byEmail.password_hash === 'string' && byEmail.password_hash.length) {
+          ok = await bcrypt.compare(password, byEmail.password_hash);
+        } else if (allowNoHash) {
+          ok = true;
+        }
+        if (!ok) {
+          return res.status(401).json({ error: 'Invalid username or password' });
+        }
+        const userData = byEmail;
+        console.log('[DEBUG LOGIN] Fallback verified via users.password_hash for', userData.username || userData.email);
+        let csrfToken = null;
+        let sessionToken = null;
+        try {
+          const now = Date.now();
+          const payload = { u: String(userData.username || userData.email || userData.user_email || userData.rs_email || '').trim(), iat: now, exp: now + SESSION_TTL_MS };
+          sessionToken = signSessionPayload(payload);
+          csrfToken = crypto.randomBytes(32).toString('hex');
+          const cookies = [
+            serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
+            serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
+          ];
+          res.setHeader('Set-Cookie', cookies);
+        } catch (_) {}
+        return res.json({
+          ok: true,
+          user: {
+            id: userData.id,
+            email: userData.email || userData.user_email || userData.rs_email,
+            full_name: userData.name || userData.full_name || userData.rs_name,
+            rank: userData.rank || userData.rs_rank,
+            branch: userData.branch,
+            rsEmail: userData.email || userData.user_email || userData.rs_email,
+            rsName: userData.name || userData.full_name || userData.rs_name,
+            rsRank: userData.rank || userData.rs_rank,
+          },
+          csrfToken,
+          sessionToken,
+          method: 'supabase-fallback',
+        });
+      } catch (_) {
+        return res.status(401).json({ error: 'Invalid username or password' });
+      }
     }
-    console.log(`[DEBUG LOGIN] getUserByEmail returned:`, user ? 'FOUND' : 'NOT FOUND');
-    // === END ADDITION ===
 
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+    const user = authData.user;
+    console.log(`[DEBUG LOGIN] Supabase Auth success for user ID:`, user.id);
+
+    // 2. Fetch user data from public.users
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    let resolvedUser = userData || null;
+    if (userError || !userData) {
+      const meta = user?.user_metadata || user?.user_metadata || user?.app_metadata || {};
+      const email = user?.email || '';
+      const usernameCandidate = (meta.username || (email ? String(email).split('@')[0] : ''));
+      resolvedUser = {
+        id: user.id,
+        email,
+        name: meta.full_name || '',
+        rank: meta.rank || '',
+        branch: meta.branch || 'USMC',
+        username: usernameCandidate,
+      };
     }
 
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
-
-    if (!passwordMatch) {
-      // === ADD THIS LOG HERE ===
-      console.log(`[DEBUG LOGIN] FAILED: Password mismatch for user: ${username}`);
-      // === END ADDITION ===
-      return res.status(401).json({ error: 'Invalid username or password' });
-    }
-
-    // Create session
-    req.session = req.session || {};
-    req.session.userId = user.id;
-    req.session.rsEmail = user.rs_email;
-    req.session.rsName = user.rs_name;
-    req.session.rsRank = user.rs_rank;
+    // Create cookie-based session compatible with server middleware
+    let csrfToken = null;
+    let sessionToken = null;
+    try {
+      const now = Date.now();
+      const payload = { u: String(resolvedUser.username || resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email || '').trim(), iat: now, exp: now + SESSION_TTL_MS };
+      sessionToken = signSessionPayload(payload);
+      csrfToken = crypto.randomBytes(32).toString('hex');
+      const cookies = [
+        serializeCookie('fitrep_session', sessionToken, { httpOnly: true, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 }),
+        serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
+      ];
+      const prev = res.getHeader('Set-Cookie');
+      if (prev && Array.isArray(prev)) {
+        res.setHeader('Set-Cookie', [...prev, ...cookies]);
+      } else if (typeof prev === 'string' && prev.length) {
+        res.setHeader('Set-Cookie', [prev, ...cookies]);
+      } else {
+        res.setHeader('Set-Cookie', cookies);
+      }
+    } catch (_) { /* best-effort */ }
 
     // Save session (if using express-session)
     if (req.session.save) {
@@ -271,10 +466,16 @@ async function loginSupabase({ username, password }, req, res) {
             ok: true,
             user: {
               id: user.id,
-              email: user.rs_email,
-              name: user.rs_name,
-              rank: user.rs_rank,
+              email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
+              full_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
+              rank: resolvedUser.rank || resolvedUser.rs_rank,
+              branch: resolvedUser.branch,
+              rsEmail: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
+              rsName: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
+              rsRank: resolvedUser.rank || resolvedUser.rs_rank,
             },
+            csrfToken,
+            sessionToken,
             method: 'supabase',
           });
         });
@@ -286,11 +487,17 @@ async function loginSupabase({ username, password }, req, res) {
       ok: true,
       user: {
         id: user.id,
-        email: user.rs_email,
-        name: user.rs_name,
-        rank: user.rs_rank,
+        email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
+        full_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
+        rank: resolvedUser.rank || resolvedUser.rs_rank,
+        branch: resolvedUser.branch,
+        rs_email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
+        rs_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
+        rs_rank: resolvedUser.rank || resolvedUser.rs_rank,
       },
-      method: 'supabase',
+      csrfToken,
+      sessionToken,
+      method: userError || !userData ? 'supabase-auth-only' : 'supabase',
     });
   } catch (err) {
     console.error('Error in loginSupabase:', err);

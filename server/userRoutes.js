@@ -18,7 +18,9 @@ const { getUserByEmail, updateUser, updateUserEmail } = require('./supabaseServi
  * Middleware to ensure user is authenticated
  */
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.rsEmail) {
+  const hasSession = Boolean(req.session && req.session.rsEmail);
+  const hasCookieUser = Boolean(req.sessionUser);
+  if (!hasSession && !hasCookieUser) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   next();
@@ -34,7 +36,7 @@ function requireAuth(req, res, next) {
  */
 async function loadUserHandler(req, res) {
   try {
-    const rsEmail = req.session?.rsEmail || req.query.email;
+    const rsEmail = req.session?.rsEmail || req.sessionUser || req.query.email;
 
     if (!rsEmail) {
       return res.status(400).json({ error: 'Email required' });
@@ -105,10 +107,11 @@ async function saveUserHandler(req, res) {
     }
 
     // SECURITY: Ensure user is authenticated and can only update their own profile
-    if (!req.session?.rsEmail) {
+    const sessionEmail = req.session?.rsEmail || req.sessionUser;
+    if (!sessionEmail) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    if (req.session.rsEmail !== rsEmail && req.session.rsEmail !== previousEmail) {
+    if (sessionEmail !== rsEmail && sessionEmail !== previousEmail) {
       return res.status(403).json({ error: 'Forbidden: Cannot update another user\'s profile' });
     }
 

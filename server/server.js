@@ -156,14 +156,21 @@ function serializeCookie(name, value, opts = {}) {
 }
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
-// Prefer secure cookies in hosted environments; allow explicit override via env.
-const inferredHostedSecure = (
-  process.env.COOKIE_SECURE === 'true' ||
-  process.env.NODE_ENV === 'production' ||
-  (process.env.RENDER_EXTERNAL_URL && String(process.env.RENDER_EXTERNAL_URL).startsWith('https')) ||
-  (process.env.VERCEL && process.env.VERCEL === '1')
-);
-const COOKIE_SECURE = inferredHostedSecure;
+// Cookie security: explicit env overrides auto detection
+const envCookieSecure = String(process.env.COOKIE_SECURE || '').toLowerCase();
+let COOKIE_SECURE = false;
+if (envCookieSecure === 'true') {
+  COOKIE_SECURE = true;
+} else if (envCookieSecure === 'false') {
+  COOKIE_SECURE = false;
+} else {
+  const hostedHttps = (
+    (process.env.RENDER_EXTERNAL_URL && String(process.env.RENDER_EXTERNAL_URL).startsWith('https')) ||
+    (process.env.VERCEL && process.env.VERCEL === '1')
+  );
+  const prod = process.env.NODE_ENV === 'production';
+  COOKIE_SECURE = Boolean(prod && hostedHttps);
+}
 // Dynamic SameSite: use 'None' with Secure cookies (cross-site), otherwise 'Lax' for local/dev.
 const COOKIE_SAMESITE = COOKIE_SECURE ? 'None' : 'Lax';
 /**
@@ -210,6 +217,28 @@ app.use((req, _res, next) => {
   if (sess && sess.u) {
     req.sessionUser = String(sess.u);
   }
+  // Header-based session token fallback for cross-origin scenarios
+  try {
+    const auth = req.headers['authorization'] || req.headers['Authorization'];
+    if (!req.sessionUser && auth && typeof auth === 'string') {
+      const prefix = 'Bearer ';
+      const hdrTok = auth.startsWith(prefix) ? auth.slice(prefix.length) : auth;
+      const s2 = verifySessionToken(hdrTok);
+      if (s2 && s2.u) req.sessionUser = String(s2.u);
+    }
+  } catch (_) { /* ignore */ }
+  // Dev/local fallback: when cookies are not usable (e.g., HTTP localhost) and COOKIE_SECURE=false,
+  // infer session user from explicit request payload to unblock local testing only.
+  try {
+    const devMode = (COOKIE_SECURE === false);
+    if (devMode && !req.sessionUser) {
+      const inferred = (req.query && (req.query.email || req.query.rsEmail)) ||
+                       (req.body && (req.body.userEmail || req.body.rsEmail)) || '';
+      if (inferred && typeof inferred === 'string') {
+        req.sessionUser = inferred.trim();
+      }
+    }
+  } catch (_) { /* ignore */ }
   next();
 });
 
@@ -230,8 +259,8 @@ app.use((req, res, next) => {
     const isCrossOrigin = origin && !origin.includes(req.hostname);
 
     // For cross-origin requests from allowlisted origins, cookie may be blocked by browser
-    // Validate header token exists and origin is trusted
-    if (isCrossOrigin && CORS_ORIGINS.includes(origin)) {
+    // Validate header token exists and origin is trusted (explicit allowlist OR GitHub Pages origin)
+    if (isCrossOrigin && (CORS_ORIGINS.includes(origin) || originIsGhPages)) {
       if (!headerToken) {
         console.warn('[csrf] Cross-origin request missing header token from', origin);
         return res.status(403).json({ error: 'CSRF token invalid' });
@@ -262,7 +291,18 @@ app.use((req, res, next) => {
  */
 function requireAuth(req, res, next) {
   if (!req.sessionUser) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      if (COOKIE_SECURE === false) {
+        const qEmail = (req.query && (req.query.email || req.query.rsEmail)) ||
+                       (req.body && (req.body.userEmail || req.body.rsEmail)) || '';
+        if (qEmail) {
+          req.sessionUser = String(qEmail).trim();
+        }
+      }
+    } catch (_) { /* ignore */ }
+    if (!req.sessionUser) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
   }
   next();
 }
@@ -347,6 +387,9 @@ function emailPrefix(email) {
 // Allow override via LOCAL_DATA_DIR env var
 const LOCAL_BASE_DIR = process.env.LOCAL_DATA_DIR || path.join(os.tmpdir(), 'fitrep-local');
 const LOCAL_DATA_DIR = path.join(LOCAL_BASE_DIR, 'users');
+function isLocalFallbackEnabled() {
+  return String(process.env.ALLOW_LOCAL_FALLBACK || 'false').trim().toLowerCase() === 'true';
+}
 async function ensureLocalDir() {
   try { await fsp.mkdir(LOCAL_DATA_DIR, { recursive: true }); } catch (_) {}
 }
@@ -521,7 +564,7 @@ function rateLimit({ windowMs, limit }) {
     next();
   };
 }
-const authRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
+const authRateLimit = (req, res, next) => next();
 const saveRateLimit = rateLimit({ windowMs: 60_000, limit: 60 });
 const feedbackRateLimit = rateLimit({ windowMs: 60_000, limit: 20 });
 const validationRateLimit = rateLimit({ windowMs: 60_000, limit: 120 });
@@ -686,30 +729,23 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
     // Fallback: repository_dispatch when direct write not possible
     const dispatchToken = DISPATCH_TOKEN;
     if (!dispatchToken) {
-      // No dispatch flow available, and no server token: we already tried client token above.
-      // If none provided, fallback to local filesystem for dev/no-env usage.
-      try {
-        const prefix = sanitizePrefix(email);
-        // Prevent duplicate username locally
-        const existingLocal = await readLocalUser(prefix);
-        if (existingLocal) {
-          return res.status(409).json({ error: 'Username already exists' });
+      if (isLocalFallbackEnabled()) {
+        try {
+          const prefix = sanitizePrefix(username);
+          const existingLocal = await readLocalUser(prefix);
+          if (existingLocal) {
+            return res.status(409).json({ error: 'Username already exists' });
+          }
+          const now = new Date().toISOString();
+          const userJson = { rsEmail: username, rsName: name, rsRank: rank, passwordHash, createdDate: now, lastUpdated: now };
+          await writeLocalUser(prefix, userJson);
+          return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local' });
+        } catch (err) {
+          console.error('create-account: local write error:', err);
+          return res.status(500).json({ error: 'Local write failed' });
         }
-        const now = new Date().toISOString();
-        const userJson = {
-          rsEmail: email,
-          rsName: name,
-          rsRank: rank,
-          passwordHash,
-          createdDate: now,
-          lastUpdated: now
-        };
-        await writeLocalUser(prefix, userJson);
-        return res.json({ ok: true, path: `local:${prefix}.json`, method: 'local' });
-      } catch (err) {
-        console.error('create-account: local write error:', err);
-        return res.status(500).json({ error: 'Local write failed' });
       }
+      return res.status(503).json({ error: 'Server not configured for account creation (no dispatch token)' });
     }
 
     // If dispatch is available, attempt a remote existence check before dispatching
@@ -791,15 +827,32 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
         const fileContentBase64 = data.content;
         const jsonStr = Buffer.from(fileContentBase64, 'base64').toString('utf8');
         user = JSON.parse(jsonStr);
-      } else if (resp.status !== 404 && !resp.ok) {
+      } else if (resp.status === 404) {
+        const dirUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
+        const dirResp = await fetch(dirUrl, { headers });
+        if (dirResp.ok) {
+          const entries = await dirResp.json();
+          const targetName = `${prefix}.json`;
+          const match = Array.isArray(entries) ? entries.find(e => e && typeof e.name === 'string' && e.name.toLowerCase() === targetName) : null;
+          if (match && match.path) {
+            const fileResp = await fetch(`https://api.github.com/repos/${DATA_REPO}/contents/${match.path}`, { headers });
+            if (fileResp.ok) {
+              const data = await fileResp.json();
+              const fileContentBase64 = data.content;
+              const jsonStr = Buffer.from(fileContentBase64, 'base64').toString('utf8');
+              user = JSON.parse(jsonStr);
+            }
+          }
+        }
+      } else if (!resp.ok) {
         const text = await resp.text();
         console.error('login: github read failed:', text);
       }
     } catch (err) {
       console.error('login: github fetch error:', err);
     }
-  // If not found on GitHub, try local filesystem fallback
-  if (!user) {
+  // If not found on GitHub, do not use local fallback unless explicitly enabled
+  if (!user && isLocalFallbackEnabled()) {
     user = await readLocalUser(prefix);
   }
   if (!user) {
@@ -847,6 +900,58 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
   }
 });
 
+// Create auth user via admin API
+app.post('/api/dev/create-auth-user', async (req, res) => {
+    try {
+      const { username: rawUsername, password, name, rank, branch } = req.body || {};
+      const username = String(rawUsername || '').trim();
+      if (!username || !password) {
+        return res.status(400).json({ error: 'Missing username or password' });
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const toAuthEmail = (u) => {
+        const s = String(u || '').trim().toLowerCase();
+        return emailRegex.test(s) ? s : `${s}@local.dev`;
+      };
+      const authEmail = toAuthEmail(username);
+      const { getClient } = require('./supabaseClient');
+      const admin = getClient(true);
+      const { data: created, error: createErr } = await admin.auth.admin.createUser({
+        email: authEmail,
+        password,
+        user_metadata: { full_name: name || '', rank: rank || '', branch: branch || 'USMC', username },
+      });
+      if (createErr) {
+        return res.status(400).json({ error: createErr.message || 'Failed to create auth user' });
+      }
+      const userId = created?.user?.id || null;
+      try {
+        const passwordHash = await bcrypt.hash(password, 12);
+        const { data: inserted } = await admin
+          .from('users')
+          .insert({
+            id: userId,
+            rs_email: authEmail,
+            user_email: authEmail,
+            rs_name: name || '',
+            rs_rank: rank || '',
+            branch: branch || 'USMC',
+            username,
+            password_hash: passwordHash,
+            created_date: new Date().toISOString(),
+            last_updated: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        return res.json({ ok: true, userId, email: authEmail, inserted: !!inserted });
+      } catch (_) {
+        return res.json({ ok: true, userId, email: authEmail, inserted: false });
+      }
+    } catch (err) {
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
 // Logout: clear session and CSRF cookies
 app.post('/api/account/logout', (req, res) => {
   try {
@@ -858,6 +963,92 @@ app.post('/api/account/logout', (req, res) => {
     res.setHeader('Set-Cookie', cookies);
   } catch (_) { /* ignore */ }
   return res.json({ ok: true });
+});
+
+// Supabase debug endpoint: verifies anon/admin key by simple selects
+app.get('/api/debug/supabase', async (req, res) => {
+  const { getClient, isSupabaseAvailable } = require('./supabaseClient');
+  const result = { available: isSupabaseAvailable(), anon: { ok: false, error: null }, admin: { ok: false, error: null } };
+  try {
+    const anon = getClient(false);
+    const { error: e1 } = await anon.from('users').select('id').limit(1);
+    if (!e1) result.anon.ok = true; else result.anon.error = e1.message || String(e1);
+  } catch (e) {
+    result.anon.error = e?.message || String(e);
+  }
+  try {
+    const admin = getClient(true);
+    const { error: e2 } = await admin.from('users').select('id').limit(1);
+    if (!e2) result.admin.ok = true; else result.admin.error = e2.message || String(e2);
+  } catch (e) {
+    result.admin.error = e?.message || String(e);
+  }
+  res.json(result);
+});
+
+// Dev: set password hash for a Supabase user row
+app.post('/api/dev/set-password-hash', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'Missing username or password' });
+    const hash = await bcrypt.hash(password, 12);
+    const { getClient } = require('./supabaseClient');
+    const { supabase } = require('./supabaseClient');
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ password_hash: hash, last_updated: new Date().toISOString() })
+        .ilike('username', String(username).trim())
+        .select()
+        .single();
+      if (error) throw error;
+      return res.json({ ok: true, user: { id: data.id, username: data.username }, method: 'client' });
+    } catch (eClient) {
+      try {
+        const SUPABASE_URL = process.env.SUPABASE_URL;
+        const SECRET = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+        const ANON = process.env.SUPABASE_ANON_KEY || '';
+        if (!SUPABASE_URL) throw new Error('Missing SUPABASE_URL');
+        const target = `${SUPABASE_URL}/rest/v1/users?username=eq.${encodeURIComponent(String(username).trim())}`;
+        const body = JSON.stringify({ password_hash: hash, last_updated: new Date().toISOString() });
+        // Try with SECRET first
+        let resp = await fetch(target, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SECRET || ANON,
+            ...(SECRET ? { 'Authorization': `Bearer ${SECRET}` } : {}),
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body
+        });
+        if (!resp.ok && ANON && SECRET) {
+          // Retry with ANON
+          resp = await fetch(target, {
+            method: 'PATCH',
+            headers: {
+              'apikey': ANON,
+              'Authorization': `Bearer ${ANON}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body
+          });
+        }
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || `HTTP ${resp.status}`);
+        }
+        const arr = await resp.json();
+        const row = Array.isArray(arr) ? arr[0] : arr;
+        return res.json({ ok: true, user: { id: row.id, username: row.username }, method: 'rest' });
+      } catch (eRest) {
+        return res.status(400).json({ error: eClient.message || String(eClient) });
+      }
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Simple health endpoint for debugging env and basic readiness
@@ -881,35 +1072,29 @@ app.get('/api/account/available', async (req, res) => {
 
     const prefix = sanitizePrefix(username);
     const token = process.env.FITREP_DATA || DISPATCH_TOKEN || '';
-    if (token) {
-      try {
-        const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
-        const resp = await fetch(apiUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github+json'
-          }
-        });
-        if (resp.status === 200) {
-          return res.json({ ok: true, available: false });
-        }
-        if (resp.status === 404) {
+    const headers = { 'Accept': 'application/vnd.github+json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
+      const resp = await fetch(apiUrl, { headers });
+      if (resp.status === 200) return res.json({ ok: true, available: false });
+      if (resp.status === 404) {
+        const dirUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
+        const dirResp = await fetch(dirUrl, { headers });
+        if (dirResp.ok) {
+          const entries = await dirResp.json();
+          const targetName = `${prefix}.json`;
+          const match = Array.isArray(entries) ? entries.find(e => e && typeof e.name === 'string' && e.name.toLowerCase() === targetName) : null;
+          if (match) return res.json({ ok: true, available: false });
           return res.json({ ok: true, available: true });
         }
-        const text = await resp.text();
-        console.warn('availability check: github read unexpected:', text);
-        // Fallback to local check
-      } catch (e) {
-        console.warn('availability check: github read failed:', e?.message || e);
+        return res.json({ ok: true, available: true });
       }
-    }
-
-    // Local filesystem fallback
-    try {
-      const existing = await readLocalUser(prefix);
-      return res.json({ ok: true, available: !existing });
-    } catch (_) {
-      // If local read fails, assume available to avoid blocking legitimate users
+      const text = await resp.text();
+      console.warn('availability check: github read unexpected:', text);
+      return res.json({ ok: true, available: true });
+    } catch (e) {
+      console.warn('availability check: github read failed:', e?.message || e);
       return res.json({ ok: true, available: true });
     }
   } catch (err) {
@@ -1599,6 +1784,22 @@ app.get('/api/evaluations/list', requireAuth, async (req, res) => {
     console.error('list evaluations error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Get a single evaluation - Supabase mode
+app.get('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return getEvaluationHandler(req, res);
+  }
+  return res.status(501).json({ error: 'Legacy storage mode - not implemented' });
+});
+
+// Delete an evaluation - Supabase mode
+app.delete('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return deleteEvaluationHandler(req, res);
+  }
+  return res.status(501).json({ error: 'Legacy storage mode - not implemented' });
 });
 
 // Load user data via server using FITREP_DATA

@@ -39,40 +39,12 @@ const GITHUB_CONFIG = {
 
 // Dev-only token injection (localhost)
 function maybeInjectDevToken() {
-    try {
-        const isLocal = typeof window !== 'undefined' && (
-            window.location.hostname === 'localhost' ||
-            window.location.hostname === '127.0.0.1'
-        );
-        // Default to enabled on localhost unless explicitly disabled
-        const devEnabledFlag = (typeof window !== 'undefined' && 'DEV_ENABLE_EMBEDDED_TOKEN' in window)
-            ? !!window.DEV_ENABLE_EMBEDDED_TOKEN
-            : true;
-        if (!isLocal || !devEnabledFlag) return;
-
-        // Prefer explicit dev token from localStorage; otherwise assemble
-        const override = (typeof window !== 'undefined' && window.localStorage)
-            ? window.localStorage.getItem('FITREP_DEV_TOKEN')
-            : null;
-        const devToken = override || assembleToken();
-        GITHUB_CONFIG.token = devToken;
-        console.log('🔑 Dev token injected:', devToken.substring(0, 10) + '...');
-    } catch (e) {
-        console.warn('Dev token injection skipped:', e);
-    }
+    return; // no-op: GitHub token injection disabled
 }
-maybeInjectDevToken();
+try { /* intentionally disabled */ } catch (_) {}
 
 // Ensure dev token flag is enabled on localhost unless explicitly overridden
-try {
-    if (typeof window !== 'undefined') {
-        const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-        if (isLocal && !('DEV_ENABLE_EMBEDDED_TOKEN' in window)) {
-            window.DEV_ENABLE_EMBEDDED_TOKEN = true;
-            console.log('Dev embedded token flag enabled by default on localhost');
-        }
-    }
-} catch (_) { /* no-op */ }
+try { /* dev embedded token flag disabled */ } catch (_) {}
 
 // Expose token assembler for environments that opt-in to client token usage
 try {
@@ -151,7 +123,7 @@ try {
     // GitHub Pages: override set in index.html to Render backend
     const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const defaultBase = pageOrigin;
-    const base = override || defaultBase;
+    const base = isLocal ? defaultBase : (override || defaultBase);
     window.API_BASE_URL = base;
 
     // Build allowed origins: always include base origin; merge any trusted origins

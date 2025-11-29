@@ -22,7 +22,7 @@ const { getClient, isSupabaseAvailable } = require('./supabaseClient');
  * @param {string} userData.passwordHash - bcrypt hashed password
  * @returns {Promise<{data: Object|null, error: Error|null}>}
  */
-async function createUser({ rsEmail, rsName, rsRank, passwordHash }) {
+async function createUser({ email, name, rank, username, passwordHash }) {
   if (!isSupabaseAvailable()) {
     return { data: null, error: new Error('Supabase not available') };
   }
@@ -34,10 +34,11 @@ async function createUser({ rsEmail, rsName, rsRank, passwordHash }) {
       .from('users')
       .insert([
         {
-          rs_email: rsEmail,
-          rs_name: rsName,
-          rs_rank: rsRank,
-          password_hash: passwordHash,
+          email: email,
+          name: name,
+          rank: rank,
+          username: username,
+          password_hash: passwordHash || '',
           created_date: new Date().toISOString(),
           last_updated: new Date().toISOString(),
         },
@@ -64,11 +65,24 @@ async function createUser({ rsEmail, rsName, rsRank, passwordHash }) {
 }
 
 /**
+ * Ensure a user exists, creating a minimal record if missing
+ * @param {string} rsEmail
+ * @param {string} rsName
+ * @param {string} rsRank
+ */
+async function ensureUserExists(identifier, rsName, rsRank) {
+  const existing = await getUserByEmail(identifier);
+  if (existing && existing.data) return { data: existing.data, error: null };
+  const authEmail = `${String(identifier || '').trim().toLowerCase()}@local.dev`;
+  return await createUser({ email: authEmail, name: rsName, rank: rsRank, username: identifier, passwordHash: '' });
+}
+
+/**
  * Get user by email
  * @param {string} rsEmail - User email
  * @returns {Promise<{data: Object|null, error: Error|null}>}
  */
-async function getUserByEmail(rsEmail) {
+async function getUserByEmail(identifier) {
   if (!isSupabaseAvailable()) {
     return { data: null, error: new Error('Supabase not available') };
   }
@@ -76,11 +90,25 @@ async function getUserByEmail(rsEmail) {
   try {
     const client = getClient(true); // Use admin to bypass RLS
 
-    const { data, error } = await client
+    let { data, error } = await client
       .from('users')
       .select('*')
-      .eq('rs_email', rsEmail)
-      .single();
+      .ilike('email', identifier)
+      .limit(1);
+    const candidate = Array.isArray(data) ? data[0] : data;
+    if (!candidate) {
+      const { data: byUsername } = await client
+        .from('users')
+        .select('*')
+        .ilike('username', identifier)
+        .limit(1);
+      const cand2 = Array.isArray(byUsername) ? byUsername[0] : byUsername;
+      if (!cand2) {
+        return { data: null, error: null };
+      }
+      return { data: cand2, error: null };
+    }
+    return { data: candidate, error: null };
 
     if (error) {
       // Not found is not an error in this context
@@ -201,15 +229,21 @@ async function saveEvaluation(evaluationData) {
     const client = getClient(true);
 
     // Get user ID from email
-    const { data: user, error: userError } = await getUserByEmail(
+    let { data: user, error: userError } = await getUserByEmail(
       evaluationData.rsEmail
     );
 
     if (userError || !user) {
-      return {
-        data: null,
-        error: userError || new Error('User not found'),
-      };
+      const rsNameMaybe = evaluationData.rsInfo?.name || evaluationData.rsName || '';
+      const rsRankMaybe = evaluationData.rsInfo?.rank || evaluationData.rsRank || '';
+      const ensured = await ensureUserExists(evaluationData.rsEmail, rsNameMaybe, rsRankMaybe);
+      if (ensured.error || !ensured.data) {
+        return {
+          data: null,
+          error: ensured.error || (userError || new Error('User not found')),
+        };
+      }
+      user = ensured.data;
     }
 
     // Prepare evaluation record
@@ -530,6 +564,7 @@ module.exports = {
   getUserByEmail,
   updateUser,
   updateUserEmail,
+  ensureUserExists,
 
   // Evaluation operations
   saveEvaluation,

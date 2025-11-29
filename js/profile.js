@@ -9,7 +9,74 @@ const evaluationDetailsCache = typeof ManagedCache !== 'undefined'
 
 // Performance optimization instances
 let tableRenderer = null; // OptimizedTableRenderer instance
+
 let rafQueue = new RAFQueue(); // Request Animation Frame queue for smooth updates
+
+// ============================================================================
+// MILITARY DATA HELPERS
+// ============================================================================
+
+/**
+ * Populate a branch select element with options from MilitaryData
+ * @param {string} selectId - ID of the select element
+ * @param {string} [selectedValue] - Optional value to select
+ */
+function populateBranchSelect(selectId, selectedValue) {
+    const select = document.getElementById(selectId);
+    if (!select || !window.MilitaryData) return;
+
+    // Clear existing options except the first one (placeholder)
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+
+    window.MilitaryData.branches.forEach(branch => {
+        const option = document.createElement('option');
+        option.value = branch.value;
+        option.textContent = branch.label;
+        if (branch.value === selectedValue) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+}
+
+/**
+ * Populate a rank select element based on the selected branch
+ * @param {string} branchSelectId - ID of the branch select element
+ * @param {string} rankSelectId - ID of the rank select element
+ * @param {string} [selectedRank] - Optional rank to select
+ */
+function populateRankSelect(branchSelectId, rankSelectId, selectedRank) {
+    const branchSelect = document.getElementById(branchSelectId);
+    const rankSelect = document.getElementById(rankSelectId);
+
+    if (!branchSelect || !rankSelect || !window.MilitaryData) return;
+
+    const branchValue = branchSelect.value;
+
+    // Clear existing options except the first one
+    while (rankSelect.options.length > 1) {
+        rankSelect.remove(1);
+    }
+
+    if (!branchValue) return;
+
+    const ranks = window.MilitaryData.getRanksForBranch(branchValue);
+
+    ranks.forEach(rank => {
+        const option = document.createElement('option');
+        option.value = rank.value;
+        option.textContent = rank.label;
+        if (rank.value === selectedRank) {
+            option.selected = true;
+        }
+        rankSelect.appendChild(option);
+    });
+}
+
+// Expose globally for onchange handlers
+window.populateRankSelect = populateRankSelect;
 
 /**
  * Profile Authentication: Local-only login path.
@@ -21,7 +88,7 @@ let rafQueue = new RAFQueue(); // Request Animation Frame queue for smooth updat
 async function profileLogin() {
     const rank = document.getElementById('rsRankInput').value.trim();
     const name = document.getElementById('rsNameInput').value.trim();
-    const email = document.getElementById('rsEmailInput').value.trim();
+    const email = document.getElementById('emailInput').value.trim();
 
     if (!rank || !name || !email) {
         alert('Complete all fields to access your profile.');
@@ -53,6 +120,10 @@ async function profileLogin() {
     // Create new profile if none exists
     if (!profile) {
         profile = {
+            full_name: name,
+            email: email,
+            rank: rank,
+            // Legacy fields for compatibility
             rsName: name,
             rsEmail: email,
             rsRank: rank,
@@ -71,8 +142,8 @@ async function profileLogin() {
     localStorage.setItem('current_evaluations', JSON.stringify(profileEvaluations));
     localStorage.setItem('has_profile', 'true');
     // Persist index to IndexedDB for offline-first
-    try { if (window.idbStore) { await window.idbStore.putIndex(email, profileEvaluations); } } catch (_) {}
-    
+    try { if (window.idbStore) { await window.idbStore.putIndex(email, profileEvaluations); } } catch (_) { }
+
     // Session-only: mark that the user explicitly logged in this session
     sessionStorage.setItem('login_source', 'form');
 
@@ -86,14 +157,15 @@ async function profileLogin() {
  * @returns {Promise<void>}
  */
 async function createAccount() {
-    const rank = document.getElementById('caRankInput')?.value.trim();
+    const branch = document.getElementById('caBranchInput')?.value;
+    const rank = document.getElementById('caRankInput')?.value;
     const name = document.getElementById('caNameInput')?.value.trim();
     const email = document.getElementById('caEmailInput')?.value.trim();
     const password = document.getElementById('caPasswordInput')?.value;
     const confirm = document.getElementById('caPasswordConfirmInput')?.value;
 
-    if (!rank || !name || !email || !password) {
-        alert('Please enter Rank, Name, Username, and Password.');
+    if (!branch || !rank || !name || !email || !password) {
+        alert('Please complete all fields.');
         return;
     }
 
@@ -131,7 +203,7 @@ async function createAccount() {
     try {
         // Send explicit username for clarity; keep email for compatibility
         const CREATE_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_CREATE) || '/api/account/create';
-        const res = await postJson(CREATE_ROUTE, { rank, name, email, username: email, password });
+        const res = await postJson(CREATE_ROUTE, { branch, rank, name, email, username: email, password });
         if (!res || !res.ok) {
             const msg = res && res.error ? res.error : 'Account creation failed.';
             alert(msg);
@@ -141,6 +213,11 @@ async function createAccount() {
         // Optionally hydrate local profile for immediate UX
         const profileKey = generateProfileKey(name, email);
         const profile = {
+            full_name: name,
+            email: email,
+            rank: rank,
+            branch: branch,
+            // Legacy fields
             rsName: name,
             rsEmail: email,
             rsRank: rank,
@@ -220,10 +297,16 @@ async function accountLogin() {
             return;
         }
 
+        const user = res.user || {};
         const baseProfile = res.profile || {
-            rsName: res.rsName,
-            rsEmail: email,
-            rsRank: res.rsRank,
+            full_name: user.full_name || res.rsName,
+            email: user.email || email,
+            rank: user.rank || res.rsRank,
+            branch: user.branch || 'USMC', // Default to USMC if not present
+            // Legacy fields
+            rsName: user.full_name || res.rsName,
+            rsEmail: user.email || email,
+            rsRank: user.rank || res.rsRank,
             lastUpdated: new Date().toISOString()
         };
 
@@ -240,58 +323,38 @@ async function accountLogin() {
             debugWarn('[csrf] No CSRF token in login response - backend may not have been updated');
         }
 
-        // Fetch per-user evaluation files to populate events list
-        // Always attempt to load evaluations; githubService will use backend fallback when no token
+        // Store session token for Authorization header fallback (cross-origin)
+        if (res.sessionToken) {
+            try { sessionStorage.setItem('fitrep_session_token', res.sessionToken); } catch (_) {}
+        }
+
+        // Prefer Supabase backend for evaluations list
         let evaluations = [];
-        let evaluationLoadError = null;
         try {
-            const token = await githubService.getTokenFromEnvironment?.();
-            if (token) {
-                githubService.initialize(token);
-                const connected = await githubService.verifyConnection?.();
-                if (!connected) {
-                    console.warn('GitHub connection unavailable; using backend fallback for evaluations.');
-                }
-            }
-            evaluations = await githubService.loadUserEvaluations(email);
-
-            // If we got an empty array, check if it was due to an error (CORS, network, etc.)
-            if (evaluations.length === 0) {
-                const lastErr = (typeof window !== 'undefined' && window.__lastApiError) ? window.__lastApiError : null;
-                const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
-                const apiBase = (typeof githubService?.getApiBase === 'function') ? githubService.getApiBase() : '';
-                const apiOrigin = (apiBase ? new URL(apiBase).origin : '');
-                const crossOrigin = Boolean(pageOrigin && apiOrigin && pageOrigin !== apiOrigin);
-
-                // Message classification: expected vs actionable error
-                if (lastErr && lastErr.type === 'cors' && crossOrigin) {
-                    console.info('Evaluations not loaded due to CORS (expected in local HTTP cross-origin).');
-                    if (typeof showToast === 'function') {
-                        showToast('Running locally with different origins; browsers block cross-site cookies on HTTP. Use the same origin or HTTPS to load evaluations.', 'info');
-                    }
-                } else {
-                    console.info('No evaluations loaded - this may be normal for new profiles or could indicate a network issue.');
-                }
+            const LIST_ROUTE = (window.CONSTANTS?.ROUTES?.API?.EVALUATIONS_LIST) || '/api/evaluations/list';
+            const base = window.API_BASE_URL || location.origin;
+            const url = new URL(LIST_ROUTE, base);
+            url.searchParams.set('email', email);
+            const headers = {};
+            try {
+                const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+                if (csrf) headers['X-CSRF-Token'] = csrf;
+            } catch (_) {}
+            try {
+                const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+                if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+            } catch (_) {}
+            const resp = await fetch(url.toString(), { method: 'GET', headers, credentials: 'include' });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && Array.isArray(data?.evaluations)) {
+                evaluations = data.evaluations;
+            } else {
+                console.warn('Backend evaluations list failed; falling back to local');
+                evaluations = loadEvaluationsFromLocal(generateProfileKey(baseProfile.rsName, baseProfile.rsEmail)) || [];
             }
         } catch (e) {
-            console.error('Evaluations fetch failed during login:', e);
-            evaluationLoadError = e;
-            evaluations = [];
-
-            // Show user-friendly error message
-            if (typeof showToast === 'function') {
-                const lastErr = (typeof window !== 'undefined' && window.__lastApiError) ? window.__lastApiError : null;
-                const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
-                const apiBase = (typeof githubService?.getApiBase === 'function') ? githubService.getApiBase() : '';
-                const apiOrigin = (apiBase ? new URL(apiBase).origin : '');
-                const crossOrigin = Boolean(pageOrigin && apiOrigin && pageOrigin !== apiOrigin);
-
-                if (lastErr && lastErr.type === 'cors' && crossOrigin) {
-                    showToast('CORS blocked on local HTTP cross-origin. Run frontend and backend on the same origin or use HTTPS.', 'info');
-                } else {
-                    showToast('Failed to load evaluations. Your profile has been created but evaluations could not be retrieved.', 'warning');
-                }
-            }
+            console.error('Backend evaluations list error:', e);
+            evaluations = loadEvaluationsFromLocal(generateProfileKey(baseProfile.rsName, baseProfile.rsEmail)) || [];
         }
         const profile = { ...baseProfile, totalEvaluations: Array.isArray(evaluations) ? evaluations.length : 0 };
 
@@ -441,7 +504,7 @@ async function postJson(url, body) {
             });
             if (!resp.ok) {
                 let error = `Request failed (${resp.status})`;
-                try { const data = await resp.json(); error = data.error || error; } catch (_) {}
+                try { const data = await resp.json(); error = data.error || error; } catch (_) { }
                 if (attempt < maxAttempts - 1 && shouldRetryStatus(resp.status)) {
                     const backoffMs = 250 * Math.pow(2, attempt); // 250ms, 500ms, 1000ms
                     await new Promise(r => setTimeout(r, backoffMs));
@@ -500,7 +563,7 @@ async function postJson(url, body) {
                         } catch (_) { return { ok: true }; }
                     }
                     let error = `Request failed (${resp.status})`;
-                    try { const data = await resp.json(); error = data.error || error; } catch (_) {}
+                    try { const data = await resp.json(); error = data.error || error; } catch (_) { }
                     if (attempt < maxAttempts - 1 && shouldRetryStatus(resp.status)) {
                         const backoffMs = 250 * Math.pow(2, attempt);
                         await new Promise(r => setTimeout(r, backoffMs));
@@ -562,7 +625,7 @@ async function postForm(url, body) {
         });
         if (!resp.ok) {
             let error = `Request failed (${resp.status})`;
-            try { const data = await resp.json(); error = data.error || error; } catch (_) {}
+            try { const data = await resp.json(); error = data.error || error; } catch (_) { }
             return { ok: false, error, status: resp.status };
         }
         try {
@@ -603,6 +666,11 @@ function showCreateAccount() {
     const createSection = document.getElementById('createAccountSection');
     if (loginFields) { loginFields.style.display = 'none'; }
     if (createSection) { createSection.style.display = 'block'; }
+
+    // Initialize dropdowns
+    populateBranchSelect('caBranchInput', 'USMC'); // Default to USMC
+    populateRankSelect('caBranchInput', 'caRankInput');
+
     // Availability watcher removed per request; rely on server checks at create
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
@@ -626,7 +694,7 @@ function skipProfileLogin() {
     }
 
     // Restore global header chrome when leaving login
-    try { document.body.classList.remove('auth-login'); } catch (_) {}
+    try { document.body.classList.remove('auth-login'); } catch (_) { }
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
     if (header) header.style.display = '';
@@ -639,7 +707,7 @@ function skipProfileLogin() {
     }
 
     // Ensure other cards remain hidden
-    ['howItWorksCard','evaluationContainer','reviewCard','sectionIGenerationCard','directedCommentsCard','summaryCard']
+    ['howItWorksCard', 'evaluationContainer', 'reviewCard', 'sectionIGenerationCard', 'directedCommentsCard', 'summaryCard']
         .forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.classList.remove('active'); el.style.display = 'none'; }
@@ -694,14 +762,14 @@ function showProfileDashboard() {
     }
 
     // Leaving login/home state; keep header hidden in dashboard but clear login/home classes
-    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
+    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) { }
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
     if (header) header.style.display = 'none';
     if (warning) warning.style.display = 'none';
 
     // Hide all app cards while in Dashboard
-    ['setupCard','howItWorksCard','evaluationContainer','reviewCard','sectionIGenerationCard','directedCommentsCard','summaryCard']
+    ['setupCard', 'howItWorksCard', 'evaluationContainer', 'reviewCard', 'sectionIGenerationCard', 'directedCommentsCard', 'summaryCard']
         .forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.classList.remove('active'); el.style.display = 'none'; }
@@ -713,7 +781,7 @@ function showProfileDashboard() {
     setRankFilter('');
 
     // Make sure we are scrolled to the top of the dashboard
-    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) {}
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) { }
 }
 
 function renderProfileHeader() {
@@ -724,26 +792,26 @@ function renderProfileHeader() {
 
     if (nameEl && currentProfile) {
         const rankNorm = normalizeRankLabel(currentProfile.rsRank || '');
-        const imgSrc = (function(rank){
+        const imgSrc = (function (rank) {
             const map = {
-                'SGT':'assets/images/USMC_SGT.png',
-                'SSGT':'assets/images/USMC_SSGT.png',
-                'GYSGT':'assets/images/USMC_GYSGT.png',
-                'MSGT':'assets/images/USMC_MSGT.png',
-                '1STSGT':'assets/images/USMC_1STSGT.png',
-                'MGYSGT':'assets/images/USMC_MGYSGT.png',
-                'SGTMAJ':'assets/images/USMC_SGTMAJ.png',
-                'WO':'assets/images/USMC_WO.png',
-                'CWO2':'assets/images/USMC_CWO2.png',
-                'CWO3':'assets/images/USMC_CWO3.png',
-                'CWO4':'assets/images/USMC_CWO4.png',
-                'CWO5':'assets/images/USMC_CWO5.png',
-                '2NDLT':'assets/images/USMC_2NDLT.png',
-                '1STLT':'assets/images/USMC_1STLT.png',
-                'CAPT':'assets/images/USMC_CAPT.png',
-                'MAJ':'assets/images/USMC_MAJ.png',
-                'LTCOL':'assets/images/USMC_LTCOL.png',
-                'COL':'assets/images/USMC_COL.png'
+                'SGT': 'assets/images/USMC_SGT.png',
+                'SSGT': 'assets/images/USMC_SSGT.png',
+                'GYSGT': 'assets/images/USMC_GYSGT.png',
+                'MSGT': 'assets/images/USMC_MSGT.png',
+                '1STSGT': 'assets/images/USMC_1STSGT.png',
+                'MGYSGT': 'assets/images/USMC_MGYSGT.png',
+                'SGTMAJ': 'assets/images/USMC_SGTMAJ.png',
+                'WO': 'assets/images/USMC_WO.png',
+                'CWO2': 'assets/images/USMC_CWO2.png',
+                'CWO3': 'assets/images/USMC_CWO3.png',
+                'CWO4': 'assets/images/USMC_CWO4.png',
+                'CWO5': 'assets/images/USMC_CWO5.png',
+                '2NDLT': 'assets/images/USMC_2NDLT.png',
+                '1STLT': 'assets/images/USMC_1STLT.png',
+                'CAPT': 'assets/images/USMC_CAPT.png',
+                'MAJ': 'assets/images/USMC_MAJ.png',
+                'LTCOL': 'assets/images/USMC_LTCOL.png',
+                'COL': 'assets/images/USMC_COL.png'
             };
             return map[rank] || '';
         })(rankNorm);
@@ -778,12 +846,29 @@ function openEditProfile() {
         }
         const nameInput = document.getElementById('editRsNameInput');
         const emailInput = document.getElementById('editRsEmailInput');
+        const branchInput = document.getElementById('editRsBranchInput');
         const rankInput = document.getElementById('editRsRankInput');
+
         console.debug('[Inputs] found', {
             nameFound: !!nameInput,
             emailFound: !!emailInput,
+            branchFound: !!branchInput,
             rankFound: !!rankInput
         });
+
+        if (currentProfile) {
+            if (nameInput) nameInput.value = currentProfile.rsName || '';
+            if (emailInput) emailInput.value = currentProfile.rsEmail || '';
+
+            // Initialize branch and rank
+            if (branchInput) {
+                populateBranchSelect('editRsBranchInput', currentProfile.branch || 'USMC');
+            }
+            if (rankInput) {
+                // Wait for branch population to finish (synchronous but good to be explicit)
+                populateRankSelect('editRsBranchInput', 'editRsRankInput', currentProfile.rsRank);
+            }
+        }
 
         if (nameInput && currentProfile?.rsName) nameInput.value = currentProfile.rsName;
         if (emailInput && currentProfile?.rsEmail) emailInput.value = currentProfile.rsEmail;
@@ -804,7 +889,7 @@ function openEditProfile() {
                     if (window.A11y && typeof window.A11y.openDialog === 'function') {
                         window.A11y.openDialog(modal, { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
                     }
-                } catch (_) {}
+                } catch (_) { }
             }
             console.info('[Modal] opened');
             // Attach real-time validation to modal fields
@@ -823,12 +908,12 @@ function openEditProfile() {
                 if (window.A11y && typeof window.A11y.openDialog === 'function') {
                     window.A11y.openDialog(modal, { labelledBy: 'editProfileTitle', focusFirst: '#editRsNameInput' });
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
         console.groupEnd('ProfileEdit: openEditProfile');
     } catch (err) {
         console.error('openEditProfile error:', err);
-        try { console.groupEnd('ProfileEdit: openEditProfile'); } catch(_) {}
+        try { console.groupEnd('ProfileEdit: openEditProfile'); } catch (_) { }
     }
 }
 
@@ -845,21 +930,21 @@ function closeEditProfileModal() {
             if (window.ModalController && typeof window.ModalController.closeById === 'function') {
                 window.ModalController.closeById('editProfileModal');
             } else {
-                try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
+                try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch (_) { }
                 modal.classList.remove('active');
                 modal.style.display = 'none';
             }
             console.info('[Modal] closed');
         } catch (e) {
             console.warn('ModalController.closeById failed, falling back:', e);
-            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
+            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch (_) { }
             modal.classList.remove('active');
             modal.style.display = 'none';
         }
         console.groupEnd('ProfileEdit: closeEditProfileModal');
     } catch (err) {
         console.error('closeEditProfileModal error:', err);
-        try { console.groupEnd('ProfileEdit: closeEditProfileModal'); } catch(_) {}
+        try { console.groupEnd('ProfileEdit: closeEditProfileModal'); } catch (_) { }
     }
 }
 
@@ -955,13 +1040,15 @@ async function saveProfileUpdates() {
         console.group('ProfileEdit: saveProfileUpdates');
         const nameInput = document.getElementById('editRsNameInput');
         const emailInput = document.getElementById('editRsEmailInput');
+        const branchInput = document.getElementById('editRsBranchInput');
         const rankInput = document.getElementById('editRsRankInput');
         const statusText = document.getElementById('editStatusText');
 
         const newName = (nameInput?.value || '').trim();
         const newEmail = (emailInput?.value || '').trim();
+        const newBranch = (branchInput?.value || '').trim();
         const newRank = (rankInput?.value || '').trim();
-        console.info('[Start] Inputs', { newName, newEmail, newRank });
+        console.info('[Start] Inputs', { newName, newEmail, newBranch, newRank });
 
         // Final validation gate before submission
         try {
@@ -970,7 +1057,7 @@ async function saveProfileUpdates() {
             if (window.FormValidationUI && container) {
                 validAll = window.FormValidationUI.validateForm(container);
             } else {
-                validAll = !!(newName && newEmail && newRank);
+                validAll = !!(newName && newEmail && newBranch && newRank);
             }
             if (!validAll) {
                 console.warn('[Abort] Validation failed: fields invalid');
@@ -1014,6 +1101,9 @@ async function saveProfileUpdates() {
         currentProfile.rsName = newName;
         currentProfile.rsEmail = newEmail;
         currentProfile.rsRank = newRank;
+        currentProfile.branch = newBranch;
+        currentProfile.full_name = newName;
+        currentProfile.rank = newRank;
         currentProfile.totalEvaluations = profileEvaluations.length;
         currentProfile.lastUpdated = new Date().toISOString();
         console.info('[Profile] Updated in-memory profile');
@@ -1025,8 +1115,8 @@ async function saveProfileUpdates() {
         saveEvaluationsToLocal(newKey, profileEvaluations);
         console.info('[Local] Saved profile and evaluations under newKey');
         if (oldKey !== newKey) {
-            try { localStorage.removeItem(`profile:${oldKey}`); } catch (_) {}
-            try { localStorage.removeItem(`evaluations:${oldKey}`); } catch (_) {}
+            try { localStorage.removeItem(`profile:${oldKey}`); } catch (_) { }
+            try { localStorage.removeItem(`evaluations:${oldKey}`); } catch (_) { }
             console.info('[Local] Removed oldKey entries');
         } else {
             console.debug('[Local] Key unchanged; no removal needed');
@@ -1043,7 +1133,7 @@ async function saveProfileUpdates() {
         let statusMsg = '';
         if (navigator.onLine) {
             let token = null;
-            try { token = await githubService.getTokenFromEnvironment?.(); } catch (_) {}
+            try { token = await githubService.getTokenFromEnvironment?.(); } catch (_) { }
             if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
                 token = window.GITHUB_CONFIG.token;
             }
@@ -1093,20 +1183,20 @@ async function saveProfileUpdates() {
                     });
                     if (result?.success) {
                         statusMsg = result?.message || '';
-                        try { window.__forceFreshEvaluationsOnce = true; } catch (_) {}
+                        try { window.__forceFreshEvaluationsOnce = true; } catch (_) { }
                         console.info('[Backend] saveUserData fallback success', result);
-                        try { showToast('Profile saved to server', 'success'); } catch (_) {}
+                        try { showToast('Profile saved to server', 'success'); } catch (_) { }
                     } else {
                         console.warn('[Backend] saveUserData fallback failed', result);
                         const reason = (result && (result.message || result.error)) || 'Unknown error';
                         const msg = (result && result.status === 403)
                             ? 'Not authorized. Please log in again.'
                             : `Save failed: ${reason}`;
-                        try { showToast(msg, 'error'); } catch (_) {}
+                        try { showToast(msg, 'error'); } catch (_) { }
                     }
                 } catch (e) {
                     console.warn('Backend fallback save error:', e);
-                    try { showToast('Save failed due to a network error.', 'error'); } catch (_) {}
+                    try { showToast('Save failed due to a network error.', 'error'); } catch (_) { }
                 }
             }
         } else {
@@ -1145,7 +1235,7 @@ async function saveProfileUpdates() {
     } catch (error) {
         console.error('saveProfileUpdates error:', error);
         alert('Failed to update profile.');
-        try { console.groupEnd('ProfileEdit: saveProfileUpdates'); } catch(_) {}
+        try { console.groupEnd('ProfileEdit: saveProfileUpdates'); } catch (_) { }
     }
 }
 
@@ -1203,9 +1293,9 @@ function renderEvaluationsList() {
 
     // Only show ranks that have reports
     const orderedRanks = [
-        'SGT','SSGT','GYSGT','MSGT','1STSGT','MGYSGT','SGTMAJ',
-        'WO','CWO2','CWO3','CWO4','CWO5',
-        '2NDLT','1STLT','CAPT','MAJ','LTCOL','COL'
+        'SGT', 'SSGT', 'GYSGT', 'MSGT', '1STSGT', 'MGYSGT', 'SGTMAJ',
+        'WO', 'CWO2', 'CWO3', 'CWO4', 'CWO5',
+        '2NDLT', '1STLT', 'CAPT', 'MAJ', 'LTCOL', 'COL'
     ];
 
     // Prepare rows
@@ -1229,9 +1319,9 @@ function renderEvaluationsList() {
         rows.sort((a, b) => b.avg - a.avg || a.rank.localeCompare(b.rank));
     } else if (key === 'rank') {
         const rankOrder = [
-            'COL','LTCOL','MAJ','CAPT','1STLT','2NDLT',
-            'CWO5','CWO4','CWO3','CWO2','WO',
-            'SGTMAJ','MGYSGT','1STSGT','MSGT','GYSGT','SSGT','SGT'
+            'COL', 'LTCOL', 'MAJ', 'CAPT', '1STLT', '2NDLT',
+            'CWO5', 'CWO4', 'CWO3', 'CWO2', 'WO',
+            'SGTMAJ', 'MGYSGT', '1STSGT', 'MSGT', 'GYSGT', 'SSGT', 'SGT'
         ];
         rows.sort((a, b) => {
             const ai = rankOrder.indexOf(a.rank);
@@ -1404,7 +1494,7 @@ async function toggleEvaluation(header) {
             }
             // Try IndexedDB
             if (!evaluation && window.idbStore && email) {
-                try { evaluation = await window.idbStore.getDetail(email, evalId); } catch (_) {}
+                try { evaluation = await window.idbStore.getDetail(email, evalId); } catch (_) { }
             }
             // Try remote GitHub
             if (!evaluation && typeof githubService !== 'undefined' && navigator.onLine) {
@@ -1440,7 +1530,7 @@ async function toggleEvaluation(header) {
             // Cache for future
             evaluationDetailsCache.set(evalId, renderObj);
             if (window.idbStore && email && evaluation) {
-                try { await window.idbStore.putDetail(email, evalId, evaluation); } catch (_) {}
+                try { await window.idbStore.putDetail(email, evalId, evaluation); } catch (_) { }
             }
         }
     } else {
@@ -1644,7 +1734,7 @@ async function syncAllEvaluations() {
     };
 
     // Global operation feedback with cancellable progress
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : { signal: { aborted: false }, abort(){ this.signal.aborted = true; } };
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : { signal: { aborted: false }, abort() { this.signal.aborted = true; } };
     if (window.UIStates && typeof window.UIStates.showGlobalLoading === 'function') {
         window.UIStates.showGlobalLoading({ text: `Syncing ${pending.length} evaluation(s)…`, determinate: true, cancellable: true, onCancel: () => controller.abort() });
     }
@@ -1656,7 +1746,7 @@ async function syncAllEvaluations() {
         const evaluation = pending[i];
         const ok = await syncWithRetry(evaluation, 3);
         if (ok) successCount++; else failureCount++;
-        try { if (window.UIStates && typeof window.UIStates.updateGlobalProgress === 'function') window.UIStates.updateGlobalProgress(((i + 1) / pending.length) * 100); } catch(_){}
+        try { if (window.UIStates && typeof window.UIStates.updateGlobalProgress === 'function') window.UIStates.updateGlobalProgress(((i + 1) / pending.length) * 100); } catch (_) { }
     }
 
     const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
@@ -1668,13 +1758,174 @@ async function syncAllEvaluations() {
     }
 
     renderEvaluationsList();
-    try { if (window.UIStates && typeof window.UIStates.hideGlobalLoading === 'function') window.UIStates.hideGlobalLoading(); } catch(_){}
+    try { if (window.UIStates && typeof window.UIStates.hideGlobalLoading === 'function') window.UIStates.hideGlobalLoading(); } catch (_) { }
     if (failureCount === 0) {
         const msg = controller.signal && controller.signal.aborted ? `Sync canceled: ${successCount} succeeded.` : `Sync complete: ${successCount} succeeded.`;
         showToast(msg, 'success');
     } else {
         const msg = controller.signal && controller.signal.aborted ? `Sync canceled: ${successCount} succeeded, ${failureCount} failed.` : `Sync complete: ${successCount} succeeded, ${failureCount} failed.`;
         showToast(msg, 'warning');
+    }
+}
+
+// Bulk sync directly to Supabase via backend API
+async function syncAllToSupabase() {
+    try {
+        if (!navigator.onLine) {
+            showToast('Offline: connect to the internet to sync.', 'warning');
+            return;
+        }
+
+        const userEmail = (currentProfile && currentProfile.rsEmail) || '';
+        if (!userEmail) {
+            alert('No logged-in user detected. Please login first.');
+            return;
+        }
+
+        const all = Array.isArray(profileEvaluations) ? profileEvaluations.slice() : [];
+        if (all.length === 0) {
+            showToast('No evaluations to sync.', 'info');
+            return;
+        }
+
+        const btn = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+
+        const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
+        const base = window.API_BASE_URL || location.origin;
+        const url = new URL(endpoint, base).toString();
+        const headers = { 'Content-Type': 'application/json' };
+        try {
+            const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+        } catch (_) {}
+        try {
+            const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+            if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+        } catch (_) {}
+
+        let success = 0, failure = 0;
+        for (let i = 0; i < all.length; i++) {
+            const ev = all[i];
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    credentials: 'include',
+                    body: JSON.stringify({ evaluation: ev, userEmail })
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || !data?.ok) {
+                    failure++;
+                    console.warn('Supabase sync failed:', data);
+                } else {
+                    success++;
+                    ev.syncStatus = 'synced';
+                }
+            } catch (e) {
+                failure++;
+                console.error('Supabase sync exception:', e);
+            }
+        }
+
+        const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
+        saveEvaluationsToLocal(profileKey, profileEvaluations);
+        renderEvaluationsList();
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync to Supabase'; }
+        const msg = `Sync complete: ${success} succeeded${failure ? `, ${failure} failed` : ''}.`;
+        showToast(msg, failure ? 'warning' : 'success');
+    } catch (err) {
+        console.error('Bulk Supabase sync error:', err);
+        alert('Bulk sync failed. Please try again.');
+    }
+}
+
+// Import all evaluations from GitHub (for current user) and sync to Supabase
+async function syncAllFromGitHubToSupabase() {
+    try {
+        const userEmail = (currentProfile && currentProfile.rsEmail) || '';
+        if (!userEmail) {
+            alert('No logged-in user detected. Please login first.');
+            return;
+        }
+        if (!navigator.onLine) {
+            showToast('Offline: connect to the internet to sync.', 'warning');
+            return;
+        }
+
+        // Initialize GitHub service with token
+        let token = null;
+        try { token = await githubService.getTokenFromEnvironment?.(); } catch (_) {}
+        if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
+            token = window.GITHUB_CONFIG.token;
+        }
+        if (!token) {
+            showToast('GitHub token not available. Cannot import.', 'warning');
+            return;
+        }
+        githubService.initialize(token);
+        const connected = await githubService.verifyConnection?.();
+        if (!connected) {
+            showToast('GitHub connection failed. Cannot import.', 'warning');
+            return;
+        }
+
+        // Load remote evaluations
+        let remoteEvaluations = [];
+        try { remoteEvaluations = await githubService.loadUserEvaluations(userEmail); } catch (e) {
+            console.error('Load remote evaluations failed:', e);
+            remoteEvaluations = [];
+        }
+        if (!Array.isArray(remoteEvaluations) || remoteEvaluations.length === 0) {
+            showToast('No remote evaluations found to import.', 'info');
+            return;
+        }
+
+        // Merge with local and persist locally before syncing
+        const merged = mergeEvaluations(profileEvaluations || [], remoteEvaluations);
+        profileEvaluations = merged;
+        const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
+        saveEvaluationsToLocal(profileKey, profileEvaluations);
+        renderEvaluationsList();
+
+        // Bulk sync to Supabase using backend
+        const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
+        const base = window.API_BASE_URL || location.origin;
+        const url = new URL(endpoint, base).toString();
+        const headers = { 'Content-Type': 'application/json' };
+        try {
+            const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+        } catch (_) {}
+        try {
+            const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+            if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+        } catch (_) {}
+
+        let success = 0, failure = 0;
+        const delay = (ms) => new Promise(r => setTimeout(r, ms));
+        for (let i = 0; i < profileEvaluations.length; i++) {
+            const ev = profileEvaluations[i];
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST', headers, credentials: 'include',
+                    body: JSON.stringify({ evaluation: ev, userEmail })
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || !data?.ok) { failure++; console.warn('Supabase sync failed:', data); }
+                else { success++; ev.syncStatus = 'synced'; }
+            } catch (e) { failure++; console.error('Supabase sync exception:', e); }
+            // Throttle to avoid server rate limits
+            await delay(250);
+        }
+
+        saveEvaluationsToLocal(profileKey, profileEvaluations);
+        renderEvaluationsList();
+        const msg = `Imported ${remoteEvaluations.length} from GitHub • Synced: ${success}${failure ? `, Failed: ${failure}` : ''}`;
+        showToast(msg, failure ? 'warning' : 'success');
+    } catch (err) {
+        console.error('Import GitHub → Supabase error:', err);
+        alert('Import and sync failed. Please try again.');
     }
 }
 
@@ -1701,7 +1952,7 @@ function openPendingSyncModal(nextAction) {
         } else {
             modal.style.display = 'block';
             modal.classList.add('active');
-            try { if (window.A11y && typeof window.A11y.openDialog === 'function') window.A11y.openDialog(modal, { labelledBy: 'pendingSyncTitle' }); } catch(_){}
+            try { if (window.A11y && typeof window.A11y.openDialog === 'function') window.A11y.openDialog(modal, { labelledBy: 'pendingSyncTitle' }); } catch (_) { }
         }
     } catch (_) {
         modal.style.display = 'block';
@@ -1716,7 +1967,7 @@ function closePendingSyncModal() {
         if (window.ModalController && typeof window.ModalController.closeById === 'function') {
             window.ModalController.closeById('pendingSyncModal');
         } else {
-            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch(_){}
+            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch (_) { }
             modal.classList.remove('active');
             modal.style.display = 'none';
         }
@@ -1768,7 +2019,7 @@ function continueStartNewEvaluation() {
     }
 
     // Restore app chrome hidden by the dashboard; ensure login/home classes are cleared
-    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
+    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) { }
     // Restore app chrome hidden by the dashboard
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
@@ -1814,16 +2065,36 @@ function continueStartNewEvaluation() {
 }
 
 function deleteEvaluation(evalId) {
-    if (!confirm('Delete this evaluation? This cannot be undone.')) {
-        return;
-    }
-
-    profileEvaluations = profileEvaluations.filter(e => e.evaluationId !== evalId);
-
-    const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
-    saveEvaluationsToLocal(profileKey, profileEvaluations);
-
-    renderEvaluationsList();
+  if (!confirm('Delete this evaluation? This cannot be undone.')) {
+    return;
+  }
+  try {
+    const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_DELETE_PREFIX) || '/api/evaluation/';
+    const url = new URL(endpoint + encodeURIComponent(evalId), window.API_BASE_URL || location.origin).toString();
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+      const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+    } catch (_) {}
+    const creds = 'include';
+    fetch(url, { method: 'DELETE', headers, credentials: creds })
+      .then(async (resp) => {
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(data?.error || `Delete failed (${resp.status})`);
+        }
+        profileEvaluations = profileEvaluations.filter(e => e.evaluationId !== evalId);
+        const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
+        saveEvaluationsToLocal(profileKey, profileEvaluations);
+        renderEvaluationsList();
+      })
+      .catch((err) => {
+        console.error('Delete evaluation error:', err);
+        alert('Failed to delete evaluation on server. Your local list may be out of sync.');
+      });
+  } catch (e) {
+    console.error('Delete evaluation exception:', e);
+  }
 }
 
 function exportEvaluation(evalId) {
@@ -1881,7 +2152,7 @@ function exportEvaluation(evalId) {
     if (typeof doc.autoTable === 'function') {
         doc.autoTable({
             startY: y + 10,
-            head: [[ 'Section', 'Trait', 'Grade', 'Justification' ]],
+            head: [['Section', 'Trait', 'Grade', 'Justification']],
             body: rows,
             styles: { fontSize: 10, cellPadding: 4, overflow: 'linebreak' },
             columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 220 }, 2: { cellWidth: 60 }, 3: { cellWidth: 'auto' } }
@@ -1965,15 +2236,15 @@ function toggleSubMenu() {
             document.removeEventListener('click', manageMenuOutsideHandler, true);
             manageMenuOutsideHandler = null;
         }
-        try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
+        try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) { }
     } else {
         menu.classList.add('active');
         if (chevron) chevron.classList.add('rotated');
         if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
         // Focus first actionable item when opening
         const firstItem = menu.querySelector('button');
-        try { if (firstItem) firstItem.focus(); } catch (_) {}
-        try { if (window.A11y) A11y.announce('Manage data menu expanded'); } catch (_) {}
+        try { if (firstItem) firstItem.focus(); } catch (_) { }
+        try { if (window.A11y) A11y.announce('Manage data menu expanded'); } catch (_) { }
         manageMenuOutsideHandler = (e) => {
             const withinMenu = menu.contains(e.target);
             const withinToggle = toggleBtn && toggleBtn.contains(e.target);
@@ -1983,7 +2254,7 @@ function toggleSubMenu() {
                 if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
                 document.removeEventListener('click', manageMenuOutsideHandler, true);
                 manageMenuOutsideHandler = null;
-                try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) {}
+                try { if (window.A11y) A11y.announce('Manage data menu collapsed'); } catch (_) { }
             }
         };
         document.addEventListener('click', manageMenuOutsideHandler, true);
@@ -2038,9 +2309,9 @@ function initiateUpload() {
 
 function downloadTemplate() {
     const headers = [
-        'Marine','Rank','Occasion','Ending Date',
-        'Performance','Proficiency','Courage','Stress Tolerance','Initiative','Leading','Developing Others',
-        'Setting the Example','Well-Being/Health','Communication Skills','Professional Military Education','Decision Making','Judgement','Evals'
+        'Marine', 'Rank', 'Occasion', 'Ending Date',
+        'Performance', 'Proficiency', 'Courage', 'Stress Tolerance', 'Initiative', 'Leading', 'Developing Others',
+        'Setting the Example', 'Well-Being/Health', 'Communication Skills', 'Professional Military Education', 'Decision Making', 'Judgement', 'Evals'
     ];
     const csv = headers.map(h => `"${h}"`).join(',') + '\r\n';
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -2118,10 +2389,10 @@ function importEvaluationsFromRows(headers, rows) {
         Judgement: idx('Judgement'),
         Evals: idx('Evals')
     };
-    const requiredBase = ['marine','rank','endDate'];
+    const requiredBase = ['marine', 'rank', 'endDate'];
     requiredBase.forEach(k => { if (lookup[k] === -1) throw new Error(`Missing required column: ${k}`); });
 
-    const letterToNumber = { A:1, B:2, C:3, D:4, E:5, F:6, G:7 };
+    const letterToNumber = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7 };
     const traitToSection = {
         'Performance': 'Mission Accomplishment',
         'Proficiency': 'Mission Accomplishment',
@@ -2158,8 +2429,8 @@ function importEvaluationsFromRows(headers, rows) {
 
         const traitItems = [];
         const traitCols = [
-            'Performance','Proficiency','Courage','Stress Tolerance','Initiative','Leading','Developing Others',
-            'Setting the Example','Well-Being/Health','Communication Skills','Professional Military Education','Decision Making','Judgement','Evals'
+            'Performance', 'Proficiency', 'Courage', 'Stress Tolerance', 'Initiative', 'Leading', 'Developing Others',
+            'Setting the Example', 'Well-Being/Health', 'Communication Skills', 'Professional Military Education', 'Decision Making', 'Judgement', 'Evals'
         ];
         traitCols.forEach(tc => {
             const letter = getVal(lookup[tc]);
@@ -2178,7 +2449,7 @@ function importEvaluationsFromRows(headers, rows) {
             });
         });
 
-        const evaluationId = `bulk-${new Date().toISOString().slice(0,10)}-${Date.now()}-${i}`;
+        const evaluationId = `bulk-${new Date().toISOString().slice(0, 10)}-${Date.now()}-${i}`;
         const evaluation = {
             evaluationId,
             rsInfo: {
@@ -2195,7 +2466,7 @@ function importEvaluationsFromRows(headers, rows) {
             completedDate: new Date().toISOString(),
             fitrepAverage: (() => {
                 const nums = traitItems.map(t => t.gradeNumber);
-                return nums.length ? (nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(2) : '0';
+                return nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '0';
             })(),
             traitEvaluations: traitItems,
             sectionIComments: '',
@@ -2225,7 +2496,7 @@ function continueLogoutProfile() {
             if (window.ModalController && typeof window.ModalController.closeAll === 'function') {
                 window.ModalController.closeAll();
             } else {
-                document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch(_) {} });
+                document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch (_) { } });
                 document.body.classList.remove('sa-modal-open');
                 document.body.style.position = '';
                 document.body.style.top = '';
@@ -2241,11 +2512,11 @@ function continueLogoutProfile() {
             const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : window.location.origin;
             const LOGOUT_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_LOGOUT) || '/api/account/logout';
             const endpoint = new URL(LOGOUT_ROUTE, base).toString();
-            fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+            fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => { });
         } catch (_) { /* ignore */ }
         currentProfile = null;
         profileEvaluations = [];
-        
+
         // Clear session snapshot and login flags
         localStorage.removeItem('current_profile');
         localStorage.removeItem('current_evaluations');
@@ -2255,15 +2526,15 @@ function continueLogoutProfile() {
         try {
             sessionStorage.removeItem('login_source');
             sessionStorage.removeItem('fitrep_csrf_token');
-        } catch (_) {}
-        
+        } catch (_) { }
+
         // Hide dashboard
         const dash = document.getElementById('profileDashboardCard');
         if (dash) {
             dash.classList.remove('active');
             dash.style.display = 'none';
         }
-        
+
         // Route back to the main Mode Selection home page
         const header = document.querySelector('.header');
         const warning = document.getElementById('dataWarning');
@@ -2273,7 +2544,7 @@ function continueLogoutProfile() {
         try {
             document.body.classList.remove('auth-login');
             document.body.classList.add('home-mode');
-        } catch (_) {}
+        } catch (_) { }
         // Restore app chrome
         if (header) header.style.display = '';
         if (warning) warning.style.display = '';
@@ -2300,9 +2571,9 @@ function continueLogoutProfile() {
         // Show the welcome Mode Selection card via centralized exclusive toggle
         try {
             if (window.UIStates && typeof window.UIStates.toggleExclusive === 'function') {
-                window.UIStates.toggleExclusive('modeSelectionCard','profileLoginCard');
+                window.UIStates.toggleExclusive('modeSelectionCard', 'profileLoginCard');
             }
-        } catch (_) {}
+        } catch (_) { }
         if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
 
         window.scrollTo({ top: 0, behavior: 'auto' });
@@ -2474,7 +2745,7 @@ function renderRankSummary(evals) {
         pill('Low', fmt(low), '#c62828'),
         pill('# Rpts', rpts, '#6a1b9a')
     ].join(' ');
-    
+
     const setText = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.textContent = val;
@@ -2539,7 +2810,7 @@ function renderRankSummaryFromDom() {
         pill('Low', fmt(low), '#c62828'),
         pill('# Rpts', rpts, '#6a1b9a')
     ].join(' ');
-    
+
     const setText = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.textContent = val;
@@ -2549,7 +2820,7 @@ function renderRankSummaryFromDom() {
     setText('rankAvgVal', avg.toFixed(2));
     setText('rankLowVal', low.toFixed(2));
     setText('rankRptsVal', rpts);
-    
+
     // Also update alternative element IDs if they exist
     const highEl = document.getElementById('rankHighValue');
     const avgEl = document.getElementById('rankAvgValue');
@@ -2583,13 +2854,13 @@ function showProfileDashboardOnLoad() {
         if (modeCard) {
             modeCard.classList.add('active');
             modeCard.style.display = 'block';
-            try { document.body.classList.add('home-mode'); } catch (_) {}
+            try { document.body.classList.add('home-mode'); } catch (_) { }
         }
         loginCard.classList.remove('active');
         loginCard.style.display = 'none';
         dashboardCard.classList.remove('active');
         dashboardCard.style.display = 'none';
-        
+
         const setupCard = document.getElementById('setupCard');
         if (setupCard) {
             setupCard.classList.remove('active');
@@ -2746,19 +3017,13 @@ function mergeEvaluations(localEvaluations = [], remoteEvaluations = []) {
     const put = (ev) => {
         if (!ev) return;
         // Use a stronger composite key when evaluationId is missing to reduce collisions
-        const id = ev.evaluationId || `composite:${
-            (ev.marineInfo?.name || '').trim()
-        }|${
-            (ev.marineInfo?.rank || '').trim()
-        }|${
-            (ev.occasion || '').trim()
-        }|${
-            (ev.marineInfo?.evaluationPeriod?.from || '').slice(0,10)
-        }|${
-            (ev.marineInfo?.evaluationPeriod?.to || '').slice(0,10)
-        }|${
-            (ev.createdAt || ev.lastUpdated || ev.completedDate || '')
-        }`;
+        const id = ev.evaluationId || `composite:${(ev.marineInfo?.name || '').trim()
+            }|${(ev.marineInfo?.rank || '').trim()
+            }|${(ev.occasion || '').trim()
+            }|${(ev.marineInfo?.evaluationPeriod?.from || '').slice(0, 10)
+            }|${(ev.marineInfo?.evaluationPeriod?.to || '').slice(0, 10)
+            }|${(ev.createdAt || ev.lastUpdated || ev.completedDate || '')
+            }`;
         const prev = byId.get(id);
         const ts = new Date(ev.lastUpdated || ev.completedDate || 0).getTime();
         const prevTs = prev ? new Date(prev.lastUpdated || prev.completedDate || 0).getTime() : -1;
@@ -2810,7 +3075,7 @@ async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile,
         };
 
         // Step 2: migrate legacy embedded evaluations to per-file + index.json
-        try { await githubService.migrateLegacyProfileEvaluations?.(email); } catch (_) {}
+        try { await githubService.migrateLegacyProfileEvaluations?.(email); } catch (_) { }
 
         // Step 3: load evaluations index.json (lightweight summaries)
         let remoteIndex = null;
@@ -2852,7 +3117,7 @@ async function tryLoadRemoteProfile(email, name, rank, profileKey, localProfile,
         // Persist merged result locally for offline-first UX
         saveProfileToLocal(profileKey, mergedProfile);
         saveEvaluationsToLocal(profileKey, mergedEvaluations);
-        try { if (window.idbStore) { await window.idbStore.putIndex(email, mergedEvaluations); } } catch (_) {}
+        try { if (window.idbStore) { await window.idbStore.putIndex(email, mergedEvaluations); } } catch (_) { }
 
         return { profile: mergedProfile, evaluations: mergedEvaluations };
     } catch (error) {
@@ -2867,19 +3132,19 @@ function updateDashboardFiltersVisibility() {
     const gridBtn = document.getElementById('gridViewBtn');
     const rankBar = document.getElementById('rankFilterBar');
     const shouldShow = !!selectedRankFilter;
-    
+
     // Always show filters for the RS Summary list
     if (filters) {
         filters.style.display = '';
     }
-    
+
     // RS Summary View button is hidden until a rank is selected
     if (gridBtn) {
         gridBtn.disabled = !shouldShow;
         gridBtn.style.display = shouldShow ? '' : 'none';
         gridBtn.textContent = '📊 RS Summary View';
     }
-    
+
     // Hide legacy rank filter bar (we use summary Grade buttons now)
     if (rankBar) {
         rankBar.style.display = 'none';
@@ -3101,7 +3366,7 @@ function renderProfileGrid() {
         const expandIcon = document.createElement('span');
         expandIcon.className = 'expand-icon';
         expandIcon.textContent = '▼';
-        expandIcon.onclick = function() { toggleGridDetails(this); };
+        expandIcon.onclick = function () { toggleGridDetails(this); };
 
         actionsCell.appendChild(syncStatus);
         actionsCell.appendChild(deleteBtn);
@@ -3305,10 +3570,10 @@ function exportProfileGridCsv() {
     });
 
     const headers = [
-        'Rank','Marine','Occasion','Ending Date',
-        'Performance','Proficiency','Courage','Stress Tolerance','Initiative','Leading','Developing Others',
-        'Setting the Example','Well-Being/Health','Communication Skills','PME','Decision Making','Judgement','Evals',
-        'Avg','RV','Cum RV'
+        'Rank', 'Marine', 'Occasion', 'Ending Date',
+        'Performance', 'Proficiency', 'Courage', 'Stress Tolerance', 'Initiative', 'Leading', 'Developing Others',
+        'Setting the Example', 'Well-Being/Health', 'Communication Skills', 'PME', 'Decision Making', 'Judgement', 'Evals',
+        'Avg', 'RV', 'Cum RV'
     ];
 
     const rows = evals.map((e, i) => {
@@ -3448,7 +3713,7 @@ function showProfileDashboardOnLoad() {
         loginCard.style.display = 'none';
         dashboardCard.classList.remove('active');
         dashboardCard.style.display = 'none';
-        
+
         const setupCard = document.getElementById('setupCard');
         if (setupCard) {
             setupCard.classList.remove('active');
@@ -3540,43 +3805,27 @@ function mergeProfiles(local, remote) {
 async function syncEvaluationToGitHub(evaluation) {
     try {
         const userEmail = (currentProfile && currentProfile.rsEmail) || (evaluation?.rsInfo?.email) || '';
-        if (!userEmail || userEmail === 'offline@local') {
-            console.warn('GitHub sync skipped: no valid user email');
-            return false;
-        }
-
-        let token = null;
+        if (!userEmail || userEmail === 'offline@local') return false;
+        const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
+        const base = window.API_BASE_URL || location.origin;
+        const url = new URL(endpoint, base).toString();
+        const headers = { 'Content-Type': 'application/json' };
         try {
-            token = await githubService.getTokenFromEnvironment?.();
-        } catch (e) {
-            console.warn('Token retrieval failed:', e);
-        }
-        if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
-            token = window.GITHUB_CONFIG.token;
-        }
-        // Initialize service only when token is available; otherwise rely on backend fallback
-        if (token) {
-            githubService.initialize(token);
-            const connected = await githubService.verifyConnection?.();
-            if (!connected) {
-                console.warn('GitHub connection failed; proceeding with backend fallback if available');
-            }
-        } else {
-            console.warn('No token available; attempting backend fallback for evaluation save');
-        }
-
-        const result = await githubService.saveEvaluation(evaluation, userEmail);
-        if (result?.success) {
-            evaluation.syncStatus = 'synced';
-            console.log('Evaluation synced to GitHub:', result.message);
-            return true;
-        }
-
+            const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+        } catch (_) {}
+        try {
+            const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+            if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+        } catch (_) {}
+        const resp = await fetch(url, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ evaluation, userEmail }) });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data?.ok) { evaluation.syncStatus = 'synced'; return true; }
         evaluation.syncStatus = 'error';
-        console.error('GitHub sync failed:', result?.error || result);
+        console.error('Supabase sync failed:', data?.error || resp.statusText);
         return false;
     } catch (error) {
-        console.error('Error during GitHub sync:', error);
+        console.error('Error during Supabase sync:', error);
         return false;
     }
 }

@@ -1379,6 +1379,34 @@ class GitHubDataService {
      */
     async saveEvaluation(evaluation, userEmail) {
         try {
+            // Prefer backend Supabase route first
+            try {
+                const EVAL_SAVE_ROUTE = (typeof window !== 'undefined' && window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
+                const ep = this.resolveBackendEndpoint(EVAL_SAVE_ROUTE);
+                if (ep && !('blocked' in ep)) {
+                    const headers = { 'Content-Type': 'application/json' };
+                    try {
+                        const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('fitrep_csrf_token') : '');
+                        if (csrf) headers['X-CSRF-Token'] = csrf;
+                    } catch (_) {}
+                    try {
+                        const sessTok = (typeof sessionStorage !== 'undefined') ? (sessionStorage.getItem('fitrep_session_token') || '') : '';
+                        if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+                    } catch (_) {}
+                    const credentials = this.getFetchCredentials(ep.url);
+                    const resp = await fetch(ep.url, {
+                        method: 'POST', headers, credentials,
+                        body: JSON.stringify({ evaluation, userEmail })
+                    });
+                    const data = await resp.json().catch(() => ({}));
+                    if (resp.ok && data?.ok) {
+                        return { success: true, message: 'Evaluation saved via backend (Supabase)', backend: data };
+                    }
+                }
+            } catch (e) {
+                // Proceed to GitHub path on backend errors
+            }
+
             // Build minimal aggregate profile (no evaluations array)
             const userData = {
                 rsName: evaluation?.rsInfo?.name || '',

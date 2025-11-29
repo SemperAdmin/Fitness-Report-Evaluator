@@ -441,7 +441,7 @@ if (typeof githubService !== 'undefined') {
     window.githubServiceOriginal = window.githubService;
     window.githubService = window.cachedGithubService;
 
-    console.info('[Network Cache] GitHub Service wrapped with caching layer');
+    console.info('[Network Cache] Backend Service caching enabled');
 }
 
 // Expose for debugging

@@ -48,7 +48,26 @@ const {
  */
 async function saveEvaluationHandler(req, res) {
   try {
-    const evaluationData = req.body;
+    let evaluationData = req.body;
+    if (evaluationData && evaluationData.evaluation && evaluationData.userEmail) {
+      const ev = evaluationData.evaluation || {};
+      const userEmail = evaluationData.userEmail || '';
+      evaluationData = {
+        rsEmail: ev?.rsInfo?.email || userEmail,
+        rsName: ev?.rsInfo?.name || '',
+        rsRank: ev?.rsInfo?.rank || '',
+        evaluationId: ev?.evaluationId,
+        occasion: ev?.occasion,
+        completedDate: ev?.completedDate,
+        fitrepAverage: ev?.fitrepAverage,
+        marineInfo: ev?.marineInfo || {},
+        sectionIComments: ev?.sectionIComments || '',
+        traitEvaluations: Array.isArray(ev?.traitEvaluations) ? ev.traitEvaluations : [],
+        rsInfo: ev?.rsInfo || { email: userEmail, name: '', rank: '' },
+        savedAt: ev?.savedAt || new Date().toISOString(),
+        syncStatus: ev?.syncStatus || 'synced'
+      };
+    }
 
     // Validation
     if (!evaluationData || !evaluationData.evaluationId) {
@@ -60,7 +79,8 @@ async function saveEvaluationHandler(req, res) {
     }
 
     // Optional: Verify user owns this evaluation (based on session)
-    if (req.session?.rsEmail && req.session.rsEmail !== evaluationData.rsEmail) {
+    const sessionEmail = req.session?.rsEmail || req.sessionUser || '';
+    if (sessionEmail && sessionEmail !== evaluationData.rsEmail) {
       return res.status(403).json({
         error: 'Cannot save evaluation for another user',
       });
@@ -125,14 +145,15 @@ async function saveEvaluationSupabase(evaluationData, res) {
  */
 async function listEvaluationsHandler(req, res) {
   try {
-    const rsEmail = req.query.email || req.session?.rsEmail;
+    const rsEmail = req.query.email || req.session?.rsEmail || req.sessionUser;
 
     if (!rsEmail) {
       return res.status(400).json({ error: 'Email required' });
     }
 
     // Optional: Ensure user can only list their own evaluations
-    if (req.session?.rsEmail && req.session.rsEmail !== rsEmail) {
+    const sessionEmail = req.session?.rsEmail || req.sessionUser;
+    if (sessionEmail && sessionEmail !== rsEmail) {
       return res.status(403).json({
         error: 'Cannot list evaluations for another user',
       });
@@ -239,7 +260,8 @@ async function getEvaluationSupabase(evaluationId, req, res) {
     }
 
     // Optional: Verify user owns this evaluation
-    if (req.session?.rsEmail && req.session.rsEmail !== evaluation.rsEmail) {
+    const sessionEmail = req.session?.rsEmail || req.sessionUser;
+    if (sessionEmail && sessionEmail !== evaluation.rsEmail) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -294,7 +316,8 @@ async function deleteEvaluationSupabase(evaluationId, req, res) {
       return res.status(404).json({ error: 'Evaluation not found' });
     }
 
-    if (req.session?.rsEmail && req.session.rsEmail !== evaluation.rsEmail) {
+    const sessionEmailDel = req.session?.rsEmail || req.sessionUser;
+    if (sessionEmailDel && sessionEmailDel !== evaluation.rsEmail) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

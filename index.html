@@ -535,8 +535,17 @@
             <div class="profile-title">Create Account</div>
             <p class="profile-description">Create a secure profile. Your password will be stored hashed.</p>
             <div class="form-group">
+                <label class="form-label">Branch</label>
+                <select class="form-input" id="caBranchInput" onchange="populateRankSelect('caBranchInput', 'caRankInput')">
+                    <option value="">Select Branch...</option>
+                </select>
+                <div class="input-hint" id="caBranchHint" aria-live="polite"></div>
+            </div>
+            <div class="form-group">
                 <label class="form-label">Rank</label>
-                <input type="text" class="form-input" id="caRankInput" placeholder="e.g., Capt" minlength="2" maxlength="20">
+                <select class="form-input" id="caRankInput">
+                    <option value="">Select Rank...</option>
+                </select>
                 <div class="input-hint" id="caRankHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
@@ -640,15 +649,24 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <div id="subMenu" class="manage-submenu">
-                <button onclick="syncAllEvaluations()" class="sub-button sync-button w-full justify-start" aria-label="Sync evaluations to GitHub">
+                <div id="subMenu" class="manage-submenu">
+                <button onclick="syncAllToSupabase()" class="sub-button sync-button w-full justify-start" aria-label="Sync evaluations to Supabase">
                   <span class="btn__icon">
                     <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                       <path d="M20 12a8 8 0 10-15.5 2m-.5 4v-4h4"/>
                       <path d="M4 12a8 8 0 1015.5-2m.5-4v4h-4"/>
                     </svg>
                   </span>
-                  <span class="btn__text">Sync to GitHub</span>
+                  <span class="btn__text">Sync to Supabase</span>
+                </button>
+                <button onclick="syncAllFromGitHubToSupabase()" class="sub-button sync-button w-full justify-start" aria-label="Import from GitHub then sync to Supabase">
+                  <span class="btn__icon">
+                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                      <path d="M19 9l-7 7-7-7" />
+                      <path d="M12 4v16" />
+                    </svg>
+                  </span>
+                  <span class="btn__text">Import GitHub → Supabase</span>
                 </button>
                 <button onclick="initiateUpload()" class="sub-button upload-button w-full justify-start" aria-label="Upload CSV data">
                   <span class="btn__icon">
@@ -851,6 +869,7 @@
     <!-- Centralized constants: load early so subsequent modules can reference them -->
     <script src="js/constants.js"></script>
     <script src="js/data.js"></script>
+    <script src="js/militaryData.js"></script>
     <!-- Utils must load before githubService and profile for helper functions -->
     <script src="js/utils.js"></script>
     <script src="js/githubService.js"></script>
@@ -958,8 +977,17 @@
             </div>
 
             <div class="form-group">
+                <label class="form-label" for="editRsBranchInput">Branch</label>
+                <select class="form-input" id="editRsBranchInput" onchange="populateRankSelect('editRsBranchInput', 'editRsRankInput')">
+                    <option value="">Select Branch...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label" for="editRsRankInput">Rank</label>
-                <input type="text" class="form-input" id="editRsRankInput" placeholder="e.g., Capt, Maj" aria-label="Rank" data-rules="required|rankLabel">
+                <select class="form-input" id="editRsRankInput" data-rules="required|rankLabel">
+                    <option value="">Select Rank...</option>
+                </select>
             </div>
 
             <div class="modal-actions">

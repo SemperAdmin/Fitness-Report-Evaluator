@@ -16,9 +16,10 @@ require('dotenv').config();
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 
 // Check if Supabase is configured
-const isSupabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+const isSupabaseConfigured = !!(SUPABASE_URL && (SUPABASE_ANON_KEY || SUPABASE_SECRET_KEY));
 
 if (!isSupabaseConfigured) {
   console.warn('⚠️  Supabase not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in .env');
@@ -30,7 +31,7 @@ if (!isSupabaseConfigured) {
  * Use this for client-initiated requests where RLS policies apply
  */
 const supabase = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  ? createClient(SUPABASE_URL, (SUPABASE_ANON_KEY || SUPABASE_SECRET_KEY), {
       auth: {
         autoRefreshToken: true,
         persistSession: false, // Server-side, don't persist
@@ -44,8 +45,8 @@ const supabase = isSupabaseConfigured
  * Use this for server-side operations that need elevated privileges
  * IMPORTANT: Never expose this client to the frontend!
  */
-const supabaseAdmin = isSupabaseConfigured && SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+const supabaseAdmin = isSupabaseConfigured && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SECRET_KEY)
+  ? createClient(SUPABASE_URL, (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SECRET_KEY), {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
