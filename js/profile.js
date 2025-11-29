@@ -863,7 +863,7 @@ function renderProfileHeader() {
             return map[rank] || '';
         })(rankNorm);
         if (imgSrc) {
-            nameEl.innerHTML = `<img src="${imgSrc}" alt="${rankDisplay} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${rankDisplay} ${currentProfile.rsName}`;
+            nameEl.innerHTML = `<img src="${imgSrc}" alt="${escapeHtml(rankDisplay)} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${escapeHtml(rankDisplay)} ${escapeHtml(currentProfile.rsName)}`;
         } else {
             nameEl.textContent = `${rankDisplay} ${currentProfile.rsName}`;
         }

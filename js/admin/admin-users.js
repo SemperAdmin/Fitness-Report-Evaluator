@@ -263,7 +263,8 @@ window.AdminUsers = (function() {
     if (drawerEvalCount) drawerEvalCount.textContent = Number.isFinite(user.evalCount) ? String(user.evalCount) : '—';
     // Reset recent activity list
     if (recentActivityList) {
-      recentActivityList.innerHTML = '<li style="color:#9aa7b8">Loading…</li>';
+      const items = Array.from({ length: 3 }).map(() => '<li><div class="skeleton skeleton-text" style="width:60%;margin:6px 0"></div><div class="skeleton skeleton-text" style="width:40%"></div></li>').join('');
+      recentActivityList.innerHTML = items;
     }
     // Show drawer
     drawerEl.style.display = 'block';

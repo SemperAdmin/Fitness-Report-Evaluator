@@ -115,8 +115,27 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     min-height: 100vh;
-    color: #333;
+  color: #333;
 }
+
+/* Skeleton loader styles */
+.skeleton {
+    position: relative;
+    background: #e5e7eb;
+    overflow: hidden;
+    border-radius: 6px;
+}
+.skeleton::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -40%;
+    width: 40%; height: 100%;
+    background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.6), rgba(255,255,255,0));
+    animation: shimmer 1.2s infinite;
+}
+.skeleton-text { height: 14px; }
+.skeleton-block { height: 48px; }
+@keyframes shimmer { 100% { left: 100%; } }
 
 /* Readonly form display (matches form-input alignment) */
 .form-static {
