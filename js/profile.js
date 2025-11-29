@@ -302,13 +302,37 @@ async function accountLogin() {
             full_name: user.full_name || res.rsName,
             email: user.email || email,
             rank: user.rank || res.rsRank,
-            branch: user.branch || 'USMC', // Default to USMC if not present
-            // Legacy fields
+            branch: user.branch || 'USMC',
             rsName: user.full_name || res.rsName,
             rsEmail: user.email || email,
             rsRank: user.rank || res.rsRank,
             lastUpdated: new Date().toISOString()
         };
+
+        // Prefer contactEmail from server user file if available
+        try {
+            const USER_LOAD_ROUTE = (window.CONSTANTS?.ROUTES?.API?.USER_LOAD) || '/api/user/load';
+            const base = window.API_BASE_URL || location.origin;
+            const url = new URL(USER_LOAD_ROUTE, base);
+            url.searchParams.set('email', email);
+            const headers = {};
+            try {
+                const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+                if (csrf) headers['X-CSRF-Token'] = csrf;
+            } catch (_) {}
+            try {
+                const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+                if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+            } catch (_) {}
+            const resp = await fetch(url.toString(), { method: 'GET', headers, credentials: 'include' });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && data?.data && typeof data.data === 'object') {
+                const repoEmail = (data.data.contactEmail || '').trim();
+                if (repoEmail) baseProfile.email = repoEmail;
+            }
+        } catch (e) {
+            /* ignore load failures; fall back to existing baseProfile.email */
+        }
 
         // Store CSRF token from login response for cross-origin requests
         // (JavaScript cannot read cross-domain cookies via document.cookie)
@@ -1739,7 +1763,7 @@ async function syncAllEvaluations() {
         return;
     }
 
-    const pending = profileEvaluations.filter(e => e.syncStatus === 'pending');
+    const pending = profileEvaluations.filter(e => String(e.syncStatus || 'pending') !== 'synced');
 
     if (pending.length === 0) {
         showToast('All evaluations already synced.', 'info');
@@ -1877,7 +1901,7 @@ async function syncAllToSupabase() {
 // Pending sync guard helpers
 function hasPendingSyncs() {
     try {
-        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => e.syncStatus === 'pending');
+        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => String(e.syncStatus || 'pending') !== 'synced');
     } catch (_) {
         return false;
     }
@@ -1888,7 +1912,7 @@ function openPendingSyncModal(nextAction) {
     const countEl = document.getElementById('pendingSyncCount');
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (!modal) return;
-    const count = (window.profileEvaluations || []).filter(e => e.syncStatus === 'pending').length;
+    const count = (window.profileEvaluations || []).filter(e => String(e.syncStatus || 'pending') !== 'synced').length;
     if (countEl) countEl.textContent = String(count);
     if (nextEl) nextEl.value = nextAction || '';
     try {
