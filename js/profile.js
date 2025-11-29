@@ -1786,7 +1786,7 @@ async function syncAllEvaluations() {
 
     if (btn) {
         btn.disabled = false;
-        btn.textContent = '🔄 Sync to GitHub';
+        btn.textContent = '🔄 Sync Data';
     }
 
     renderEvaluationsList();
