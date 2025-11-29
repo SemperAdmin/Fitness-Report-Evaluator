@@ -2249,15 +2249,17 @@ app.post('/api/admin/normalize-users', async (req, res) => {
         let obj = {};
         try { obj = JSON.parse(contentStr || '{}'); } catch (_) { obj = {}; }
         const username = String(it.name).replace(/\.json$/i, '');
+        const full_name = obj.full_name || obj.rsName || obj.name || '';
+        const rank = obj.rank || obj.rsRank || '';
         const normalized = {
           rsEmail: username,
-          rsName: obj.rsName || obj.full_name || obj.name || '',
-          rsRank: obj.rsRank || obj.rank || '',
+          rsName: full_name,
+          rsRank: rank,
           branch: obj.branch || 'USMC',
           contactEmail: obj.contactEmail || '',
           username,
-          full_name: obj.full_name || obj.rsName || obj.name || '',
-          rank: obj.rank || obj.rsRank || '',
+          full_name,
+          rank,
           createdDate: obj.createdDate || now,
           lastUpdated: now
         };
