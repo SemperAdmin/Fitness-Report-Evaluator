@@ -1283,6 +1283,7 @@ function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEval
     rsEmail: userEmail,
     rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
     rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
+    branch: evaluation?.rsInfo?.branch ?? existingUser?.branch ?? 'USMC',
     contactEmail: evaluation?.rsInfo?.email ?? existingUser?.contactEmail ?? '',
     createdDate: existingUser?.createdDate || now,
     lastUpdated: now
@@ -2198,6 +2199,68 @@ app.get('/api/debug/github', (req, res) => {
       devTokenExposureEnabled: expose
     });
   } catch (err) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/admin/normalize-users', async (req, res) => {
+  try {
+    try {
+      const ip = (req.ip || '').replace('::ffff:', '');
+      const isLocal = ip === '127.0.0.1' || ip === '::1';
+      const adminHdr = String(req.headers['x-admin-op'] || '').toLowerCase();
+      if (!isLocal && adminHdr !== 'true') {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    } catch (_) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const token = process.env.FITREP_DATA || '';
+    if (!token) return res.status(501).json({ error: 'Missing FITREP_DATA token' });
+    const baseUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
+    const listResp = await fetch(baseUrl, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' } });
+    if (!listResp.ok) {
+      const t = await listResp.text();
+      return res.status(502).json({ error: `List failed: ${t}` });
+    }
+    const items = await listResp.json();
+    let updated = 0, skipped = 0, errors = 0;
+    const now = new Date().toISOString();
+    for (const it of items) {
+      try {
+        if (it.type !== 'file') { skipped++; continue; }
+        if (!/\.json$/i.test(it.name)) { skipped++; continue; }
+        if (it.path.includes('/')) { /* keep top-level user files only */ }
+        const getResp = await fetch(`https://api.github.com/repos/${DATA_REPO}/contents/${it.path}`, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' } });
+        if (!getResp.ok) { errors++; continue; }
+        const data = await getResp.json();
+        const contentStr = Buffer.from(data.content || '', 'base64').toString('utf8');
+        let obj = {};
+        try { obj = JSON.parse(contentStr || '{}'); } catch (_) { obj = {}; }
+        const username = String(it.name).replace(/\.json$/i, '');
+        const normalized = {
+          rsEmail: username,
+          rsName: obj.rsName || obj.full_name || obj.name || '',
+          rsRank: obj.rsRank || obj.rank || '',
+          branch: obj.branch || 'USMC',
+          contactEmail: obj.contactEmail || '',
+          createdDate: obj.createdDate || now,
+          lastUpdated: now
+        };
+        if (obj.passwordHash) normalized.passwordHash = obj.passwordHash;
+        const nextStr = JSON.stringify(normalized, null, 2);
+        if (nextStr === contentStr) { skipped++; continue; }
+        const putResp = await fetch(`https://api.github.com/repos/${DATA_REPO}/contents/${it.path}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: `Normalize user profile - ${now}`, content: Buffer.from(nextStr, 'utf8').toString('base64'), branch: 'main', sha: data.sha || undefined })
+        });
+        if (putResp.ok) updated++; else errors++;
+      } catch (_) { errors++; }
+    }
+    return res.json({ ok: true, updated, skipped, errors });
+  } catch (err) {
+    console.error('normalize users error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

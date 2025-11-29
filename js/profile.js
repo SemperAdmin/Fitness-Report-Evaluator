@@ -299,12 +299,12 @@ async function accountLogin() {
 
         const user = res.user || {};
         const baseProfile = res.profile || {
-            full_name: user.full_name || res.rsName,
-            email: user.email || email,
+            full_name: user.name || user.full_name || res.rsName,
+            email: user.contactEmail || user.email || '',
             rank: user.rank || res.rsRank,
             branch: user.branch || 'USMC',
-            rsName: user.full_name || res.rsName,
-            rsEmail: user.email || email,
+            rsName: user.name || user.full_name || res.rsName,
+            rsEmail: user.username || email,
             rsRank: user.rank || res.rsRank,
             lastUpdated: new Date().toISOString()
         };
@@ -1203,8 +1203,8 @@ async function saveProfileUpdates() {
                             rsName: currentProfile.rsName,
                             rsEmail: currentProfile.rsEmail,
                             rsRank: currentProfile.rsRank,
+                            branch: currentProfile.branch,
                             contactEmail: currentProfile.email,
-                            // Provide previousEmail so server can migrate passwordHash
                             ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
                         });
                         if (result?.success) {
@@ -1234,6 +1234,7 @@ async function saveProfileUpdates() {
                         rsName: currentProfile.rsName,
                         rsEmail: currentProfile.rsEmail,
                         rsRank: currentProfile.rsRank,
+                        branch: currentProfile.branch,
                         contactEmail: currentProfile.email,
                         ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
                     });

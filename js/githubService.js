@@ -1140,6 +1140,7 @@ class GitHubDataService {
                 rsName: userData?.rsName || '',
                 rsEmail: userData?.rsEmail || '',
                 rsRank: userData?.rsRank || '',
+                branch: userData?.branch || '',
                 contactEmail: userData?.contactEmail || '',
                 ...(userData?.previousEmail ? { previousEmail: userData.previousEmail } : {})
             };
@@ -1259,6 +1260,8 @@ class GitHubDataService {
                 rsEmail: normalized.rsEmail,
                 rsName: normalized.rsName ?? (existingUser?.rsName || ''),
                 rsRank: normalized.rsRank ?? (existingUser?.rsRank || ''),
+                branch: normalized.branch ?? (existingUser?.branch || 'USMC'),
+                contactEmail: normalized.contactEmail ?? (existingUser?.contactEmail || ''),
                 createdDate: existingUser?.createdDate || now,
                 lastUpdated: now
             };
@@ -1419,7 +1422,8 @@ class GitHubDataService {
             const userData = {
                 rsName: evaluation?.rsInfo?.name || '',
                 rsEmail: userEmail,
-                rsRank: evaluation?.rsInfo?.rank || ''
+                rsRank: evaluation?.rsInfo?.rank || '',
+                branch: evaluation?.rsInfo?.branch || ''
             };
 
             // Save updated aggregate user file (metadata only)
