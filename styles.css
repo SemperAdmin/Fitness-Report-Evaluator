@@ -3724,3 +3724,13 @@ body.sa-modal-open {
     transform: none !important;
   }
 }
+#rankSummaryBar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+#rankSummaryBar span{
+    display:inline-flex;
+    align-items:center;
+    line-height:1;
+}

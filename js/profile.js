@@ -1922,6 +1922,11 @@ function closePendingSyncModal() {
     }
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (nextEl) nextEl.value = '';
+    try {
+        document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch (_) { } });
+        document.body.classList.remove('sa-modal-open');
+        document.body.style.overflow = '';
+    } catch (_) { }
 }
 
 async function handlePendingSyncConfirm() {
@@ -2538,6 +2543,13 @@ function continueLogoutProfile() {
         const createSection = document.getElementById('createAccountSection');
         if (createSection) { createSection.style.display = 'none'; }
         if (typewriter) { typewriter.style.display = 'none'; }
+
+        // Final safety: remove any lingering modal backdrops
+        try {
+            document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch (_) { } });
+            document.body.classList.remove('sa-modal-open');
+            document.body.style.overflow = '';
+        } catch (_) { }
 
         window.scrollTo({ top: 0, behavior: 'auto' });
     }

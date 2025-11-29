@@ -72,6 +72,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Attach dynamic tooltips for grid headers with title attributes
+    try {
+        const attachGridTooltips = () => {
+            const headers = document.querySelectorAll('#profileGrid thead th[title]');
+            headers.forEach((th) => {
+                const text = th.getAttribute('title') || '';
+                if (!text) return;
+                th.addEventListener('mouseenter', (e) => showDynamicTooltip(e, text));
+                th.addEventListener('mouseleave', () => hideDynamicTooltip());
+                th.addEventListener('focus', (e) => showDynamicTooltip(e, text));
+                th.addEventListener('blur', () => hideDynamicTooltip());
+            });
+        };
+        attachGridTooltips();
+    } catch (_) {}
+
     // Dev-only dispatch removed; production UI should not expose workflow controls here
 });
 
@@ -214,6 +230,45 @@ function hideTooltip(tooltipId) {
         clearTimeout(__tooltipHideTimer);
         __tooltipHideTimer = null;
     }
+}
+
+// Dynamic tooltip utilities for elements with inline title text
+function showDynamicTooltip(event, text) {
+    try {
+        let tip = document.getElementById('gridTooltip');
+        if (!tip) {
+            tip = document.createElement('div');
+            tip.id = 'gridTooltip';
+            tip.className = 'tooltip-content';
+            document.body.appendChild(tip);
+        }
+        tip.textContent = text;
+        const target = event.currentTarget || event.target;
+        const rect = target.getBoundingClientRect();
+        const top = rect.bottom + 8;
+        const left = Math.max(8, Math.min(rect.left, window.innerWidth - 320));
+        tip.style.top = `${top}px`;
+        tip.style.left = `${left}px`;
+        tip.style.zIndex = '100000';
+        tip.classList.add('active');
+        tip.style.display = 'block';
+        if (__tooltipHideTimer) clearTimeout(__tooltipHideTimer);
+        __tooltipHideTimer = setTimeout(() => hideDynamicTooltip(), 5000);
+    } catch (_) {}
+}
+
+function hideDynamicTooltip() {
+    try {
+        const tip = document.getElementById('gridTooltip');
+        if (tip) {
+            tip.classList.remove('active');
+            tip.style.display = 'none';
+        }
+        if (__tooltipHideTimer) {
+            clearTimeout(__tooltipHideTimer);
+            __tooltipHideTimer = null;
+        }
+    } catch (_) {}
 }
 
 // Backward-compat alias for legacy/cached markup
