@@ -792,6 +792,29 @@ function renderProfileHeader() {
 
     if (nameEl && currentProfile) {
         const rankNorm = normalizeRankLabel(currentProfile.rsRank || '');
+        const rankDisplay = (function (code) {
+            const map = {
+                'SGT': 'Sgt',
+                'SSGT': 'SSgt',
+                'GYSGT': 'GySgt',
+                'MSGT': 'MSgt',
+                '1STSGT': '1stSgt',
+                'MGYSGT': 'MGySgt',
+                'SGTMAJ': 'SgtMaj',
+                'WO': 'WO1',
+                'CWO2': 'CWO2',
+                'CWO3': 'CWO3',
+                'CWO4': 'CWO4',
+                'CWO5': 'CWO5',
+                '2NDLT': '2ndLt',
+                '1STLT': '1stLt',
+                'CAPT': 'Capt',
+                'MAJ': 'Maj',
+                'LTCOL': 'LtCol',
+                'COL': 'Col'
+            };
+            return map[code] || (currentProfile.rsRank || '').trim();
+        })(rankNorm);
         const imgSrc = (function (rank) {
             const map = {
                 'SGT': 'assets/images/USMC_SGT.png',
@@ -816,9 +839,9 @@ function renderProfileHeader() {
             return map[rank] || '';
         })(rankNorm);
         if (imgSrc) {
-            nameEl.innerHTML = `<img src="${imgSrc}" alt="${rankNorm} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${rankNorm} ${currentProfile.rsName}`;
+            nameEl.innerHTML = `<img src="${imgSrc}" alt="${rankDisplay} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${rankDisplay} ${currentProfile.rsName}`;
         } else {
-            nameEl.textContent = `${currentProfile.rsRank} ${currentProfile.rsName}`;
+            nameEl.textContent = `${rankDisplay} ${currentProfile.rsName}`;
         }
     }
     if (emailEl && currentProfile) {
@@ -848,17 +871,20 @@ function openEditProfile() {
         const emailInput = document.getElementById('editRsEmailInput');
         const branchInput = document.getElementById('editRsBranchInput');
         const rankInput = document.getElementById('editRsRankInput');
+        const emailAddrInput = document.getElementById('editRsEmailAddrInput');
 
         console.debug('[Inputs] found', {
             nameFound: !!nameInput,
             emailFound: !!emailInput,
             branchFound: !!branchInput,
-            rankFound: !!rankInput
+            rankFound: !!rankInput,
+            emailAddrFound: !!emailAddrInput
         });
 
         if (currentProfile) {
             if (nameInput) nameInput.value = currentProfile.rsName || '';
             if (emailInput) emailInput.value = currentProfile.rsEmail || '';
+            if (emailAddrInput) emailAddrInput.value = (currentProfile.email || currentProfile.rsEmail || '');
 
             // Initialize branch and rank
             if (branchInput) {
@@ -872,6 +898,7 @@ function openEditProfile() {
 
         if (nameInput && currentProfile?.rsName) nameInput.value = currentProfile.rsName;
         if (emailInput && currentProfile?.rsEmail) emailInput.value = currentProfile.rsEmail;
+        if (emailAddrInput && (currentProfile?.email || currentProfile?.rsEmail)) emailAddrInput.value = (currentProfile.email || currentProfile.rsEmail);
         if (rankInput && currentProfile?.rsRank) rankInput.value = currentProfile.rsRank;
         console.info('[Prefill] applied from currentProfile', {
             name: currentProfile?.rsName,
@@ -1042,12 +1069,14 @@ async function saveProfileUpdates() {
         const emailInput = document.getElementById('editRsEmailInput');
         const branchInput = document.getElementById('editRsBranchInput');
         const rankInput = document.getElementById('editRsRankInput');
+        const emailAddrInput = document.getElementById('editRsEmailAddrInput');
         const statusText = document.getElementById('editStatusText');
 
         const newName = (nameInput?.value || '').trim();
         const newEmail = (emailInput?.value || '').trim();
         const newBranch = (branchInput?.value || '').trim();
         const newRank = (rankInput?.value || '').trim();
+        const newEmailAddr = (emailAddrInput?.value || '').trim();
         console.info('[Start] Inputs', { newName, newEmail, newBranch, newRank });
 
         // Final validation gate before submission
@@ -1104,6 +1133,7 @@ async function saveProfileUpdates() {
         currentProfile.branch = newBranch;
         currentProfile.full_name = newName;
         currentProfile.rank = newRank;
+        currentProfile.email = newEmailAddr;
         currentProfile.totalEvaluations = profileEvaluations.length;
         currentProfile.lastUpdated = new Date().toISOString();
         console.info('[Profile] Updated in-memory profile');
@@ -1149,6 +1179,7 @@ async function saveProfileUpdates() {
                             rsName: currentProfile.rsName,
                             rsEmail: currentProfile.rsEmail,
                             rsRank: currentProfile.rsRank,
+                            contactEmail: currentProfile.email,
                             // Provide previousEmail so server can migrate passwordHash
                             ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
                         });
@@ -1179,6 +1210,7 @@ async function saveProfileUpdates() {
                         rsName: currentProfile.rsName,
                         rsEmail: currentProfile.rsEmail,
                         rsRank: currentProfile.rsRank,
+                        contactEmail: currentProfile.email,
                         ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
                     });
                     if (result?.success) {
@@ -1840,94 +1872,7 @@ async function syncAllToSupabase() {
     }
 }
 
-// Import all evaluations from GitHub (for current user) and sync to Supabase
-async function syncAllFromGitHubToSupabase() {
-    try {
-        const userEmail = (currentProfile && currentProfile.rsEmail) || '';
-        if (!userEmail) {
-            alert('No logged-in user detected. Please login first.');
-            return;
-        }
-        if (!navigator.onLine) {
-            showToast('Offline: connect to the internet to sync.', 'warning');
-            return;
-        }
-
-        // Initialize GitHub service with token
-        let token = null;
-        try { token = await githubService.getTokenFromEnvironment?.(); } catch (_) {}
-        if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
-            token = window.GITHUB_CONFIG.token;
-        }
-        if (!token) {
-            showToast('GitHub token not available. Cannot import.', 'warning');
-            return;
-        }
-        githubService.initialize(token);
-        const connected = await githubService.verifyConnection?.();
-        if (!connected) {
-            showToast('GitHub connection failed. Cannot import.', 'warning');
-            return;
-        }
-
-        // Load remote evaluations
-        let remoteEvaluations = [];
-        try { remoteEvaluations = await githubService.loadUserEvaluations(userEmail); } catch (e) {
-            console.error('Load remote evaluations failed:', e);
-            remoteEvaluations = [];
-        }
-        if (!Array.isArray(remoteEvaluations) || remoteEvaluations.length === 0) {
-            showToast('No remote evaluations found to import.', 'info');
-            return;
-        }
-
-        // Merge with local and persist locally before syncing
-        const merged = mergeEvaluations(profileEvaluations || [], remoteEvaluations);
-        profileEvaluations = merged;
-        const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
-        saveEvaluationsToLocal(profileKey, profileEvaluations);
-        renderEvaluationsList();
-
-        // Bulk sync to Supabase using backend
-        const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
-        const base = window.API_BASE_URL || location.origin;
-        const url = new URL(endpoint, base).toString();
-        const headers = { 'Content-Type': 'application/json' };
-        try {
-            const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
-            if (csrf) headers['X-CSRF-Token'] = csrf;
-        } catch (_) {}
-        try {
-            const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
-            if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
-        } catch (_) {}
-
-        let success = 0, failure = 0;
-        const delay = (ms) => new Promise(r => setTimeout(r, ms));
-        for (let i = 0; i < profileEvaluations.length; i++) {
-            const ev = profileEvaluations[i];
-            try {
-                const resp = await fetch(url, {
-                    method: 'POST', headers, credentials: 'include',
-                    body: JSON.stringify({ evaluation: ev, userEmail })
-                });
-                const data = await resp.json().catch(() => ({}));
-                if (!resp.ok || !data?.ok) { failure++; console.warn('Supabase sync failed:', data); }
-                else { success++; ev.syncStatus = 'synced'; }
-            } catch (e) { failure++; console.error('Supabase sync exception:', e); }
-            // Throttle to avoid server rate limits
-            await delay(250);
-        }
-
-        saveEvaluationsToLocal(profileKey, profileEvaluations);
-        renderEvaluationsList();
-        const msg = `Imported ${remoteEvaluations.length} from GitHub • Synced: ${success}${failure ? `, Failed: ${failure}` : ''}`;
-        showToast(msg, failure ? 'warning' : 'success');
-    } catch (err) {
-        console.error('Import GitHub → Supabase error:', err);
-        alert('Import and sync failed. Please try again.');
-    }
-}
+// Removed: syncAllFromGitHubToSupabase (Supabase integration disabled)
 
 // Pending sync guard helpers
 function hasPendingSyncs() {

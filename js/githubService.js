@@ -1140,6 +1140,7 @@ class GitHubDataService {
                 rsName: userData?.rsName || '',
                 rsEmail: userData?.rsEmail || '',
                 rsRank: userData?.rsRank || '',
+                contactEmail: userData?.contactEmail || '',
                 ...(userData?.previousEmail ? { previousEmail: userData.previousEmail } : {})
             };
         })();
@@ -1165,6 +1166,13 @@ class GitHubDataService {
                 } else {
                     debugWarn('[csrf] No CSRF token available for saveUserData');
                 }
+                try {
+                    const sessTok = (typeof sessionStorage !== 'undefined') ? (sessionStorage.getItem('fitrep_session_token') || '') : '';
+                    if (sessTok) {
+                        headers['Authorization'] = `Bearer ${sessTok}`;
+                        debugLog('[auth] Set Authorization Bearer for saveUserData');
+                    }
+                } catch (_) { /* ignore */ }
                 let assembledToken = null;
                 try {
                     if (typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {

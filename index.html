@@ -462,12 +462,7 @@
     </div>
 
     <!-- Fix the bottom link markup -->
-    <div style="display: flex; justify-content: center; margin: 20px 0; padding: 15px;">
-        <p style="font-size: 0.9rem; color: #ffffff; text-align: center; background: rgba(255, 255, 255, 0.1); padding: 10px 20px; border-radius: 8px; backdrop-filter: blur(10px);">
-          Follow Semper Admin on all platforms:
-          <a href="https://linktr.ee/semperadmin" target="_blank" style="color: #fbbf24; text-decoration: underline; font-weight: 600;">https://linktr.ee/semperadmin</a>
-        </p>
-    </div>
+    <!-- Social banner moved into breadcrumb; remove bottom banner to prevent duplication -->
 
     <!-- Place Profile cards INSIDE the body, above scripts -->
     <!-- Mode Selection Card: show first -->
@@ -583,8 +578,10 @@
                 <span class="breadcrumb-icon">📊</span>
                 <span class="breadcrumb-text">Dashboard</span>
             </button>
-            <span class="breadcrumb-separator" id="breadcrumbSeparator" style="display: none;">›</span>
-            <span class="breadcrumb-current" id="breadcrumbCurrent" style="display: none;"></span>
+            <p id="socialBanner" class="breadcrumb-banner">
+              Follow Semper Admin:
+              <a href="https://linktr.ee/semperadmin" target="_blank">linktr.ee/semperadmin</a>
+            </p>
             <button class="Btn" id="logoutBtn" data-tooltip="Logout and return to home" data-tooltip-delay="250" data-tooltip-hide-delay="100" data-tooltip-max-width="240" data-tooltip-pos="auto">
                 <div class="sign"><svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg></div>
                 <div class="text">Logout</div>
@@ -658,15 +655,6 @@
                     </svg>
                   </span>
                   <span class="btn__text">Sync to Supabase</span>
-                </button>
-                <button onclick="syncAllFromGitHubToSupabase()" class="sub-button sync-button w-full justify-start" aria-label="Import from GitHub then sync to Supabase">
-                  <span class="btn__icon">
-                    <svg stroke-linejoin="round" stroke-linecap="round" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" height="24" width="24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-                      <path d="M19 9l-7 7-7-7" />
-                      <path d="M12 4v16" />
-                    </svg>
-                  </span>
-                  <span class="btn__text">Import GitHub → Supabase</span>
                 </button>
                 <button onclick="initiateUpload()" class="sub-button upload-button w-full justify-start" aria-label="Upload CSV data">
                   <span class="btn__icon">
@@ -965,8 +953,17 @@
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closePendingSyncModal()">Cancel</button>
         <button class="btn btn-meets" onclick="handlePendingSyncConfirm()">🔄 Sync Now</button>
-      </div>
     </div>
+  </div>
+  <style>
+    .save-profile-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,0.5);backdrop-filter:saturate(120%) blur(4px)}
+    .save-profile-modal.active{display:flex}
+    .save-profile-content{width:100%;max-width:720px;max-height:80vh;overflow-y:auto;background:#ffffff;color:#111827;border-radius:12px;padding:20px;box-shadow:0 10px 24px rgba(0,0,0,0.25)}
+    @media (max-width:640px){.save-profile-content{max-width:95vw;padding:16px}}
+    .breadcrumb-nav{display:flex;align-items:center;gap:.75rem;justify-content:space-between}
+    .breadcrumb-banner{flex:1;text-align:center;margin:0;color:#111827;background:rgba(255,255,255,0.15);padding:.35rem .75rem;border-radius:8px}
+    .breadcrumb-banner a{color:#0f172a;text-decoration:underline;font-weight:600}
+  </style>
     <input type="hidden" id="pendingSyncNextAction" value="">
   </div>
 
@@ -974,6 +971,13 @@
                 <label class="form-label" for="editRsEmailInput">Username</label>
                 <input type="text" class="form-input" id="editRsEmailInput" placeholder="your-username" aria-label="Username" data-rules="username" disabled>
                 <small style="display:block; color:#666; margin-top:4px;">Username is permanent and cannot be changed.</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="editRsEmailAddrInput">Email</label>
+                <input type="email" class="form-input is-neutral" id="editRsEmailAddrInput" placeholder="you@example.mil" aria-label="Email" data-rules="email">
+                <div class="input-error" role="alert" aria-live="polite" id="editRsEmailAddrInputError"></div>
+                <small style="display:block; color:#666; margin-top:4px;">Email is stored with your profile.</small>
             </div>
 
             <div class="form-group">
