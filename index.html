@@ -89,7 +89,7 @@
             <div class="form-group">
                 <label class="form-label">
                     Occasion Type:
-                    <button type="button" class="info-icon" onclick="showTooltip(event, 'occasion-setup-tooltip')" title="What does Occasion mean?">ℹ️</button>
+                    <button type="button" class="info-icon" onclick="showTooltip(event, 'occasion-setup-tooltip')" onmouseenter="showTooltip(event, 'occasion-setup-tooltip')" onmouseleave="hideTooltip('occasion-setup-tooltip')" onfocus="showTooltip(event, 'occasion-setup-tooltip')" onblur="hideTooltip('occasion-setup-tooltip')" title="What does Occasion mean?">ℹ️</button>
                 </label>
                 <select class="setup-select" id="evaluationOccasionSetup" required aria-required="true">
                     <option value="">Select Occasion Type...</option>

@@ -1283,6 +1283,7 @@ function buildUpdatedUserAggregate(userEmail, evaluation, existingUser, _newEval
     rsEmail: userEmail,
     rsName: evaluation?.rsInfo?.name ?? existingUser?.rsName ?? '',
     rsRank: evaluation?.rsInfo?.rank ?? existingUser?.rsRank ?? '',
+    contactEmail: evaluation?.rsInfo?.email ?? existingUser?.contactEmail ?? '',
     createdDate: existingUser?.createdDate || now,
     lastUpdated: now
   };
@@ -1828,7 +1829,68 @@ app.get('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
   if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
     return getEvaluationHandler(req, res);
   }
-  return res.status(501).json({ error: 'Legacy storage mode - not implemented' });
+  try {
+    const { evaluationId } = req.params;
+    if (!evaluationId) return res.status(400).json({ error: 'Evaluation ID required' });
+    const email = String((req.query.email || req.query.rsEmail || req.sessionUser || '')).trim();
+    if (!email) return res.status(400).json({ error: 'Email required' });
+    try {
+      const reqUser = sanitizePrefix(email);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
+
+    const fitrepToken = process.env.FITREP_DATA || '';
+    const prefix = sanitizePrefix(email);
+    const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const filePath = `users/${prefix}/evaluations/${evalIdSafe}.json`;
+
+    if (fitrepToken) {
+      const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
+      const resp = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (resp.status === 404) return res.status(404).json({ error: 'Not found' });
+      if (!resp.ok) {
+        const text = await resp.text();
+        return res.status(502).json({ error: `Read failed: ${text}` });
+      }
+      const data = await resp.json();
+      const contentStr = Buffer.from(data.content || '', 'base64').toString('utf8');
+      const ext = String(filePath).split('.').pop().toLowerCase();
+      if (ext === 'json') {
+        try {
+          const obj = JSON.parse(contentStr);
+          return res.json(obj?.evaluation ? obj.evaluation : obj);
+        } catch (_) {
+          return res.status(500).json({ error: 'Parse failed' });
+        }
+      } else {
+        try {
+          const ev = parseEvaluationYamlMinimal(contentStr || '');
+          if (ev) return res.json(ev);
+        } catch (_) {}
+        return res.status(500).json({ error: 'Unsupported format' });
+      }
+    }
+
+    try {
+      const evalPath = path.join(LOCAL_DATA_DIR, prefix, 'evaluations', `${evalIdSafe}.json`);
+      const str = await fsp.readFile(evalPath, 'utf8');
+      const obj = JSON.parse(str);
+      return res.json(obj?.evaluation ? obj.evaluation : obj);
+    } catch (err) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  } catch (err) {
+    console.error('get evaluation error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Delete an evaluation - Supabase mode
@@ -1836,7 +1898,68 @@ app.delete('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
   if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
     return deleteEvaluationHandler(req, res);
   }
-  return res.status(501).json({ error: 'Legacy storage mode - not implemented' });
+  try {
+    const { evaluationId } = req.params;
+    if (!evaluationId) return res.status(400).json({ error: 'Evaluation ID required' });
+    const email = String((req.query.email || req.query.rsEmail || req.sessionUser || '')).trim();
+    if (!email) return res.status(400).json({ error: 'Email required' });
+    try {
+      const reqUser = sanitizePrefix(email);
+      const sessUser = sanitizePrefix(req.sessionUser || '');
+      if (!sessUser || reqUser !== sessUser) {
+        return res.status(403).json({ error: 'Forbidden: user mismatch' });
+      }
+    } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
+
+    const fitrepToken = process.env.FITREP_DATA || '';
+    const prefix = sanitizePrefix(email);
+    const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const filePath = `users/${prefix}/evaluations/${evalIdSafe}.json`;
+
+    if (fitrepToken) {
+      const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/${filePath}`;
+      const getResp = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (getResp.status === 404) return res.status(404).json({ error: 'Not found' });
+      if (!getResp.ok) {
+        const text = await getResp.text();
+        return res.status(502).json({ error: `Read failed: ${text}` });
+      }
+      const existing = await getResp.json();
+      const sha = existing.sha || '';
+      if (!sha) return res.status(500).json({ error: 'Missing SHA for delete' });
+      const now = new Date().toISOString();
+      const delResp = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${fitrepToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: `Delete evaluation ${evaluationId} - ${now}`, sha, branch: 'main' })
+      });
+      if (!delResp.ok) {
+        const text = await delResp.text();
+        return res.status(502).json({ error: `Delete failed: ${text}` });
+      }
+      return res.json({ ok: true, message: 'Evaluation deleted' });
+    }
+
+    try {
+      const evalPath = path.join(LOCAL_DATA_DIR, prefix, 'evaluations', `${evalIdSafe}.json`);
+      await fsp.unlink(evalPath);
+      return res.json({ ok: true, message: 'Evaluation deleted (local)' });
+    } catch (err) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  } catch (err) {
+    console.error('delete evaluation error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Load user data via server using FITREP_DATA
