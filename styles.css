@@ -2596,6 +2596,26 @@ body {
     font-weight: 500;
 }
 
+/* Breadcrumb social banner */
+.breadcrumb-banner{
+    flex:1;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.5rem;
+    padding:.35rem .75rem;
+    margin:0;
+    border-radius:999px;
+    background:rgba(255,255,255,0.25);
+    box-shadow:0 1px 3px rgba(0,0,0,0.08);
+    color:#111827;
+}
+.breadcrumb-banner a{color:#1e3c72;font-weight:600;text-decoration:underline}
+.breadcrumb-banner .banner-icon{font-size:14px;color:#2a5298}
+
+/* Even UI spacer under breadcrumb */
+.breadcrumb-even-spacer{height:12px}
+
 /* Profile System Styles */
 .profile-title {
     font-size: 24px;

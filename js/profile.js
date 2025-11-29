@@ -2015,11 +2015,20 @@ function deleteEvaluation(evalId) {
   }
   try {
     const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_DELETE_PREFIX) || '/api/evaluation/';
-    const url = new URL(endpoint + encodeURIComponent(evalId), window.API_BASE_URL || location.origin).toString();
+    const urlObj = new URL(endpoint + encodeURIComponent(evalId), window.API_BASE_URL || location.origin);
+    try {
+      const email = (window.currentProfile?.rsEmail || '').trim();
+      if (email) urlObj.searchParams.set('email', email);
+    } catch (_) {}
+    const url = urlObj.toString();
     const headers = { 'Content-Type': 'application/json' };
     try {
       const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
       if (csrf) headers['X-CSRF-Token'] = csrf;
+    } catch (_) {}
+    try {
+      const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+      if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
     } catch (_) {}
     const creds = 'include';
     fetch(url, { method: 'DELETE', headers, credentials: creds })
