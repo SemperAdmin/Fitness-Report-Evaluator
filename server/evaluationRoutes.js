@@ -69,6 +69,7 @@ async function saveEvaluationHandler(req, res) {
         fitrepAverage: ev?.fitrepAverage,
         marineInfo: ev?.marineInfo || {},
         sectionIComments: ev?.sectionIComments || '',
+        directedComments: ev?.directedComments || '',
         traitEvaluations: Array.isArray(ev?.traitEvaluations) ? ev.traitEvaluations : [],
         rsInfo: ev?.rsInfo || { email: userEmail, name: '', rank: '' },
         savedAt: ev?.savedAt || new Date().toISOString(),
@@ -127,28 +128,43 @@ async function saveEvaluationSupabase(evaluationData, res) {
     // After successful Supabase save, trigger GitHub workflow to save to private repo
     if (DISPATCH_TOKEN) {
       try {
+        // Destructure evaluation data for cleaner payload construction
+        const {
+          evaluationId,
+          occasion,
+          completedDate,
+          fitrepAverage,
+          marineInfo,
+          rsName,
+          rsEmail,
+          rsRank,
+          sectionIComments,
+          directedComments,
+          traitEvaluations,
+        } = evaluationData;
+
         const payload = {
           event_type: 'save-evaluation',
           client_payload: {
             evaluation: {
-              evaluationId: evaluationData.evaluationId,
-              occasion: evaluationData.occasion,
-              completedDate: evaluationData.completedDate,
-              fitrepAverage: evaluationData.fitrepAverage,
-              marineInfo: evaluationData.marineInfo,
+              evaluationId,
+              occasion,
+              completedDate,
+              fitrepAverage,
+              marineInfo,
               rsInfo: {
-                rsName: evaluationData.rsName,
-                rsEmail: evaluationData.rsEmail,
-                rsRank: evaluationData.rsRank,
+                rsName,
+                rsEmail,
+                rsRank,
               },
-              sectionIComments: evaluationData.sectionIComments,
-              directedComments: evaluationData.directedComments,
-              traitEvaluations: evaluationData.traitEvaluations,
+              sectionIComments,
+              directedComments,
+              traitEvaluations,
             },
             createdBy: {
-              name: evaluationData.rsName,
-              email: evaluationData.rsEmail,
-              rank: evaluationData.rsRank,
+              name: rsName,
+              email: rsEmail,
+              rank: rsRank,
             },
           },
         };
