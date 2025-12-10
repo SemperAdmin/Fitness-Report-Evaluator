@@ -8,6 +8,9 @@
  * - DELETE /api/evaluation/:id - Delete an evaluation
  */
 
+// Support node-fetch v3 in CommonJS via dynamic import wrapper
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
 const { getStorageMode, isSupabaseAvailable } = require('./supabaseClient');
 const {
   saveEvaluation,
@@ -16,6 +19,10 @@ const {
   getEvaluationById,
   deleteEvaluation,
 } = require('./supabaseService');
+
+// GitHub configuration for repository_dispatch
+const DISPATCH_TOKEN = process.env.DISPATCH_TOKEN;
+const MAIN_REPO = process.env.MAIN_REPO || 'SemperAdmin/Fitness-Report-Evaluator';
 
 // ============================================================================
 // SAVE EVALUATION
@@ -115,6 +122,60 @@ async function saveEvaluationSupabase(evaluationData, res) {
         error: 'Failed to save evaluation',
         details: error.message,
       });
+    }
+
+    // After successful Supabase save, trigger GitHub workflow to save to private repo
+    if (DISPATCH_TOKEN) {
+      try {
+        const payload = {
+          event_type: 'save-evaluation',
+          client_payload: {
+            evaluation: {
+              evaluationId: evaluationData.evaluationId,
+              occasion: evaluationData.occasion,
+              completedDate: evaluationData.completedDate,
+              fitrepAverage: evaluationData.fitrepAverage,
+              marineInfo: evaluationData.marineInfo,
+              rsInfo: {
+                rsName: evaluationData.rsName,
+                rsEmail: evaluationData.rsEmail,
+                rsRank: evaluationData.rsRank,
+              },
+              sectionIComments: evaluationData.sectionIComments,
+              directedComments: evaluationData.directedComments,
+              traitEvaluations: evaluationData.traitEvaluations,
+            },
+            createdBy: {
+              name: evaluationData.rsName,
+              email: evaluationData.rsEmail,
+              rank: evaluationData.rsRank,
+            },
+          },
+        };
+
+        const resp = await fetch(`https://api.github.com/repos/${MAIN_REPO}/dispatches`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${DISPATCH_TOKEN}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (resp.ok) {
+          console.log('✓ GitHub workflow triggered for evaluation:', evaluationData.evaluationId);
+        } else {
+          const text = await resp.text();
+          console.error('⚠ GitHub workflow dispatch failed:', text);
+          // Don't fail the request - Supabase save was successful
+        }
+      } catch (dispatchErr) {
+        console.error('⚠ GitHub workflow dispatch error:', dispatchErr.message);
+        // Don't fail the request - Supabase save was successful
+      }
+    } else {
+      console.warn('⚠ DISPATCH_TOKEN not configured - evaluation saved to Supabase only');
     }
 
     return res.json({
