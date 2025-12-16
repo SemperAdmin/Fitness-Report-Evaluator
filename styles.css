@@ -282,6 +282,15 @@ body {
     align-items: center;
     font-size: 14px;
     color: #1e3c72;
+    gap: 12px;
+}
+
+#progressText {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .auto-save-indicator {
@@ -3984,8 +3993,8 @@ body.sa-modal-open {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
-/* Mobile-friendly touch targets */
-.form-input, .btn { min-height: 40px; }
+/* Mobile-friendly touch targets (WCAG 2.5.5 - 44px minimum) */
+.form-input, .btn { min-height: 44px; }
 
 /* Force-left placement override for floating feedback button */
 #feedbackFloatingBtn {

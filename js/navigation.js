@@ -477,36 +477,6 @@ function hideAllCards() {
     });
 }
 
-function jumpToStep(step) {
-    // Validate if step is accessible
-    if (!isStepAccessible(step)) {
-        showToast('Please complete previous steps first', 'warning');
-        return;
-    }
-    
-    // Navigate to step
-    switch(step) {
-        case STEPS.setup:
-            showSetupCard();
-            break;
-        case STEPS.evaluation:
-            showEvaluationStep();
-            break;
-        case STEPS.comments:
-            showDirectedCommentsStep();
-            break;
-        case STEPS.sectionI:
-            showSectionIStep();
-            break;
-        case STEPS.summary:
-            showSummaryStep();
-            break;
-    }
-    
-    updateNavigationState(step);
-    toggleMenu(); // Close menu after navigation
-}
-
 // Update the original functions to use the new step functions
 function showDirectedCommentsScreen() {
     showDirectedCommentsStep();

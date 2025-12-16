@@ -446,18 +446,25 @@ function renderCompletedTraitsAccordion() {
             `;
         });
 
-        // Section as accordion item
+        // Section as accordion item with ARIA attributes for accessibility
+        const contentId = `${sectionId}-content`;
         accordionHTML += `
             <div class="accordion-item">
-                <input type="checkbox" id="${sectionId}">
-                <label for="${sectionId}" class="accordion-header accordion-section-header">
+                <input type="checkbox" id="${sectionId}" aria-hidden="true"
+                       onchange="this.nextElementSibling.setAttribute('aria-expanded', this.checked)">
+                <label for="${sectionId}" class="accordion-header accordion-section-header"
+                       role="button"
+                       aria-expanded="false"
+                       aria-controls="${contentId}"
+                       tabindex="0"
+                       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
                     <div class="accordion-header-content">
                         <span class="accordion-section-title">${safeSectionTitle}</span>
                         <span class="accordion-trait-count">${traitCount} trait${traitCount !== 1 ? 's' : ''}</span>
                     </div>
-                    <span class="accordion-icon">›</span>
+                    <span class="accordion-icon" aria-hidden="true">›</span>
                 </label>
-                <div class="accordion-content">
+                <div class="accordion-content" id="${contentId}" role="region" aria-labelledby="${sectionId}">
                     ${traitsHTML}
                 </div>
             </div>
