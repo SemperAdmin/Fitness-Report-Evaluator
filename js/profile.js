@@ -3307,28 +3307,28 @@ function renderProfileGrid() {
         // Build row cells using DocumentFragment for better performance
         const fragment = document.createDocumentFragment();
 
-        // Create cells efficiently
+        // Create cells efficiently - include data-label for mobile card view
         const cells = [
-            { text: evaluation.rank, className: '' },
-            { text: evaluation.marineRankNorm || '-', className: '' },
-            { text: evaluation.marineName, className: '', style: 'text-align: left;' },
-            { text: evaluation.occasion, className: '' },
-            { text: evaluation.endDate, className: '' },
-            { text: evaluation.grades['Performance'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Proficiency'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Courage'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Stress Tolerance'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Initiative'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Leading'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Developing Others'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Setting the Example'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Well-Being/Health'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Communication Skills'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Professional Military Education'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Decision Making'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Judgement'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Evals'], className: 'grade-cell' },
-            { text: evaluation.average, className: 'avg-cell' }
+            { text: evaluation.rank, className: '', label: '#' },
+            { text: evaluation.marineRankNorm || '-', className: '', label: 'Rank' },
+            { text: evaluation.marineName, className: '', style: 'text-align: left;', label: 'Marine' },
+            { text: evaluation.occasion, className: '', label: 'Occasion' },
+            { text: evaluation.endDate, className: '', label: 'End Date' },
+            { text: evaluation.grades['Performance'] || '-', className: 'grade-cell', label: 'Performance' },
+            { text: evaluation.grades['Proficiency'] || '-', className: 'grade-cell', label: 'Proficiency' },
+            { text: evaluation.grades['Courage'] || '-', className: 'grade-cell', label: 'Courage' },
+            { text: evaluation.grades['Stress Tolerance'] || '-', className: 'grade-cell', label: 'Stress Tol.' },
+            { text: evaluation.grades['Initiative'] || '-', className: 'grade-cell', label: 'Initiative' },
+            { text: evaluation.grades['Leading'] || '-', className: 'grade-cell', label: 'Leading' },
+            { text: evaluation.grades['Developing Others'] || '-', className: 'grade-cell', label: 'Dev. Others' },
+            { text: evaluation.grades['Setting the Example'] || '-', className: 'grade-cell', label: 'Set Example' },
+            { text: evaluation.grades['Well-Being/Health'] || '-', className: 'grade-cell', label: 'Well-Being' },
+            { text: evaluation.grades['Communication Skills'] || '-', className: 'grade-cell', label: 'Comm Skills' },
+            { text: evaluation.grades['Professional Military Education'] || '-', className: 'grade-cell', label: 'PME' },
+            { text: evaluation.grades['Decision Making'] || '-', className: 'grade-cell', label: 'Decision' },
+            { text: evaluation.grades['Judgement'] || '-', className: 'grade-cell', label: 'Judgement' },
+            { text: evaluation.grades['Evals'], className: 'grade-cell', label: 'Eval' },
+            { text: evaluation.average, className: 'avg-cell', label: 'FitRep Score' }
         ];
 
         cells.forEach(cellData => {
@@ -3336,23 +3336,27 @@ function renderProfileGrid() {
             td.textContent = cellData.text;
             if (cellData.className) td.className = cellData.className;
             if (cellData.style) td.setAttribute('style', cellData.style);
+            if (cellData.label) td.setAttribute('data-label', cellData.label);
             fragment.appendChild(td);
         });
 
         // RV badge cell
         const rvCell = document.createElement('td');
         rvCell.innerHTML = badgeForRv(evaluation.rv);
+        rvCell.setAttribute('data-label', 'RV');
         fragment.appendChild(rvCell);
 
         // Cumulative RV badge cell
         const cumRvCell = document.createElement('td');
         cumRvCell.innerHTML = badgeForRv(evaluation.cumRv);
+        cumRvCell.setAttribute('data-label', 'Cum RV');
         fragment.appendChild(cumRvCell);
 
         // Actions cell
         const actionsCell = document.createElement('td');
         actionsCell.className = 'actions-cell';
         actionsCell.style.textAlign = 'right';
+        actionsCell.setAttribute('data-label', 'Actions');
 
         const syncStatus = document.createElement('span');
         syncStatus.className = `sync-status ${evaluation.syncStatus || 'pending'}`;
