@@ -3289,6 +3289,190 @@ body {
     .profile-grid tbody td { padding: 4px; }
 }
 
+/* Mobile Card Layout for Profile Grid - transforms table to cards on small screens */
+@media (max-width: 600px) {
+    .profile-grid-wrapper {
+        padding: 8px;
+        border: none;
+        background: transparent;
+    }
+
+    .profile-grid-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+
+    .profile-grid-actions select,
+    .profile-grid-actions button {
+        flex: 1 1 auto;
+        min-width: 120px;
+    }
+
+    #rankSummaryBar {
+        width: 100%;
+        justify-content: space-around !important;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+        margin-left: 0 !important;
+    }
+
+    /* Hide table header on mobile */
+    .profile-grid thead {
+        display: none;
+    }
+
+    /* Transform table to block layout */
+    .profile-grid,
+    .profile-grid tbody,
+    .profile-grid tbody tr,
+    .profile-grid tbody td {
+        display: block;
+        width: 100%;
+    }
+
+    /* Style each row as a card */
+    .profile-grid tbody tr {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        position: relative;
+    }
+
+    .profile-grid tbody tr:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+
+    /* Reset cell styles for card layout */
+    .profile-grid tbody td {
+        border: none;
+        padding: 4px 0;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Add labels before each cell value */
+    .profile-grid tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #1e3c72;
+        flex-shrink: 0;
+        margin-right: 12px;
+    }
+
+    /* Hide row number column */
+    .profile-grid tbody td:nth-child(1) {
+        display: none;
+    }
+
+    /* Marine name - make prominent */
+    .profile-grid tbody td:nth-child(3) {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e3c72;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 8px;
+    }
+
+    /* Rank badge styling */
+    .profile-grid tbody td:nth-child(2) {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: #1e3c72;
+        color: #fff;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .profile-grid tbody td:nth-child(2)::before {
+        display: none;
+    }
+
+    /* Hide individual trait columns on mobile (columns 6-18) - show only summary */
+    .profile-grid tbody td:nth-child(6),
+    .profile-grid tbody td:nth-child(7),
+    .profile-grid tbody td:nth-child(8),
+    .profile-grid tbody td:nth-child(9),
+    .profile-grid tbody td:nth-child(10),
+    .profile-grid tbody td:nth-child(11),
+    .profile-grid tbody td:nth-child(12),
+    .profile-grid tbody td:nth-child(13),
+    .profile-grid tbody td:nth-child(14),
+    .profile-grid tbody td:nth-child(15),
+    .profile-grid tbody td:nth-child(16),
+    .profile-grid tbody td:nth-child(17),
+    .profile-grid tbody td:nth-child(18),
+    .profile-grid tbody td:nth-child(19) {
+        display: none;
+    }
+
+    /* Key metrics row styling */
+    .profile-grid tbody td:nth-child(20), /* FitRep Score */
+    .profile-grid tbody td:nth-child(21), /* RV */
+    .profile-grid tbody td:nth-child(22) { /* Cum RV */
+        background: #f8f9fa;
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin: 4px 0;
+    }
+
+    /* FitRep Score emphasis */
+    .profile-grid tbody td:nth-child(20) {
+        font-size: 18px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    }
+
+    /* Actions cell */
+    .profile-grid tbody td:last-child {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #eee;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .profile-grid tbody td:last-child::before {
+        display: none;
+    }
+
+    .profile-grid tbody td:last-child button {
+        flex: 1;
+        min-height: 44px;
+    }
+
+    /* Horizontal scroll hint removed - using card layout instead */
+    .table-responsive {
+        overflow-x: visible;
+    }
+}
+
+/* Even smaller screens - stack action buttons */
+@media (max-width: 400px) {
+    .profile-grid tbody td:last-child {
+        flex-direction: column;
+    }
+
+    .profile-grid tbody td:last-child button {
+        width: 100%;
+    }
+
+    #rankSummaryBar span {
+        font-size: 12px;
+    }
+}
+
 /* Print Styles */
 @media print {
     @page {
