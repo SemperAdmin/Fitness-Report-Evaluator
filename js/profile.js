@@ -862,10 +862,17 @@ function renderProfileHeader() {
             };
             return map[rank] || '';
         })(rankNorm);
+        // On mobile, show only rank + last name; on desktop show full name
+        const fullName = currentProfile.rsName || '';
+        const nameParts = fullName.trim().split(/\s+/);
+        const lastName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : fullName;
+        const isMobile = window.innerWidth <= 480;
+        const displayName = isMobile ? lastName : fullName;
+
         if (imgSrc) {
-            nameEl.innerHTML = `<img src="${imgSrc}" alt="${escapeHtml(rankDisplay)} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${escapeHtml(rankDisplay)} ${escapeHtml(currentProfile.rsName)}`;
+            nameEl.innerHTML = `<img src="${imgSrc}" alt="${escapeHtml(rankDisplay)} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/><span class="profile-full-name">${escapeHtml(rankDisplay)} ${escapeHtml(fullName)}</span><span class="profile-short-name">${escapeHtml(rankDisplay)} ${escapeHtml(lastName)}</span>`;
         } else {
-            nameEl.textContent = `${rankDisplay} ${currentProfile.rsName}`;
+            nameEl.innerHTML = `<span class="profile-full-name">${escapeHtml(rankDisplay)} ${escapeHtml(fullName)}</span><span class="profile-short-name">${escapeHtml(rankDisplay)} ${escapeHtml(lastName)}</span>`;
         }
     }
     if (emailEl && currentProfile) {
