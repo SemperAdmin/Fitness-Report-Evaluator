@@ -315,7 +315,11 @@ function renderCurrentTrait() {
     const safeTraitDescription = escapeHtml(trait.description);
     const safeGradeDescription = escapeHtml(gradeDescription);
 
+    // Generate completed traits accordion (only if not re-evaluating)
+    const accordionHTML = traitBeingReevaluated ? '' : renderCompletedTraitsAccordion();
+
     container.innerHTML = `
+        ${accordionHTML}
         <div class="evaluation-card active">
             <div class="section-context">
                 <div class="section-header">
@@ -330,24 +334,24 @@ function renderCurrentTrait() {
                 <div class="section-description">${safeSectionDesc}</div>
                 <div class="section-importance">${safeSectionImportance}</div>
             </div>
-            
+
             <div class="trait-context">
                 <div class="trait-header">
                     <div class="trait-subtitle">${safeTraitName}</div>
                     <div class="trait-description">${safeTraitDescription}</div>
                 </div>
             </div>
-            
+
             <div class="grade-display ${getGradeClass(currentEvaluationLevel)}">
                 <div class="grade-description">${safeGradeDescription}</div>
             </div>
-            
+
             <div class="evaluation-guidance">
                 <div class="guidance-question">Does this Marine's performance in <strong>${safeTraitName}</strong> meet this standard?</div>
             </div>
-            
+
             <div class="action-buttons">
-                <button class="btn btn-does-not-meet" onclick="handleGradeAction('does-not-meet')" 
+                <button class="btn btn-does-not-meet" onclick="handleGradeAction('does-not-meet')"
                         ${isAtA ? 'disabled' : ''}>
                     <span class="button-label">Does Not Meet</span>
                     <span class="button-description">Select lower standard</span>
@@ -361,7 +365,7 @@ function renderCurrentTrait() {
                     <span class="button-description">Try higher standard</span>
                 </button>
             </div>
-            
+
             <div class="navigation-helper">
                 <div class="overall-progress">
                     <span>Overall Progress: ${currentTraitIndex + 1} of ${allTraits.length} traits</span>
@@ -383,6 +387,74 @@ function getGradeClass(grade) {
         'G': 'excellent'
     };
     return gradeClasses[grade] || 'acceptable';
+}
+
+/**
+ * Renders the completed traits accordion showing all previously evaluated traits.
+ * Groups traits by section and displays them in collapsible accordion items.
+ * @returns {string} HTML string for the accordion component
+ */
+function renderCompletedTraitsAccordion() {
+    const completedKeys = Object.keys(evaluationResults);
+    if (completedKeys.length === 0) {
+        return ''; // No completed traits yet
+    }
+
+    // Group results by section
+    const sectionGroups = {};
+    completedKeys.forEach(key => {
+        const result = evaluationResults[key];
+        const sectionTitle = result.section || 'Unknown Section';
+        if (!sectionGroups[sectionTitle]) {
+            sectionGroups[sectionTitle] = [];
+        }
+        sectionGroups[sectionTitle].push({ key, ...result });
+    });
+
+    // Build accordion HTML
+    let accordionHTML = '<div class="completed-traits-accordion">';
+    let itemIndex = 0;
+
+    Object.keys(sectionGroups).forEach(sectionTitle => {
+        const traits = sectionGroups[sectionTitle];
+
+        // Section header
+        accordionHTML += `<div class="accordion-section-header">${escapeHtml(sectionTitle)}</div>`;
+
+        traits.forEach(trait => {
+            const safeTraitName = escapeHtml(trait.trait || '');
+            const safeGrade = escapeHtml(trait.grade || '');
+            const gradeClass = `grade-${(trait.grade || 'b').toLowerCase()}`;
+            const safeJustification = trait.justification
+                ? escapeHtml(trait.justification)
+                : '<em>No justification provided</em>';
+            const uniqueId = `accordion-${itemIndex}`;
+
+            accordionHTML += `
+                <div class="accordion-item">
+                    <input type="checkbox" id="${uniqueId}">
+                    <label for="${uniqueId}" class="accordion-header">
+                        <div class="accordion-header-content">
+                            <span class="accordion-trait-name">${safeTraitName}</span>
+                            <span class="accordion-grade-badge ${gradeClass}">${safeGrade}</span>
+                        </div>
+                        <span class="accordion-icon">›</span>
+                    </label>
+                    <div class="accordion-content">
+                        <div class="accordion-section-label">Justification</div>
+                        <div class="accordion-justification">${safeJustification}</div>
+                        <button class="accordion-edit-btn" onclick="editTrait('${trait.key}')">
+                            ✏️ Re-evaluate
+                        </button>
+                    </div>
+                </div>
+            `;
+            itemIndex++;
+        });
+    });
+
+    accordionHTML += '</div>';
+    return accordionHTML;
 }
 
 function handleGradeAction(action) {
@@ -1017,6 +1089,7 @@ const EvaluationAPI = {
     getRemainingsSections,
     updateProgress,
     renderCurrentTrait,
+    renderCompletedTraitsAccordion,
     finalizeTrait,
     handleGradeAction,
     showJustificationModal,
