@@ -2870,10 +2870,8 @@ function showProfileDashboardOnLoad() {
     const modeCard = document.getElementById('modeSelectionCard');
     if (!loginCard || !dashboardCard) return;
 
-    // Only auto-open if the user has a saved profile
-    const hasProfile = localStorage.getItem('has_profile') === 'true';
-    if (!hasProfile) {
-        // Default to Mode Selection on initial load
+    // Helper to show Mode Selection (default state)
+    function showModeSelection() {
         if (modeCard) {
             modeCard.classList.add('active');
             modeCard.style.display = 'block';
@@ -2889,11 +2887,33 @@ function showProfileDashboardOnLoad() {
             setupCard.classList.remove('active');
             setupCard.style.display = 'none';
         }
+    }
+
+    // Only auto-open if the user has a saved profile
+    const hasProfile = localStorage.getItem('has_profile') === 'true';
+    if (!hasProfile) {
+        showModeSelection();
         return;
     }
 
     const stored = loadProfileFromStorage();
-    if (!stored) return;
+
+    // Validate stored profile has real data (not placeholders)
+    const isValidProfile = stored &&
+        stored.rsName &&
+        stored.rsName !== 'RS Name' &&
+        stored.rsEmail &&
+        stored.rsEmail !== 'rs@email' &&
+        stored.rsEmail.includes('@');
+
+    if (!isValidProfile) {
+        // Clear invalid profile data and show Mode Selection
+        localStorage.removeItem('has_profile');
+        localStorage.removeItem('current_profile');
+        localStorage.removeItem('current_evaluations');
+        showModeSelection();
+        return;
+    }
 
     window.currentProfile = {
         rsName: stored.rsName,
