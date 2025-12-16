@@ -150,8 +150,8 @@ async function profileLogin() {
     showProfileDashboard();
 
     // Show What's New modal after login
-    if (typeof triggerWhatsNewOnLogin === 'function') {
-        triggerWhatsNewOnLogin();
+    if (typeof window.triggerWhatsNewOnLogin === 'function') {
+        window.triggerWhatsNewOnLogin();
     }
 }
 
@@ -243,8 +243,8 @@ async function createAccount() {
         showProfileDashboard();
 
         // Show What's New modal after account creation
-        if (typeof triggerWhatsNewOnLogin === 'function') {
-            triggerWhatsNewOnLogin();
+        if (typeof window.triggerWhatsNewOnLogin === 'function') {
+            window.triggerWhatsNewOnLogin();
         }
     } catch (err) {
         console.error('createAccount error:', err);
@@ -415,8 +415,8 @@ async function accountLogin() {
         }
 
         // Show What's New modal after login
-        if (typeof triggerWhatsNewOnLogin === 'function') {
-            triggerWhatsNewOnLogin();
+        if (typeof window.triggerWhatsNewOnLogin === 'function') {
+            window.triggerWhatsNewOnLogin();
         }
     } catch (err) {
         console.error('accountLogin error:', err);
