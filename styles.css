@@ -3951,3 +3951,69 @@ body.sa-modal-open {
     align-items:center;
     line-height:1;
 }
+
+/* ==============================================
+   Compact Header Mode (Evaluation Sections)
+   - Shows only logo + title in row 1
+   - Shows progress section in row 2
+   - Hides all other header elements
+   ============================================== */
+.header.compact {
+    padding: 12px 16px;
+    text-align: left;
+}
+
+.header.compact .header-logo {
+    max-height: 40px;
+    margin-bottom: 0;
+    margin-right: 12px;
+    vertical-align: middle;
+}
+
+.header.compact h1 {
+    display: inline;
+    font-size: 1.1rem;
+    vertical-align: middle;
+}
+
+/* Hide non-essential elements in compact mode */
+.header.compact > p,
+.header.compact .tool-credit,
+.header.compact > a[href*="youtu"],
+.header.compact .header-nav {
+    display: none !important;
+}
+
+/* Progress section in compact mode */
+.header.compact .progress-section {
+    margin: 12px 0 0 0;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+}
+
+/* First row: logo + title wrapper */
+.header.compact::before {
+    content: '';
+    display: block;
+}
+
+/* Mobile adjustments for compact header */
+@media (max-width: 600px) {
+    .header.compact {
+        padding: 10px 12px;
+    }
+
+    .header.compact .header-logo {
+        max-height: 32px;
+        margin-right: 8px;
+    }
+
+    .header.compact h1 {
+        font-size: 0.95rem;
+    }
+
+    .header.compact .progress-section {
+        margin-top: 10px;
+        padding-top: 10px;
+    }
+}
