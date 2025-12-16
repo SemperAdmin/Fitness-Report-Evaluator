@@ -4693,7 +4693,7 @@ body.dark-mode .profile-grid .avg-cell {
 
 /* Hide non-essential elements in compact mode */
 .header.compact .header-info {
-    display: none !important;
+    display: none;
 }
 
 /* Show and style nav in compact mode */
