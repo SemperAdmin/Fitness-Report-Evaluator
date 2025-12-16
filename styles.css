@@ -4017,3 +4017,211 @@ body.sa-modal-open {
         padding-top: 10px;
     }
 }
+
+/* ==============================================
+   Completed Traits Accordion
+   Shows previously evaluated traits during the
+   evaluation step in a collapsible accordion.
+   ============================================== */
+.completed-traits-accordion {
+    max-width: 100%;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    background: #fff;
+}
+
+.accordion-item {
+    border-bottom: 1px solid #e5e7eb;
+    background: #fff;
+}
+
+.accordion-item:last-of-type {
+    border-bottom: none;
+}
+
+/* Hide the native checkbox input */
+.accordion-item input[type="checkbox"] {
+    display: none;
+}
+
+/* Accordion header styling */
+.accordion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    color: #1e3c72;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    user-select: none;
+}
+
+.accordion-header:hover {
+    background: #f8fafc;
+}
+
+/* Active/checked header state */
+.accordion-item input:checked + .accordion-header {
+    background: linear-gradient(135deg, #e8f4fd 0%, #f0f7ff 100%);
+    color: #1e3c72;
+}
+
+/* Accordion header content layout */
+.accordion-header-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.accordion-trait-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.accordion-grade-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Grade badge colors matching app theme */
+.accordion-grade-badge.grade-a { background: #fef2f2; color: #dc2626; }
+.accordion-grade-badge.grade-b { background: #fefce8; color: #ca8a04; }
+.accordion-grade-badge.grade-c { background: #fff7ed; color: #ea580c; }
+.accordion-grade-badge.grade-d { background: #f0fdf4; color: #16a34a; }
+.accordion-grade-badge.grade-e { background: #ecfdf5; color: #059669; }
+.accordion-grade-badge.grade-f { background: #eff6ff; color: #2563eb; }
+.accordion-grade-badge.grade-g { background: #faf5ff; color: #9333ea; }
+
+/* Chevron icon */
+.accordion-icon {
+    font-size: 14px;
+    color: #9ca3af;
+    transition: transform 0.25s ease, color 0.2s ease;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.accordion-item input:checked + .accordion-header .accordion-icon {
+    transform: rotate(90deg);
+    color: #1e3c72;
+}
+
+/* Accordion content panel */
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, padding 0.3s ease;
+    padding: 0 16px;
+    background: #fafbfc;
+}
+
+.accordion-item input:checked ~ .accordion-content {
+    max-height: 500px;
+    padding: 12px 16px 16px 16px;
+}
+
+/* Content inside accordion */
+.accordion-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.accordion-justification {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #374151;
+    white-space: pre-line;
+    margin-bottom: 12px;
+}
+
+.accordion-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1e3c72;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 36px;
+}
+
+.accordion-edit-btn:hover {
+    background: #1e3c72;
+    color: #fff;
+    border-color: #1e3c72;
+}
+
+/* Accordion section header for grouping */
+.accordion-section-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: #fff;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    .accordion-header {
+        padding: 12px 14px;
+        font-size: 13px;
+    }
+
+    .accordion-header-content {
+        gap: 8px;
+    }
+
+    .accordion-grade-badge {
+        min-width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+
+    .accordion-content {
+        padding: 0 14px;
+    }
+
+    .accordion-item input:checked ~ .accordion-content {
+        padding: 10px 14px 14px 14px;
+    }
+
+    .accordion-justification {
+        font-size: 12px;
+    }
+
+    .accordion-edit-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
