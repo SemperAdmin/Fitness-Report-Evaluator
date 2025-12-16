@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>USMC FITREP Evaluator</title>
+    <!-- Preconnect to external CDNs for faster loading -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="css/performance.css">
     <!-- Explicit favicon to avoid default /favicon.ico 404 -->
@@ -13,7 +16,7 @@
 <body>
     <div class="container">
     <div class="header">
-        <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" onerror="this.style.display='none'">
+        <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" loading="eager" decoding="async" fetchpriority="high" onerror="this.style.display='none'">
         <h1>USMC FITNESS REPORT EVALUATOR</h1>
         <p>Unbiased FITREP marking assistance tool</p>
         <div class="tool-credit">by Semper Admin</div>
@@ -892,9 +895,9 @@
     <script src="js/networkCache.js"></script>
     <script src="js/githubServiceCached.js"></script>
     <script src="js/githubHelpers.js"></script>
-    <!-- PDF libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js" integrity="sha384-9crLjtL468FQqFa24VM0ldxiM0tbREUHExinok4MhgLH2s+0FRgU2Qs6PACeFB43" crossorigin="anonymous"></script>
+    <!-- PDF libraries - deferred, only needed for print/export -->
+    <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js" integrity="sha384-9crLjtL468FQqFa24VM0ldxiM0tbREUHExinok4MhgLH2s+0FRgU2Qs6PACeFB43" crossorigin="anonymous"></script>
     <script src="js/ui-states.js"></script>
     <script src="js/accessibility.js"></script>
     <script src="js/tooltips.js"></script>
@@ -1012,7 +1015,7 @@
             </div>
         </div>
     </div>
-    <!-- Feedback widget script -->
-    <script src="js/feedback.js"></script>
+    <!-- Feedback widget script - deferred, not critical for initial render -->
+    <script defer src="js/feedback.js"></script>
     </body>
     </html>
