@@ -2846,10 +2846,9 @@ function showProfileDashboardOnLoad() {
     const modeCard = document.getElementById('modeSelectionCard');
     if (!loginCard || !dashboardCard) return;
 
-    // Only auto-open if the user explicitly logged in in THIS SESSION
+    // Only auto-open if the user has a saved profile
     const hasProfile = localStorage.getItem('has_profile') === 'true';
-    const loginSource = sessionStorage.getItem('login_source'); // session-scoped, not persistent
-    if (!hasProfile || loginSource !== 'form') {
+    if (!hasProfile) {
         // Default to Mode Selection on initial load
         if (modeCard) {
             modeCard.classList.add('active');
