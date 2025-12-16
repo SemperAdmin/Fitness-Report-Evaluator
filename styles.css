@@ -2281,6 +2281,7 @@ body {
     gap: 10px;
     flex-wrap: wrap;
     justify-content: center;
+    align-items: center;
     margin-top: 12px;
 }
 
