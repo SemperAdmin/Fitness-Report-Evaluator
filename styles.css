@@ -1031,10 +1031,9 @@ body {
 .form-input, .setup-select {
     width: 100%;
     padding: 12px;
-    font-size: 16px;
+    font-size: 16px; /* Keep 16px to prevent iOS zoom on focus */
     border: 2px solid #e0e0e0;
     border-radius: 8px;
-    font-size: 14px;
     font-family: inherit;
     resize: vertical;
     margin: 15px 0;
