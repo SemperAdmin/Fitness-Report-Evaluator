@@ -148,6 +148,11 @@ async function profileLogin() {
     sessionStorage.setItem('login_source', 'form');
 
     showProfileDashboard();
+
+    // Show What's New modal after login
+    if (typeof triggerWhatsNewOnLogin === 'function') {
+        triggerWhatsNewOnLogin();
+    }
 }
 
 /**
@@ -236,6 +241,11 @@ async function createAccount() {
 
         alert('Account created. You are now signed in.');
         showProfileDashboard();
+
+        // Show What's New modal after account creation
+        if (typeof triggerWhatsNewOnLogin === 'function') {
+            triggerWhatsNewOnLogin();
+        }
     } catch (err) {
         console.error('createAccount error:', err);
         alert('Account creation failed due to a network error.');
@@ -402,6 +412,11 @@ async function accountLogin() {
             }
         } catch (err) {
             console.warn('Background sync attempt failed after login:', err);
+        }
+
+        // Show What's New modal after login
+        if (typeof triggerWhatsNewOnLogin === 'function') {
+            triggerWhatsNewOnLogin();
         }
     } catch (err) {
         console.error('accountLogin error:', err);

@@ -1033,6 +1033,49 @@
             </div>
         </div>
     </div>
+
+    <!-- What's New Modal -->
+    <div class="whats-new-modal" id="whatsNewModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
+        <div class="whats-new-content">
+            <div class="whats-new-header">
+                <h2 id="whatsNewTitle">What's New</h2>
+                <button class="whats-new-close" onclick="closeWhatsNewModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="whats-new-body">
+                <div class="update-section">
+                    <h3 class="update-date">20241216</h3>
+                    <ul class="update-list">
+                        <li><strong>Dark Mode:</strong> Toggle between light and dark themes using the button in the header</li>
+                        <li><strong>Improved Mobile Layout:</strong> Better button placement and profile display on mobile devices</li>
+                        <li><strong>Evaluations Table:</strong> Enhanced readability with row dividers and alternating colors</li>
+                    </ul>
+                </div>
+                <div class="update-section">
+                    <h3 class="update-date">20241215</h3>
+                    <ul class="update-list">
+                        <li><strong>Completed Traits Accordion:</strong> View previously evaluated traits during evaluation flow</li>
+                        <li><strong>Re-evaluation Flow:</strong> Continue to next uncompleted trait when re-evaluating</li>
+                        <li><strong>Session Persistence:</strong> Stay logged in across page refreshes</li>
+                    </ul>
+                </div>
+                <div class="update-section">
+                    <h3 class="update-date">20241214</h3>
+                    <ul class="update-list">
+                        <li><strong>Compact Header:</strong> Streamlined header during evaluations for more screen space</li>
+                        <li><strong>Profile Grid Cards:</strong> New card-based layout for saved evaluations</li>
+                        <li><strong>Touch Targets:</strong> Improved button sizes for mobile accessibility</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="whats-new-footer">
+                <label class="whats-new-checkbox">
+                    <input type="checkbox" id="dontShowAgain"> Don't show this again
+                </label>
+                <button class="btn btn-meets" onclick="closeWhatsNewModal()">Got it!</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Feedback widget script - deferred, not critical for initial render -->
     <script defer src="js/feedback.js"></script>
     </body>
