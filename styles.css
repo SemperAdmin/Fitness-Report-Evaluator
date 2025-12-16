@@ -4594,6 +4594,42 @@ body.dark-mode .rank-summary-card {
     color: #f1f5f9;
 }
 
+/* Profile grid (evaluations table) dark mode */
+body.dark-mode .profile-grid-wrapper {
+    background: #1e293b;
+}
+
+body.dark-mode .profile-grid thead th {
+    background: #0f172a;
+    color: #f8fafc;
+    border-bottom: 2px solid #475569;
+}
+
+body.dark-mode .profile-grid tbody td {
+    color: #e2e8f0;
+    border-top: 1px solid #475569;
+}
+
+body.dark-mode .profile-grid tbody tr {
+    background: #1e293b;
+}
+
+body.dark-mode .profile-grid tbody tr:nth-child(even) {
+    background: #0f172a;
+}
+
+body.dark-mode .profile-grid tbody tr:hover {
+    background: #334155;
+}
+
+body.dark-mode .profile-grid tbody td:nth-child(2) {
+    color: #7dd3fc;
+}
+
+body.dark-mode .profile-grid .avg-cell {
+    color: #7dd3fc;
+}
+
 /* Force-left placement override for floating feedback button */
 #feedbackFloatingBtn {
   position: fixed !important;
