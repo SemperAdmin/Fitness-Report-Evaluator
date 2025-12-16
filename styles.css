@@ -1489,6 +1489,79 @@ body {
     border-top: 1px solid #e0e0e0;
 }
 
+/* Mobile optimizations for review grid */
+@media (max-width: 600px) {
+    .review-grid {
+        gap: 16px;
+    }
+
+    .review-section {
+        padding: 14px;
+        border-radius: 10px;
+    }
+
+    .review-section-title {
+        font-size: 15px;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+    }
+
+    .review-traits {
+        gap: 12px;
+    }
+
+    .review-trait-item {
+        padding: 12px;
+        border-radius: 8px;
+    }
+
+    .review-trait-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .review-trait-name {
+        font-size: 14px;
+        width: 100%;
+    }
+
+    .btn-edit {
+        width: 100%;
+        padding: 10px 16px;
+        font-size: 13px;
+        justify-content: center;
+    }
+
+    .review-trait-criteria {
+        margin-bottom: 12px;
+    }
+
+    .criteria-meets,
+    .criteria-does-not-meet,
+    .criteria-surpasses,
+    .criteria-unavailable {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .review-trait-justification {
+        font-size: 13px;
+        padding: 10px;
+    }
+
+    .review-actions {
+        margin-top: 20px;
+        padding-top: 16px;
+    }
+
+    .review-actions .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}
+
 /* Re-evaluation Modal Styles */
 .reevaluate-modal {
     display: none;
@@ -3995,6 +4068,243 @@ body.sa-modal-open {
 }
 /* Mobile-friendly touch targets (WCAG 2.5.5 - 44px minimum) */
 .form-input, .btn { min-height: 44px; }
+
+/* ==============================================
+   Dark Mode Support
+   Comprehensive dark theme with WCAG AA contrast
+   ============================================== */
+@media (prefers-color-scheme: dark) {
+    /* Base colors */
+    body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #e2e8f0;
+    }
+
+    /* Container */
+    .container {
+        background: transparent;
+    }
+
+    /* Header */
+    .header {
+        background: rgba(30, 41, 59, 0.95);
+        border: 1px solid #334155;
+    }
+
+    .header h1 {
+        color: #e2e8f0;
+    }
+
+    .header-subtitle {
+        color: #94a3b8;
+    }
+
+    .header-info {
+        border-color: #334155;
+    }
+
+    .header-credit {
+        color: #93c5fd;
+    }
+
+    .header-divider {
+        color: #475569;
+    }
+
+    .header-link {
+        color: #60a5fa;
+    }
+
+    .header-link:hover {
+        color: #93c5fd;
+    }
+
+    /* Cards */
+    .setup-card,
+    .evaluation-card,
+    .review-card,
+    .summary-card,
+    .directed-comments-card,
+    .section-i-generation-card,
+    .profile-card {
+        background: rgba(30, 41, 59, 0.95);
+        border: 1px solid #334155;
+        color: #e2e8f0;
+    }
+
+    /* Form elements */
+    .form-input,
+    .setup-select,
+    select,
+    textarea {
+        background: #1e293b;
+        border-color: #475569;
+        color: #e2e8f0;
+    }
+
+    .form-input:focus,
+    .setup-select:focus,
+    select:focus,
+    textarea:focus {
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+    }
+
+    .form-input::placeholder {
+        color: #64748b;
+    }
+
+    .form-label {
+        color: #cbd5e1;
+    }
+
+    /* Buttons */
+    .btn {
+        border-color: #475569;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    }
+
+    .btn-secondary {
+        background: #334155;
+        color: #e2e8f0;
+        border-color: #475569;
+    }
+
+    .btn-secondary:hover {
+        background: #475569;
+    }
+
+    /* Progress bar */
+    .progress-bar {
+        background: #334155;
+    }
+
+    #progressText {
+        color: #e2e8f0;
+    }
+
+    /* Section titles */
+    .section-title,
+    .trait-subtitle,
+    .setup-title {
+        color: #e2e8f0;
+    }
+
+    .section-description,
+    .trait-description {
+        color: #94a3b8;
+    }
+
+    /* Grade display */
+    .grade-display {
+        background: #1e293b;
+        border-color: #475569;
+    }
+
+    .grade-description {
+        color: #e2e8f0;
+    }
+
+    /* Accordion */
+    .completed-traits-accordion {
+        background: #1e293b;
+        border-color: #334155;
+    }
+
+    .accordion-item {
+        border-color: #334155;
+        background: #1e293b;
+    }
+
+    .accordion-trait-item {
+        background: #0f172a;
+        border-color: #334155;
+    }
+
+    .accordion-trait-item:hover {
+        background: #1e293b;
+    }
+
+    .accordion-trait-name {
+        color: #93c5fd;
+    }
+
+    .accordion-trait-justification {
+        background: #0f172a;
+        border-color: #475569;
+        color: #cbd5e1;
+    }
+
+    .accordion-content {
+        background: #0f172a;
+    }
+
+    /* Modals */
+    .modal-content,
+    .justification-modal-content,
+    .reevaluate-modal-content {
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #e2e8f0;
+    }
+
+    /* Auto-save indicator */
+    .auto-save-indicator {
+        color: #94a3b8;
+    }
+
+    .auto-save-indicator.saved .text {
+        color: #4ade80;
+    }
+
+    .auto-save-indicator.error .text {
+        color: #f87171;
+    }
+
+    /* Tables */
+    table {
+        background: #1e293b;
+    }
+
+    th {
+        background: #334155;
+        color: #e2e8f0;
+    }
+
+    td {
+        background: #1e293b;
+        border-color: #334155;
+        color: #cbd5e1;
+    }
+
+    tr:hover td {
+        background: #0f172a;
+    }
+
+    /* Breadcrumbs */
+    .breadcrumbs a {
+        color: #60a5fa;
+    }
+
+    .breadcrumbs .sep {
+        color: #475569;
+    }
+
+    /* Help section */
+    .help-section {
+        background: #0f172a;
+        border-color: #334155;
+    }
+
+    /* Toast messages */
+    .toast {
+        background: #334155;
+        color: #e2e8f0;
+    }
+}
 
 /* Force-left placement override for floating feedback button */
 #feedbackFloatingBtn {
