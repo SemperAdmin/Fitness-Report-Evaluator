@@ -5014,3 +5014,200 @@ body.dark-mode .profile-grid .avg-cell {
         justify-content: center;
     }
 }
+
+/* ==============================================
+   What's New Modal
+   ============================================== */
+.whats-new-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: saturate(120%) blur(4px);
+    z-index: 10000;
+}
+
+.whats-new-modal.active {
+    display: flex;
+}
+
+.whats-new-content {
+    width: 100%;
+    max-width: 500px;
+    max-height: 80vh;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.whats-new-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: #fff;
+}
+
+.whats-new-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.whats-new-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: #fff;
+    font-size: 24px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.whats-new-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.whats-new-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.update-section {
+    margin-bottom: 20px;
+}
+
+.update-section:last-child {
+    margin-bottom: 0;
+}
+
+.update-date {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e3c72;
+    margin: 0 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.update-list {
+    margin: 0;
+    padding-left: 20px;
+    list-style: disc;
+}
+
+.update-list li {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #374151;
+    line-height: 1.5;
+}
+
+.update-list li:last-child {
+    margin-bottom: 0;
+}
+
+.update-list strong {
+    color: #1e3c72;
+}
+
+.whats-new-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+}
+
+.whats-new-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #6b7280;
+    cursor: pointer;
+}
+
+.whats-new-checkbox input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* Dark mode for What's New modal */
+body.dark-mode .whats-new-content {
+    background: #1e293b;
+}
+
+body.dark-mode .whats-new-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+body.dark-mode .update-date {
+    color: #7dd3fc;
+    border-color: #334155;
+}
+
+body.dark-mode .update-list li {
+    color: #e2e8f0;
+}
+
+body.dark-mode .update-list strong {
+    color: #7dd3fc;
+}
+
+body.dark-mode .whats-new-footer {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+body.dark-mode .whats-new-checkbox {
+    color: #94a3b8;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+    .whats-new-modal {
+        padding: 16px;
+    }
+
+    .whats-new-content {
+        max-height: 85vh;
+    }
+
+    .whats-new-header {
+        padding: 16px 20px;
+    }
+
+    .whats-new-header h2 {
+        font-size: 1.25rem;
+    }
+
+    .whats-new-body {
+        padding: 16px 20px;
+    }
+
+    .whats-new-footer {
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px 20px;
+    }
+
+    .whats-new-footer .btn {
+        width: 100%;
+    }
+}
