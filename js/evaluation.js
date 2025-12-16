@@ -608,7 +608,7 @@ function saveJustification() {
         document.querySelectorAll('.sa-modal-backdrop[data-modal-id="justificationModal"]').forEach(b => { if (b && b.parentNode) b.parentNode.removeChild(b); });
     } catch (_) {}
     pendingEvaluation = null;
-    
+
     // Handle post-save navigation
     if (traitBeingReevaluated) {
         const returnTo = reevaluationReturnTo || 'review';
@@ -618,7 +618,22 @@ function saveJustification() {
         currentEvaluationLevel = 'B';
         document.getElementById('evaluationContainer').innerHTML = '';
 
-        // Route back to desired page
+        // Check if we're still in initial evaluation flow (not all traits completed)
+        // Find the next uncompleted trait
+        const nextUncompletedIndex = allTraits.findIndex((t, idx) => {
+            const key = `${t.sectionKey}_${t.traitKey}`;
+            return !evaluationResults[key];
+        });
+
+        // If there are still uncompleted traits, continue with evaluation flow
+        if (nextUncompletedIndex !== -1) {
+            currentTraitIndex = nextUncompletedIndex;
+            updateProgress();
+            renderCurrentTrait();
+            return;
+        }
+
+        // All traits completed - route based on returnTo
         if (returnTo === 'directedComments') {
             try {
                 if (typeof jumpToStep === 'function' && typeof STEPS !== 'undefined') {
