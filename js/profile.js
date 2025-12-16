@@ -862,10 +862,17 @@ function renderProfileHeader() {
             };
             return map[rank] || '';
         })(rankNorm);
+        // On mobile, show only rank + last name; on desktop show full name
+        const fullName = currentProfile.rsName || '';
+        const nameParts = fullName.trim().split(/\s+/);
+        const lastName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : fullName;
+        const isMobile = window.innerWidth <= 480;
+        const displayName = isMobile ? lastName : fullName;
+
         if (imgSrc) {
-            nameEl.innerHTML = `<img src="${imgSrc}" alt="${escapeHtml(rankDisplay)} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${escapeHtml(rankDisplay)} ${escapeHtml(currentProfile.rsName)}`;
+            nameEl.innerHTML = `<img src="${imgSrc}" alt="${escapeHtml(rankDisplay)} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/><span class="profile-full-name">${escapeHtml(rankDisplay)} ${escapeHtml(fullName)}</span><span class="profile-short-name">${escapeHtml(rankDisplay)} ${escapeHtml(lastName)}</span>`;
         } else {
-            nameEl.textContent = `${rankDisplay} ${currentProfile.rsName}`;
+            nameEl.innerHTML = `<span class="profile-full-name">${escapeHtml(rankDisplay)} ${escapeHtml(fullName)}</span><span class="profile-short-name">${escapeHtml(rankDisplay)} ${escapeHtml(lastName)}</span>`;
         }
     }
     if (emailEl && currentProfile) {
@@ -1902,7 +1909,15 @@ async function syncAllToSupabase() {
 // Pending sync guard helpers
 function hasPendingSyncs() {
     try {
-        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => String(e.syncStatus || 'pending') !== 'synced');
+        // No profile means no pending syncs
+        if (!window.currentProfile || !window.currentProfile.rsName) {
+            return false;
+        }
+        // Check if there are actual evaluations with pending sync status
+        if (!Array.isArray(window.profileEvaluations) || window.profileEvaluations.length === 0) {
+            return false;
+        }
+        return window.profileEvaluations.some(e => String(e.syncStatus || 'pending') !== 'synced');
     } catch (_) {
         return false;
     }
@@ -1947,10 +1962,24 @@ function closePendingSyncModal() {
     }
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (nextEl) nextEl.value = '';
+    // Thoroughly clean up all modal backdrops
+    cleanupModalBackdrops();
+}
+
+// Helper to remove all modal backdrops and restore body scroll
+function cleanupModalBackdrops() {
     try {
+        // Remove all backdrop types
         document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch (_) { } });
+        document.querySelectorAll('[data-modal-id]').forEach(el => {
+            if (el.classList.contains('sa-modal-backdrop')) {
+                try { el.remove(); } catch (_) { }
+            }
+        });
+        // Restore body state
         document.body.classList.remove('sa-modal-open');
         document.body.style.overflow = '';
+        document.body.style.pointerEvents = '';
     } catch (_) { }
 }
 
@@ -2479,16 +2508,11 @@ function continueLogoutProfile() {
         try {
             if (window.ModalController && typeof window.ModalController.closeAll === 'function') {
                 window.ModalController.closeAll();
-            } else {
-                document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch (_) { } });
-                document.body.classList.remove('sa-modal-open');
-                document.body.style.position = '';
-                document.body.style.top = '';
-                document.body.style.width = '';
             }
+            // Always clean up backdrops regardless of ModalController
+            cleanupModalBackdrops();
             const navOverlay = document.getElementById('navMenuOverlay');
             if (navOverlay) navOverlay.classList.remove('active');
-            document.body.style.overflow = '';
         } catch (_) { /* ignore cleanup errors */ }
 
         // Attempt to clear server-side session cookies
@@ -3699,53 +3723,8 @@ function openProfileDashboardFromLogin() {
     showProfileDashboard();
 }
 
-// Auto-open Dashboard on load if a profile exists
-function showProfileDashboardOnLoad() {
-    const loginCard = document.getElementById('profileLoginCard');
-    const dashboardCard = document.getElementById('profileDashboardCard');
-    const modeCard = document.getElementById('modeSelectionCard');
-    if (!loginCard || !dashboardCard) return;
-
-    // Only auto-open if the user explicitly logged in in THIS SESSION
-    const hasProfile = localStorage.getItem('has_profile') === 'true';
-    const loginSource = sessionStorage.getItem('login_source'); // session-scoped, not persistent
-    if (!hasProfile || loginSource !== 'form') {
-        // Default to Mode Selection on initial load
-        if (modeCard) { modeCard.classList.add('active'); modeCard.style.display = 'block'; }
-        loginCard.classList.remove('active');
-        loginCard.style.display = 'none';
-        dashboardCard.classList.remove('active');
-        dashboardCard.style.display = 'none';
-
-        const setupCard = document.getElementById('setupCard');
-        if (setupCard) {
-            setupCard.classList.remove('active');
-            setupCard.style.display = 'none';
-        }
-        return;
-    }
-
-    const stored = loadProfileFromStorage();
-    if (!stored) return;
-
-    window.currentProfile = {
-        rsName: stored.rsName,
-        rsEmail: stored.rsEmail,
-        rsRank: stored.rsRank,
-        totalEvaluations: (stored.evaluations || []).length,
-        lastUpdated: stored.lastUpdated || new Date().toISOString()
-    };
-    window.profileEvaluations = stored.evaluations || [];
-
-    showProfileDashboard();
-
-    // Prefer showing Dashboard instead of login/setup when a profile exists
-    loginCard.style.display = 'none';
-    dashboardCard.style.display = 'block';
-
-    const setupCard = document.getElementById('setupCard');
-    if (setupCard) setupCard.style.display = 'none';
-}
+// NOTE: showProfileDashboardOnLoad() is defined earlier in this file (around line 2850)
+// DO NOT duplicate it here - the earlier version is correct and persists sessions properly
 
 // Profile persistence helpers and GitHub stubs (added)
 function generateProfileKey(name, email) {

@@ -275,3 +275,56 @@ function hideDynamicTooltip() {
 function showProfileLogin() {
     return showRSLoginFirst();
 }
+
+// --- Theme Toggle ---
+/**
+ * Toggle between light and dark mode
+ * Persists preference to localStorage
+ */
+function toggleTheme() {
+    const body = document.body;
+    const isDark = body.classList.toggle('dark-mode');
+
+    // Save preference
+    try {
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    } catch (_) {}
+
+    // Update toggle button
+    updateThemeToggleButton(isDark);
+}
+
+/**
+ * Update the theme toggle button appearance
+ * @param {boolean} isDark - Whether dark mode is active
+ */
+function updateThemeToggleButton(isDark) {
+    const toggle = document.getElementById('themeToggle');
+    if (!toggle) return;
+
+    const icon = toggle.querySelector('.theme-icon');
+    const label = toggle.querySelector('.theme-label');
+
+    if (icon) icon.textContent = isDark ? '🌙' : '☀️';
+    if (label) label.textContent = isDark ? 'Dark' : 'Light';
+}
+
+/**
+ * Initialize theme from localStorage preference
+ * Light mode is default
+ */
+function initializeTheme() {
+    try {
+        const savedTheme = localStorage.getItem('theme');
+        const isDark = savedTheme === 'dark';
+
+        if (isDark) {
+            document.body.classList.add('dark-mode');
+        }
+
+        updateThemeToggleButton(isDark);
+    } catch (_) {}
+}
+
+// Initialize theme on load
+document.addEventListener('DOMContentLoaded', initializeTheme);
