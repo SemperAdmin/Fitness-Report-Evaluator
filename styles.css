@@ -4562,6 +4562,38 @@ body.dark-mode #modeSelectionCard p {
     color: #cbd5e1;
 }
 
+/* Rank Summary toolbar dark mode */
+body.dark-mode .summary-title {
+    color: #f8fafc;
+}
+
+body.dark-mode .sort-label {
+    color: #94a3b8;
+}
+
+body.dark-mode .sort-btn {
+    background: #334155;
+    color: #e2e8f0;
+    border-color: #475569;
+}
+
+body.dark-mode .sort-btn:hover {
+    background: #475569;
+}
+
+body.dark-mode .sort-btn.active {
+    background: #c2185b;
+    color: #ffffff;
+    border-color: #c2185b;
+}
+
+/* Rank summary cards dark mode */
+body.dark-mode .rank-summary-card {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f1f5f9;
+}
+
 /* Force-left placement override for floating feedback button */
 #feedbackFloatingBtn {
   position: fixed !important;
