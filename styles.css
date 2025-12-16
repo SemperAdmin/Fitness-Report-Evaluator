@@ -2236,6 +2236,26 @@ body {
     padding: 20px;
 }
 
+/* Center login card content vertically on mobile */
+@media (max-width: 480px) {
+    #profileLoginCard {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: calc(100vh - 200px);
+        margin: 0 auto;
+        padding: 20px 16px;
+    }
+
+    #profileLoginCard .profile-title {
+        text-align: center;
+    }
+
+    #profileLoginCard .profile-description {
+        text-align: center;
+    }
+}
+
 #profileLoginCard .profile-title {
     font-size: 22px;
     margin-bottom: 8px;
@@ -4360,6 +4380,7 @@ body.dark-mode .btn {
 
 body.dark-mode .btn-primary {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #ffffff;
 }
 
 body.dark-mode .btn-secondary {
