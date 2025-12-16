@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>USMC FITREP Evaluator</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="css/performance.css">
@@ -53,7 +53,7 @@
             
             <div class="form-group">
                 <label class="form-label" for="marineNameInput">Marine Being Evaluated:</label>
-                <input type="text" class="form-input" id="marineNameInput" placeholder="Last Name, First Name MI" required aria-required="true">
+                <input type="text" class="form-input" id="marineNameInput" placeholder="Last Name, First Name MI" required aria-required="true" autocomplete="off" autocapitalize="words" spellcheck="false">
             </div>
             
             <!-- New: Marine Rank dropdown -->
@@ -515,12 +515,12 @@
         <div id="loginFields">
             <div class="form-group">
                 <label class="form-label">Username</label>
-                <input type="text" class="form-input" id="loginEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore">
+                <input type="text" class="form-input" id="loginEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore" autocomplete="username" autocapitalize="none" autocorrect="off">
                 <div class="input-hint" id="loginEmailHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-input" id="loginPasswordInput" placeholder="Enter your password" minlength="8">
+                <input type="password" class="form-input" id="loginPasswordInput" placeholder="Enter your password" minlength="8" autocomplete="current-password">
                 <div class="input-hint" id="loginPasswordHint" aria-live="polite"></div>
             </div>
             <div class="profile-actions">
@@ -550,23 +550,23 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Name</label>
-                <input type="text" class="form-input" id="caNameInput" placeholder="Last, First MI" minlength="2" maxlength="100">
+                <input type="text" class="form-input" id="caNameInput" placeholder="Last, First MI" minlength="2" maxlength="100" autocomplete="name" autocapitalize="words">
                 <div class="input-hint" id="caNameHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Username</label>
-                <input type="text" class="form-input" id="caEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore">
+                <input type="text" class="form-input" id="caEmailInput" placeholder="your-username" minlength="3" maxlength="50" pattern="[-.A-Za-z0-9_]{3,50}" title="3–50 characters: letters, numbers, dot, dash, underscore" autocomplete="username" autocapitalize="none" autocorrect="off">
                 <div class="input-hint" id="caEmailHint" aria-live="polite"></div>
                 <!-- Availability UI removed; rely on server checks at create time -->
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-input" id="caPasswordInput" placeholder="Choose a strong password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}">
+                <input type="password" class="form-input" id="caPasswordInput" placeholder="Choose a strong password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}" autocomplete="new-password">
                 <div class="input-hint" id="caPasswordHint" aria-live="polite"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Confirm Password</label>
-                <input type="password" class="form-input" id="caPasswordConfirmInput" placeholder="Re-enter your password to confirm" minlength="8">
+                <input type="password" class="form-input" id="caPasswordConfirmInput" placeholder="Re-enter your password to confirm" minlength="8" autocomplete="new-password">
                 <div class="input-hint" id="caPasswordConfirmHint" aria-live="polite"></div>
             </div>
             <div class="profile-actions">
@@ -948,7 +948,7 @@
 
             <div class="form-group">
                 <label class="form-label" for="editRsNameInput">Name</label>
-                <input type="text" class="form-input" id="editRsNameInput" placeholder="Last, First M" aria-label="Name" data-rules="required|nameLabel">
+                <input type="text" class="form-input" id="editRsNameInput" placeholder="Last, First M" aria-label="Name" data-rules="required|nameLabel" autocomplete="name" autocapitalize="words" spellcheck="false">
   </div>
 
   <!-- Pending Sync Confirmation Modal -->
@@ -982,7 +982,7 @@
 
             <div class="form-group">
                 <label class="form-label" for="editRsEmailAddrInput">Email</label>
-                <input type="email" class="form-input is-neutral" id="editRsEmailAddrInput" placeholder="you@example.mil" aria-label="Email" data-rules="email">
+                <input type="email" class="form-input is-neutral" id="editRsEmailAddrInput" placeholder="you@example.mil" aria-label="Email" data-rules="email" inputmode="email" autocomplete="email" autocapitalize="none">
                 <div class="input-error" role="alert" aria-live="polite" id="editRsEmailAddrInputError"></div>
                 <small style="display:block; color:#666; margin-top:4px;">Email is stored with your profile.</small>
             </div>
