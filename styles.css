@@ -158,46 +158,107 @@ body {
 
 /* Header Styles */
 .header {
-    background: rgba(255, 255, 255, 0.95);
-    padding: 20px;
+    background: rgba(255, 255, 255, 0.98);
+    padding: 24px;
     border-radius: 12px;
     margin-bottom: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Header branding row */
+.header-branding {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
 }
 
 .header-logo {
-    max-height: 60px;
-    max-width: 200px;
+    max-height: 56px;
+    max-width: 56px;
     width: auto;
     height: auto;
-    margin-bottom: 15px;
     object-fit: contain;
-    /* Optimize rendering performance */
     content-visibility: auto;
+    flex-shrink: 0;
+}
+
+.header-titles {
+    text-align: left;
 }
 
 .header h1 {
     color: #1e3c72;
-    margin-bottom: 10px;
-    font-size: 28px;
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
 }
 
-.header p {
-    color: #666;
-    font-size: 16px;
+.header-subtitle {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin: 4px 0 0 0;
+    font-weight: 400;
 }
 
-.header .tool-credit {
-    color: #2a5298;
-    font-size: 14px;
+/* Header info row */
+.header-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    flex-wrap: wrap;
+}
+
+.header-credit {
+    color: #1e3c72;
+    font-size: 0.8125rem;
     font-weight: 600;
-    margin-top: 10px;
 }
 
-/* Progress Bar */
+.header-divider {
+    color: #d1d5db;
+    font-size: 0.75rem;
+}
+
+.header-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #2563eb;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.header-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
+.link-icon {
+    font-size: 0.75rem;
+}
+
+/* Header nav row - hidden by default */
+.header-nav {
+    display: none;
+    padding-top: 12px;
+}
+
+/* Progress section - hidden by default, shown in evaluation mode */
 .progress-section {
-    margin: 20px 0;
+    display: none;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
 }
 
 .progress-bar {
@@ -3959,62 +4020,110 @@ body.sa-modal-open {
    - Hides all other header elements
    ============================================== */
 .header.compact {
-    padding: 12px 16px;
-    text-align: left;
+    padding: 14px 16px;
+}
+
+/* Compact branding - horizontal layout */
+.header.compact .header-branding {
+    justify-content: flex-start;
+    margin-bottom: 0;
+    gap: 12px;
 }
 
 .header.compact .header-logo {
-    max-height: 40px;
-    margin-bottom: 0;
-    margin-right: 12px;
-    vertical-align: middle;
+    max-height: 36px;
+    max-width: 36px;
+}
+
+.header.compact .header-titles {
+    text-align: left;
 }
 
 .header.compact h1 {
-    display: inline;
     font-size: 1.1rem;
-    vertical-align: middle;
+}
+
+.header.compact .header-subtitle {
+    display: none;
 }
 
 /* Hide non-essential elements in compact mode */
-.header.compact > p,
-.header.compact .tool-credit,
-.header.compact > a[href*="youtu"],
-.header.compact .header-nav {
+.header.compact .header-info {
     display: none !important;
 }
 
-/* Progress section in compact mode */
-.header.compact .progress-section {
-    margin: 12px 0 0 0;
-    padding-top: 12px;
-    border-top: 1px solid rgba(0,0,0,0.08);
+/* Show and style nav in compact mode */
+.header.compact .header-nav {
+    display: block;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(0,0,0,0.06);
 }
 
-/* First row: logo + title wrapper */
-.header.compact::before {
-    content: '';
+/* Show and style progress section in compact mode */
+.header.compact .progress-section {
     display: block;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0,0,0,0.06);
 }
 
 /* Mobile adjustments for compact header */
 @media (max-width: 600px) {
     .header.compact {
-        padding: 10px 12px;
+        padding: 12px;
+    }
+
+    .header.compact .header-branding {
+        gap: 10px;
     }
 
     .header.compact .header-logo {
         max-height: 32px;
-        margin-right: 8px;
+        max-width: 32px;
     }
 
     .header.compact h1 {
-        font-size: 0.95rem;
+        font-size: 1rem;
     }
 
     .header.compact .progress-section {
         margin-top: 10px;
         padding-top: 10px;
+    }
+}
+
+/* Mobile adjustments for full header */
+@media (max-width: 600px) {
+    .header {
+        padding: 16px;
+    }
+
+    .header-branding {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .header-titles {
+        text-align: center;
+    }
+
+    .header h1 {
+        font-size: 1.25rem;
+    }
+
+    .header-info {
+        gap: 8px;
+        padding: 10px 0;
+    }
+
+    .header-divider {
+        display: none;
+    }
+
+    .header-credit,
+    .header-link {
+        font-size: 0.75rem;
     }
 }
 

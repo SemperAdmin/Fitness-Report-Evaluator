@@ -16,35 +16,48 @@
 <body>
     <div class="container">
     <div class="header">
-        <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" loading="eager" decoding="async" fetchpriority="high" onerror="this.style.display='none'">
-        <h1>USMC FITNESS REPORT EVALUATOR</h1>
-        <p>Unbiased FITREP marking assistance tool</p>
-        <div class="tool-credit">by Semper Admin</div>
-        <!-- Header links: remove backticks -->
-        <a href="https://youtu.be/EzhEMDJ6ez0" target="_blank" style="color: #1e40af; text-decoration: underline;">FITREPS: Marking Philosophy Video</a>
-        <!-- Global navigation controls -->
-        <div class="header-nav" style="display:flex;align-items:center;justify-content:flex-end;margin-top:10px;">
-            <nav id="breadcrumbs" aria-label="Breadcrumb" class="breadcrumbs"></nav>
-            <p id="globalSocialBanner" class="breadcrumb-banner" style="margin-left:auto">
-              <span class="banner-icon">🔗</span>
-              <span>Follow Semper Admin:</span>
-              <a href="https://linktr.ee/semperadmin" target="_blank" rel="noopener">linktr.ee/semperadmin</a>
-            </p>
-        </div>
-        <div class="progress-section">
-            <div class="progress-details">
-                <span id="progressText">Setup - Determine Role</span>
-                <div class="auto-save-indicator managed saved" id="autoSaveIndicator" aria-live="polite">
-                    <span class="icon" aria-hidden="true"></span>
-                        <span class="text">Saved</span>
-                        <button type="button" class="retry-btn" id="retrySaveBtn" onclick="window.autoSave && window.autoSave.retryNow()" style="display:none">Retry</button>
-                    </div>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
+        <!-- Branding row -->
+        <div class="header-branding">
+            <img src="assets/images/Logo.png" alt="Semper Admin Logo" class="header-logo" loading="eager" decoding="async" fetchpriority="high" onerror="this.style.display='none'">
+            <div class="header-titles">
+                <h1>USMC FITNESS REPORT EVALUATOR</h1>
+                <p class="header-subtitle">Unbiased FITREP marking assistance tool</p>
             </div>
         </div>
+
+        <!-- Info row - hidden in compact mode -->
+        <div class="header-info">
+            <span class="header-credit">by Semper Admin</span>
+            <span class="header-divider">•</span>
+            <a href="https://youtu.be/EzhEMDJ6ez0" target="_blank" rel="noopener" class="header-link">
+                <span class="link-icon">▶</span> Marking Philosophy Video
+            </a>
+            <span class="header-divider">•</span>
+            <a href="https://linktr.ee/semperadmin" target="_blank" rel="noopener" class="header-link">
+                <span class="link-icon">🔗</span> Follow Us
+            </a>
+        </div>
+
+        <!-- Navigation row - only shown during evaluation -->
+        <div class="header-nav">
+            <nav id="breadcrumbs" aria-label="Breadcrumb" class="breadcrumbs"></nav>
+        </div>
+
+        <!-- Progress section - only shown during evaluation -->
+        <div class="progress-section">
+            <div class="progress-details">
+                <span id="progressText">Setup</span>
+                <div class="auto-save-indicator managed saved" id="autoSaveIndicator" aria-live="polite">
+                    <span class="icon" aria-hidden="true"></span>
+                    <span class="text">Saved</span>
+                    <button type="button" class="retry-btn" id="retrySaveBtn" onclick="window.autoSave && window.autoSave.retryNow()" style="display:none">Retry</button>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+    </div>
 
         
 
