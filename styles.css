@@ -4022,6 +4022,7 @@ body.sa-modal-open {
    Completed Traits Accordion
    Shows previously evaluated traits during the
    evaluation step in a collapsible accordion.
+   Section headers are clickable accordion triggers.
    ============================================== */
 .completed-traits-accordion {
     max-width: 100%;
@@ -4047,29 +4048,32 @@ body.sa-modal-open {
     display: none;
 }
 
-/* Accordion header styling */
+/* Accordion header styling - Section header trigger */
 .accordion-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 14px 16px;
-    background: #fff;
     cursor: pointer;
     font-weight: 600;
     font-size: 14px;
-    color: #1e3c72;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    transition: all 0.2s ease;
     user-select: none;
 }
 
-.accordion-header:hover {
-    background: #f8fafc;
+/* Section header style (blue gradient) */
+.accordion-header.accordion-section-header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: #fff;
 }
 
-/* Active/checked header state */
-.accordion-item input:checked + .accordion-header {
-    background: linear-gradient(135deg, #e8f4fd 0%, #f0f7ff 100%);
-    color: #1e3c72;
+.accordion-header.accordion-section-header:hover {
+    background: linear-gradient(135deg, #162d5a 0%, #1e3c72 100%);
+}
+
+/* Active/checked section header state */
+.accordion-item input:checked + .accordion-header.accordion-section-header {
+    background: linear-gradient(135deg, #0f1f3d 0%, #1e3c72 100%);
 }
 
 /* Accordion header content layout */
@@ -4081,11 +4085,82 @@ body.sa-modal-open {
     min-width: 0;
 }
 
+/* Section title in header */
+.accordion-section-title {
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Trait count badge */
+.accordion-trait-count {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Chevron icon */
+.accordion-icon {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.7);
+    transition: transform 0.25s ease, color 0.2s ease;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.accordion-item input:checked + .accordion-header .accordion-icon {
+    transform: rotate(90deg);
+    color: #fff;
+}
+
+/* Accordion content panel */
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease-out, padding 0.35s ease;
+    padding: 0;
+    background: #f8fafc;
+}
+
+.accordion-item input:checked ~ .accordion-content {
+    max-height: 2000px;
+    padding: 0;
+}
+
+/* Individual trait items inside accordion */
+.accordion-trait-item {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #fff;
+}
+
+.accordion-trait-item:last-child {
+    border-bottom: none;
+}
+
+.accordion-trait-item:hover {
+    background: #f8fafc;
+}
+
+/* Trait row with name and grade */
+.accordion-trait-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
 .accordion-trait-name {
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 14px;
+    color: #1e3c72;
+    flex: 1;
+    min-width: 0;
 }
 
 /* Grade description text styling */
@@ -4094,12 +4169,8 @@ body.sa-modal-open {
     font-weight: 500;
     padding: 4px 10px;
     border-radius: 4px;
-    flex-shrink: 1;
-    text-align: right;
+    flex-shrink: 0;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 180px;
 }
 
 /* Grade description colors matching app theme */
@@ -4111,52 +4182,20 @@ body.sa-modal-open {
 .accordion-grade-desc.grade-f { background: #eff6ff; color: #2563eb; }
 .accordion-grade-desc.grade-g { background: #faf5ff; color: #9333ea; }
 
-/* Chevron icon */
-.accordion-icon {
-    font-size: 14px;
-    color: #9ca3af;
-    transition: transform 0.25s ease, color 0.2s ease;
-    flex-shrink: 0;
-    margin-left: 8px;
-}
-
-.accordion-item input:checked + .accordion-header .accordion-icon {
-    transform: rotate(90deg);
-    color: #1e3c72;
-}
-
-/* Accordion content panel */
-.accordion-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease-out, padding 0.3s ease;
-    padding: 0 16px;
-    background: #fafbfc;
-}
-
-.accordion-item input:checked ~ .accordion-content {
-    max-height: 500px;
-    padding: 12px 16px 16px 16px;
-}
-
-/* Content inside accordion */
-.accordion-section-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-}
-
-.accordion-justification {
+/* Trait justification text */
+.accordion-trait-justification {
     font-size: 13px;
     line-height: 1.5;
-    color: #374151;
+    color: #4b5563;
     white-space: pre-line;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: #f3f4f6;
+    border-radius: 6px;
+    border-left: 3px solid #d1d5db;
 }
 
+/* Re-evaluate button */
 .accordion-edit-btn {
     display: inline-flex;
     align-items: center;
@@ -4179,47 +4218,43 @@ body.sa-modal-open {
     border-color: #1e3c72;
 }
 
-/* Accordion section header for grouping */
-.accordion-section-header {
-    display: flex;
-    align-items: center;
-    padding: 10px 16px;
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    color: #fff;
-    font-weight: 600;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Mobile adjustments */
+/* Mobile adjustments for accordion */
 @media (max-width: 600px) {
     .accordion-header {
         padding: 12px 14px;
-        font-size: 13px;
     }
 
-    .accordion-header-content {
-        gap: 6px;
+    .accordion-section-title {
+        font-size: 12px;
+    }
+
+    .accordion-trait-count {
+        font-size: 10px;
+        padding: 2px 8px;
+    }
+
+    .accordion-trait-item {
+        padding: 12px 14px;
+    }
+
+    .accordion-trait-row {
         flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .accordion-trait-name {
+        font-size: 13px;
+        flex-basis: 100%;
     }
 
     .accordion-grade-desc {
         font-size: 10px;
-        max-width: 140px;
         padding: 3px 8px;
     }
 
-    .accordion-content {
-        padding: 0 14px;
-    }
-
-    .accordion-item input:checked ~ .accordion-content {
-        padding: 10px 14px 14px 14px;
-    }
-
-    .accordion-justification {
+    .accordion-trait-justification {
         font-size: 12px;
+        padding: 8px 10px;
     }
 
     .accordion-edit-btn {
