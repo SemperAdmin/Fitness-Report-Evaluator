@@ -4088,27 +4088,28 @@ body.sa-modal-open {
     text-overflow: ellipsis;
 }
 
-.accordion-grade-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    height: 28px;
-    padding: 0 8px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 700;
-    flex-shrink: 0;
+/* Grade description text styling */
+.accordion-grade-desc {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+    flex-shrink: 1;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
 }
 
-/* Grade badge colors matching app theme */
-.accordion-grade-badge.grade-a { background: #fef2f2; color: #dc2626; }
-.accordion-grade-badge.grade-b { background: #fefce8; color: #ca8a04; }
-.accordion-grade-badge.grade-c { background: #fff7ed; color: #ea580c; }
-.accordion-grade-badge.grade-d { background: #f0fdf4; color: #16a34a; }
-.accordion-grade-badge.grade-e { background: #ecfdf5; color: #059669; }
-.accordion-grade-badge.grade-f { background: #eff6ff; color: #2563eb; }
-.accordion-grade-badge.grade-g { background: #faf5ff; color: #9333ea; }
+/* Grade description colors matching app theme */
+.accordion-grade-desc.grade-a { background: #fef2f2; color: #dc2626; }
+.accordion-grade-desc.grade-b { background: #fefce8; color: #ca8a04; }
+.accordion-grade-desc.grade-c { background: #fff7ed; color: #ea580c; }
+.accordion-grade-desc.grade-d { background: #f0fdf4; color: #16a34a; }
+.accordion-grade-desc.grade-e { background: #ecfdf5; color: #059669; }
+.accordion-grade-desc.grade-f { background: #eff6ff; color: #2563eb; }
+.accordion-grade-desc.grade-g { background: #faf5ff; color: #9333ea; }
 
 /* Chevron icon */
 .accordion-icon {
@@ -4199,13 +4200,14 @@ body.sa-modal-open {
     }
 
     .accordion-header-content {
-        gap: 8px;
+        gap: 6px;
+        flex-wrap: wrap;
     }
 
-    .accordion-grade-badge {
-        min-width: 24px;
-        height: 24px;
-        font-size: 11px;
+    .accordion-grade-desc {
+        font-size: 10px;
+        max-width: 140px;
+        padding: 3px 8px;
     }
 
     .accordion-content {

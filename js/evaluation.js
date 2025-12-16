@@ -423,7 +423,8 @@ function renderCompletedTraitsAccordion() {
 
         traits.forEach(trait => {
             const safeTraitName = escapeHtml(trait.trait || '');
-            const safeGrade = escapeHtml(trait.grade || '');
+            const gradeDesc = getGradeDescription(trait.grade || 'B');
+            const safeGradeDesc = escapeHtml(gradeDesc);
             const gradeClass = `grade-${(trait.grade || 'b').toLowerCase()}`;
             const safeJustification = trait.justification
                 ? escapeHtml(trait.justification)
@@ -436,7 +437,7 @@ function renderCompletedTraitsAccordion() {
                     <label for="${uniqueId}" class="accordion-header">
                         <div class="accordion-header-content">
                             <span class="accordion-trait-name">${safeTraitName}</span>
-                            <span class="accordion-grade-badge ${gradeClass}">${safeGrade}</span>
+                            <span class="accordion-grade-desc ${gradeClass}">${safeGradeDesc}</span>
                         </div>
                         <span class="accordion-icon">›</span>
                     </label>
