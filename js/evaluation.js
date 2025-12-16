@@ -391,7 +391,7 @@ function getGradeClass(grade) {
 
 /**
  * Renders the completed traits accordion showing all previously evaluated traits.
- * Groups traits by section and displays them in collapsible accordion items.
+ * Groups traits by section - each section is a collapsible accordion item.
  * @returns {string} HTML string for the accordion component
  */
 function renderCompletedTraitsAccordion() {
@@ -411,46 +411,58 @@ function renderCompletedTraitsAccordion() {
         sectionGroups[sectionTitle].push({ key, ...result });
     });
 
-    // Build accordion HTML
+    // Build accordion HTML - each section is a collapsible item
     let accordionHTML = '<div class="completed-traits-accordion">';
-    let itemIndex = 0;
+    let sectionIndex = 0;
 
     Object.keys(sectionGroups).forEach(sectionTitle => {
         const traits = sectionGroups[sectionTitle];
+        const sectionId = `accordion-section-${sectionIndex}`;
+        const safeSectionTitle = escapeHtml(sectionTitle);
+        const traitCount = traits.length;
 
-        // Section header
-        accordionHTML += `<div class="accordion-section-header">${escapeHtml(sectionTitle)}</div>`;
-
+        // Build traits list HTML for this section
+        let traitsHTML = '';
         traits.forEach(trait => {
             const safeTraitName = escapeHtml(trait.trait || '');
-            const safeGrade = escapeHtml(trait.grade || '');
+            const gradeDesc = getGradeDescription(trait.grade || 'B');
+            const safeGradeDesc = escapeHtml(gradeDesc);
             const gradeClass = `grade-${(trait.grade || 'b').toLowerCase()}`;
             const safeJustification = trait.justification
                 ? escapeHtml(trait.justification)
                 : '<em>No justification provided</em>';
-            const uniqueId = `accordion-${itemIndex}`;
 
-            accordionHTML += `
-                <div class="accordion-item">
-                    <input type="checkbox" id="${uniqueId}">
-                    <label for="${uniqueId}" class="accordion-header">
-                        <div class="accordion-header-content">
-                            <span class="accordion-trait-name">${safeTraitName}</span>
-                            <span class="accordion-grade-badge ${gradeClass}">${safeGrade}</span>
-                        </div>
-                        <span class="accordion-icon">›</span>
-                    </label>
-                    <div class="accordion-content">
-                        <div class="accordion-section-label">Justification</div>
-                        <div class="accordion-justification">${safeJustification}</div>
-                        <button class="accordion-edit-btn" onclick="editTrait('${trait.key}')">
-                            ✏️ Re-evaluate
-                        </button>
+            traitsHTML += `
+                <div class="accordion-trait-item">
+                    <div class="accordion-trait-row">
+                        <span class="accordion-trait-name">${safeTraitName}</span>
+                        <span class="accordion-grade-desc ${gradeClass}">${safeGradeDesc}</span>
                     </div>
+                    <div class="accordion-trait-justification">${safeJustification}</div>
+                    <button class="accordion-edit-btn" onclick="editTrait('${trait.key}')">
+                        ✏️ Re-evaluate
+                    </button>
                 </div>
             `;
-            itemIndex++;
         });
+
+        // Section as accordion item
+        accordionHTML += `
+            <div class="accordion-item">
+                <input type="checkbox" id="${sectionId}">
+                <label for="${sectionId}" class="accordion-header accordion-section-header">
+                    <div class="accordion-header-content">
+                        <span class="accordion-section-title">${safeSectionTitle}</span>
+                        <span class="accordion-trait-count">${traitCount} trait${traitCount !== 1 ? 's' : ''}</span>
+                    </div>
+                    <span class="accordion-icon">›</span>
+                </label>
+                <div class="accordion-content">
+                    ${traitsHTML}
+                </div>
+            </div>
+        `;
+        sectionIndex++;
     });
 
     accordionHTML += '</div>';
