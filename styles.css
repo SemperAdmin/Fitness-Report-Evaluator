@@ -2574,12 +2574,109 @@ body {
 /* ===== Mobile Navigation ===== */
 
 
-/* Phones/portrait tablets */
+/* Phones/portrait tablets - RS Dashboard improvements */
 @media (max-width: 640px) {
   .eval-details-grid { grid-template-columns: 1fr; }
-  .profile-header-section { flex-direction: column; gap: 10px; }
+  .profile-header-section {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    text-align: center;
+  }
   .profile-grid { font-size: 14px; }
   .profile-grid-wrapper { overflow-x: auto; }
+
+  /* Profile info centering */
+  .profile-info {
+    text-align: center;
+    width: 100%;
+  }
+
+  .profile-info h2 {
+    font-size: 1.25rem;
+    word-break: break-word;
+  }
+
+  /* Profile stats row */
+  .profile-stats {
+    flex-direction: row;
+    justify-content: center;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  /* Profile actions */
+  .profile-actions-bar {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .profile-actions-bar .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Rank summary section */
+  .rank-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .rank-summary-card {
+    padding: 12px;
+  }
+
+  /* Section headers with full width */
+  .profile-section-title,
+  .filter-section-title,
+  h3 {
+    width: 100%;
+    text-align: left;
+    padding-left: 4px;
+  }
+
+  /* Manage data dropdown */
+  .manage-data-dropdown {
+    width: 100%;
+  }
+
+  .manage-data-dropdown .btn {
+    width: 100%;
+  }
+
+  /* Sort buttons row */
+  .sort-buttons,
+  .filter-buttons {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .sort-buttons .btn,
+  .filter-buttons .btn {
+    flex: 1 1 auto;
+    min-width: 80px;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  /* Edit button on profile card */
+  .profile-actions-top-right {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+
+  .profile-actions-top-right .editBtn {
+    padding: 8px;
+  }
 }
 
 /* Tablets */
@@ -2793,6 +2890,36 @@ body {
 }
 .breadcrumb-banner a{color:#1e3c72;font-weight:600;text-decoration:underline}
 .breadcrumb-banner .banner-icon{font-size:14px;color:#2a5298}
+
+/* Mobile breadcrumb nav */
+@media (max-width: 640px) {
+    .breadcrumb-nav {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 12px;
+    }
+
+    .breadcrumb-btn {
+        flex-shrink: 0;
+    }
+
+    .breadcrumb-banner {
+        order: 3;
+        flex-basis: 100%;
+        justify-content: center;
+        margin-top: 4px;
+        font-size: 12px;
+    }
+
+    .breadcrumb-nav .Btn {
+        margin-left: auto;
+    }
+
+    /* Logout button styling on mobile */
+    .breadcrumb-nav .Btn .text {
+        display: none;
+    }
+}
 
 /* Even UI spacer under breadcrumb */
 .breadcrumb-even-spacer{height:12px}
