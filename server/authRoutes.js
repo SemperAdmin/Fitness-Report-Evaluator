@@ -20,6 +20,7 @@ const { createUser, getUserByEmail } = require('./supabaseService');
 const crypto = require('crypto');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'semperadmin').trim().toLowerCase();
 const inferredHostedSecure = (
   process.env.COOKIE_SECURE === 'true' ||
   process.env.NODE_ENV === 'production' ||
@@ -385,10 +386,14 @@ async function loginSupabase({ username, password }, req, res) {
           ];
           res.setHeader('Set-Cookie', cookies);
         } catch (_) {}
+        const fallbackUsername = String(userData.username || userData.email || userData.user_email || userData.rs_email || '').trim().toLowerCase();
+        const fallbackIsAdmin = fallbackUsername === ADMIN_USERNAME;
+
         return res.json({
           ok: true,
           user: {
             id: userData.id,
+            username: fallbackUsername,
             email: userData.email || userData.user_email || userData.rs_email,
             full_name: userData.name || userData.full_name || userData.rs_name,
             rank: userData.rank || userData.rs_rank,
@@ -396,6 +401,7 @@ async function loginSupabase({ username, password }, req, res) {
             rsEmail: userData.email || userData.user_email || userData.rs_email,
             rsName: userData.name || userData.full_name || userData.rs_name,
             rsRank: userData.rank || userData.rs_rank,
+            isAdmin: fallbackIsAdmin,
           },
           csrfToken,
           sessionToken,
@@ -462,10 +468,14 @@ async function loginSupabase({ username, password }, req, res) {
             return res.status(500).json({ error: 'Login failed' });
           }
 
+          const loginUsername = String(resolvedUser.username || resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email || '').trim().toLowerCase();
+          const userIsAdmin = loginUsername === ADMIN_USERNAME;
+
           return res.json({
             ok: true,
             user: {
               id: user.id,
+              username: loginUsername,
               email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
               full_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
               rank: resolvedUser.rank || resolvedUser.rs_rank,
@@ -473,6 +483,7 @@ async function loginSupabase({ username, password }, req, res) {
               rsEmail: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
               rsName: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
               rsRank: resolvedUser.rank || resolvedUser.rs_rank,
+              isAdmin: userIsAdmin,
             },
             csrfToken,
             sessionToken,
@@ -483,10 +494,14 @@ async function loginSupabase({ username, password }, req, res) {
     }
 
     // No session middleware, return user data
+    const loginUsername2 = String(resolvedUser.username || resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email || '').trim().toLowerCase();
+    const userIsAdmin2 = loginUsername2 === ADMIN_USERNAME;
+
     return res.json({
       ok: true,
       user: {
         id: user.id,
+        username: loginUsername2,
         email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
         full_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
         rank: resolvedUser.rank || resolvedUser.rs_rank,
@@ -494,6 +509,7 @@ async function loginSupabase({ username, password }, req, res) {
         rs_email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
         rs_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
         rs_rank: resolvedUser.rank || resolvedUser.rs_rank,
+        isAdmin: userIsAdmin2,
       },
       csrfToken,
       sessionToken,

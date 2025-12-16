@@ -393,6 +393,17 @@ async function accountLogin() {
 
         // Hide animation before transitioning to dashboard
         if (typewriter) typewriter.style.display = 'none';
+
+        // Check if this is an admin user - redirect to admin dashboard
+        const username = (user.username || email || '').toLowerCase().trim();
+        const isAdmin = user.isAdmin === true || username === 'semperadmin';
+
+        if (isAdmin) {
+            // Redirect to admin dashboard
+            window.location.href = 'admin.html';
+            return;
+        }
+
         showProfileDashboard();
 
         // Auto-sync any locally pending evaluations after successful login

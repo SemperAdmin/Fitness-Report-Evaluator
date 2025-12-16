@@ -2385,12 +2385,18 @@ module.exports = app;
 // Admin router mounting with auth shim
 try {
   const adminRouter = require('./admin-routes');
+  const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'semperadmin').trim().toLowerCase();
+
   function adminAuthShim(req, _res, next) {
     try {
       const ip = (req.ip || '').replace('::ffff:', '');
       const isLocal = ip === '127.0.0.1' || ip === '::1';
       const adminHdr = String(req.headers['x-admin-op'] || '').toLowerCase();
-      if (isLocal || adminHdr === 'true' || process.env.NODE_ENV === 'development') {
+      // Check if the logged-in user is the admin account
+      const sessionUsername = String(req.sessionUser || '').trim().toLowerCase();
+      const isAdminUser = sessionUsername === ADMIN_USERNAME;
+
+      if (isLocal || adminHdr === 'true' || process.env.NODE_ENV === 'development' || isAdminUser) {
         req.session = req.session || {};
         req.session.isAdmin = true;
         req.session.user = { username: req.sessionUser || '' };
