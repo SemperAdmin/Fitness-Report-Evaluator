@@ -54,12 +54,7 @@ function updateHeaderCompactMode(step) {
     if (!header) return;
 
     const compactSteps = [STEPS.evaluation, STEPS.comments, STEPS.sectionI, STEPS.summary];
-
-    if (compactSteps.includes(step)) {
-        header.classList.add('compact');
-    } else {
-        header.classList.remove('compact');
-    }
+    header.classList.toggle('compact', compactSteps.includes(step));
 }
 
 function goBack() {
@@ -249,8 +244,6 @@ function renderBreadcrumbs() {
 // Step Navigation Functions
 function showSetupCard() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
-    // Remove compact header when returning to setup
-    try { document.querySelector('.header')?.classList.remove('compact'); } catch (_) {}
     hideAllCards();
     const setupCard = document.getElementById('setupCard');
     if (setupCard) {
@@ -402,8 +395,6 @@ function updateRSSetupDisplay() {
 
 function showEvaluationStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
-    // Enable compact header for evaluation
-    try { document.querySelector('.header')?.classList.add('compact'); } catch (_) {}
     hideAllCards();
     const container = document.getElementById('evaluationContainer');
     if (container) {
@@ -415,8 +406,6 @@ function showEvaluationStep() {
 
 function showDirectedCommentsStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
-    // Enable compact header for directed comments
-    try { document.querySelector('.header')?.classList.add('compact'); } catch (_) {}
     hideAllCards();
     const card = document.getElementById('directedCommentsCard');
     if (card) {
@@ -428,8 +417,6 @@ function showDirectedCommentsStep() {
 
 function showSectionIStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
-    // Enable compact header for Section I
-    try { document.querySelector('.header')?.classList.add('compact'); } catch (_) {}
     hideAllCards();
     const card = document.getElementById('sectionIGenerationCard');
     if (card) {
@@ -441,8 +428,6 @@ function showSectionIStep() {
 
 function showSummaryStep() {
     try { document.body.classList.remove('home-mode'); } catch (_) {}
-    // Enable compact header for summary
-    try { document.querySelector('.header')?.classList.add('compact'); } catch (_) {}
     hideAllCards();
     const card = document.getElementById('summaryCard');
     if (card) {

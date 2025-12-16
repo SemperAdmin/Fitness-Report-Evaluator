@@ -504,7 +504,7 @@ function renderCompletedTraitsAccordion() {
                         <span class="accordion-grade-desc ${gradeClass}">${safeGradeDesc}</span>
                     </div>
                     <div class="accordion-trait-justification">${safeJustification}</div>
-                    <button class="accordion-edit-btn" onclick="editTrait('${trait.key}')">
+                    <button class="accordion-edit-btn" data-trait-key="${trait.key}">
                         ✏️ Re-evaluate
                     </button>
                 </div>
@@ -1244,5 +1244,29 @@ global.saveAccordionState = saveAccordionState;
 global.evaluationResults = evaluationResults;
 global.evaluationMeta = evaluationMeta;
 global.allTraits = allTraits;
+
+// Set up event delegation for accordion edit buttons
+// This replaces inline onclick handlers with a single delegated listener
+function setupAccordionEventDelegation() {
+    const container = document.getElementById('evaluationContainer');
+    if (!container) return;
+
+    container.addEventListener('click', function(event) {
+        const editBtn = event.target.closest('.accordion-edit-btn');
+        if (editBtn) {
+            const traitKey = editBtn.dataset.traitKey;
+            if (traitKey) {
+                editTrait(traitKey);
+            }
+        }
+    });
+}
+
+// Initialize event delegation when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupAccordionEventDelegation);
+} else {
+    setupAccordionEventDelegation();
+}
 
 })(typeof window !== 'undefined' ? window : globalThis);
