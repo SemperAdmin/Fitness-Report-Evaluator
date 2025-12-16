@@ -169,8 +169,12 @@ body {
 .header-logo {
     max-height: 60px;
     max-width: 200px;
+    width: auto;
+    height: auto;
     margin-bottom: 15px;
     object-fit: contain;
+    /* Optimize rendering performance */
+    content-visibility: auto;
 }
 
 .header h1 {
