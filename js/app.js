@@ -19,43 +19,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboard = document.getElementById('profileDashboardCard');
     const setup = document.getElementById('setupCard');
 
+    // Ensure dashboard is hidden by default
+    if (dashboard) { 
+        dashboard.classList.remove(UI.CSS.ACTIVE); 
+        dashboard.style.display = UI.DISPLAY.HIDE; 
+    }
+    
+    // Initial view state management
     if (mode) { mode.classList.add(UI.CSS.ACTIVE); mode.style.display = UI.DISPLAY.SHOW; }
     if (login) { login.classList.remove(UI.CSS.ACTIVE); login.style.display = UI.DISPLAY.HIDE; }
-    if (dashboard) { dashboard.classList.remove(UI.CSS.ACTIVE); dashboard.style.display = UI.DISPLAY.HIDE; }
     if (setup) { setup.classList.remove(UI.CSS.ACTIVE); setup.style.display = UI.DISPLAY.HIDE; }
 
     try {
-        const url = new URL(window.location.href);
-        const forceLogin = (url.searchParams.get('login') === '1') || (url.searchParams.get('logout') === '1') || (url.hash === '#login');
-        if (forceLogin) {
-            try { if (typeof showRSLoginFirst === 'function') showRSLoginFirst(); } catch (_) {}
-        } else {
-            setTimeout(() => {
-                try {
-                    if (typeof showProfileDashboardOnLoad === 'function') {
-                        const lsrc = (function(){ try { return localStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
-                        const ssrc = (function(){ try { return sessionStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
-                        const preferDashboard = (!lsrc || lsrc === 'offline') && (!ssrc || ssrc === '');
-                        if (preferDashboard) {
-                            showProfileDashboardOnLoad();
-                        } else {
-                            if (typeof showRSLoginFirst === 'function') showRSLoginFirst();
-                        }
+        // Just check for dashboard session, otherwise default to Mode Selection
+        setTimeout(() => {
+            try {
+                if (typeof showProfileDashboardOnLoad === 'function') {
+                    const ssrc = (function(){ try { return sessionStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
+                    // Only show dashboard if we have an active session
+                    if (ssrc && ssrc !== '') {
+                        showProfileDashboardOnLoad();
                     }
-                } catch (e) { console.warn('boot route failed:', e); }
-            }, 0);
-        }
+                }
+            } catch (e) { console.warn('boot route failed:', e); }
+        }, 0);
     } catch (_) {
         setTimeout(() => {
             try {
                 if (typeof showProfileDashboardOnLoad === 'function') {
-                    const lsrc = (function(){ try { return localStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
                     const ssrc = (function(){ try { return sessionStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
-                    const preferDashboard = (!lsrc || lsrc === 'offline') && (!ssrc || ssrc === '');
-                    if (preferDashboard) {
+                    // Only show dashboard if we have an active session
+                    if (ssrc && ssrc !== '') {
                         showProfileDashboardOnLoad();
-                    } else {
-                        if (typeof showRSLoginFirst === 'function') showRSLoginFirst();
                     }
                 }
             } catch (e) { console.warn('boot route failed:', e); }

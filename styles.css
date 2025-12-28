@@ -5496,3 +5496,70 @@ body.dark-mode .warning-count {
     border-color: #9a3412;
 }
 
+/* Justification & Help Modal Dark Mode */
+body.dark-mode .justification-content,
+body.dark-mode .help-content {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #f1f5f9;
+}
+
+body.dark-mode .justification-header {
+    border-bottom-color: #334155;
+}
+
+body.dark-mode .justification-title {
+    color: #f1f5f9;
+}
+
+body.dark-mode #justificationDesc {
+    color: #e2e8f0;
+}
+
+body.dark-mode .tool-btn {
+    background: #334155;
+    border-color: #475569;
+    color: #f1f5f9;
+}
+
+body.dark-mode .tool-btn:hover {
+    background: #475569;
+}
+
+body.dark-mode .tool-btn.active {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+body.dark-mode .textarea-info {
+    color: #94a3b8;
+}
+
+body.dark-mode .word-count {
+    color: #94a3b8;
+}
+
+body.dark-mode .btn-save {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+body.dark-mode .btn-cancel {
+    background: #475569;
+    color: #f1f5f9;
+}
+
+body.dark-mode .btn-cancel:hover {
+    background: #64748b;
+}
+
+body.dark-mode .justification-textarea {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+body.dark-mode .justification-textarea:focus {
+    border-color: #60a5fa;
+}
+
