@@ -332,6 +332,10 @@ function showProfileLogin() {
 }
 
 // --- Theme Toggle ---
+/**
+ * Toggle between light and dark mode
+ * Persists preference to localStorage
+ */
 function toggleTheme() {
     const body = document.body;
     const isDark = body.classList.toggle('dark-mode');
@@ -345,6 +349,10 @@ function toggleTheme() {
     updateThemeToggleButton(isDark);
 }
 
+/**
+ * Update the theme toggle button appearance
+ * @param {boolean} isDark - Whether dark mode is active
+ */
 function updateThemeToggleButton(isDark) {
     const toggle = document.getElementById('themeToggle');
     if (!toggle) return;
@@ -359,6 +367,10 @@ function updateThemeToggleButton(isDark) {
     } catch (_) {}
 }
 
+/**
+ * Initialize theme from localStorage preference
+ * Light mode is default
+ */
 function initializeTheme() {
     try {
         const savedTheme = localStorage.getItem('theme');

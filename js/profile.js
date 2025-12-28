@@ -3084,6 +3084,7 @@ function showProfileDashboardOnLoad() {
 
     const stored = loadProfileFromStorage();
 
+
     // Validate stored profile has real data (not placeholders)
     const isValidProfile = stored &&
         stored.rsName &&
@@ -3206,107 +3207,9 @@ function loadProfileFromStorage() {
     }
 }
 
-function generateProfileKey(name, email) {
-    const n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
-    const e = String(email || '').toLowerCase().trim();
-    return `rs:${n}|${e}`;
-}
 
-function loadProfileFromLocal(profileKey) {
-    try {
-        return JSON.parse(localStorage.getItem(`profile:${profileKey}`) || 'null');
-    } catch (err) {
-        console.warn('loadProfileFromLocal failed:', err);
-        return null;
-    }
-}
 
-function saveProfileToLocal(profileKey, profile) {
-    try {
-        localStorage.setItem(`profile:${profileKey}`, JSON.stringify(profile));
-    } catch (err) {
-        console.warn('saveProfileToLocal failed:', err);
-    }
-}
 
-function loadEvaluationsFromLocal(profileKey) {
-    try {
-        return JSON.parse(localStorage.getItem(`evaluations:${profileKey}`) || '[]');
-    } catch (err) {
-        console.warn('loadEvaluationsFromLocal failed:', err);
-        return [];
-    }
-}
-
-function saveEvaluationsToLocal(profileKey, evaluations) {
-    try {
-        localStorage.setItem(`evaluations:${profileKey}`, JSON.stringify(evaluations));
-    } catch (err) {
-        console.warn('saveEvaluationsToLocal failed:', err);
-    }
-}
-
-// Optional GitHub integration stubs (safe no-ops)
-async function fetchProfileFromGitHub(profileKey) {
-    // No GitHub configured; return null to keep app fully offline-capable
-    return null;
-}
-
-function mergeProfiles(local, remote) {
-    if (!local) return remote || null;
-    if (!remote) return local;
-    return {
-        ...local,
-        ...remote,
-        totalEvaluations: Math.max(local.totalEvaluations || 0, remote.totalEvaluations || 0),
-        lastUpdated: new Date().toISOString()
-    };
-}
-
-async function syncEvaluationToGitHub(evaluation) {
-    try {
-        // Validate username (required for per-user file path)
-        const userEmail = (currentProfile && currentProfile.rsEmail) || (evaluation?.rsInfo?.email) || '';
-        if (!userEmail || userEmail === 'offline@local') {
-            console.warn('GitHub sync skipped: no valid username');
-            return false;
-        }
-
-        // Obtain token from environment/backend; fallback to optional local dev config
-        let token = null;
-        try {
-            token = await githubService.getTokenFromEnvironment?.();
-        } catch (e) {
-            console.warn('Token retrieval failed:', e);
-        }
-        // No dev token fallback
-        if (token) {
-            // Initialize and (optionally) verify connection when token is available
-            githubService.initialize(token);
-            const connected = await githubService.verifyConnection?.();
-            if (!connected) {
-                console.warn('GitHub connection failed; proceeding with backend fallback if available');
-            }
-        } else {
-            console.warn('No token available; attempting backend fallback for evaluation save');
-        }
-
-        // Persist evaluation via service
-        const result = await githubService.saveEvaluation(evaluation, userEmail);
-        if (result?.success) {
-            evaluation.syncStatus = 'synced';
-            console.log('Evaluation synced to GitHub:', result.message);
-            return true;
-        }
-
-        evaluation.syncStatus = 'error';
-        console.error('GitHub sync failed:', result?.error || result);
-        return false;
-    } catch (error) {
-        console.error('Error during GitHub sync:', error);
-        return false;
-    }
-}
 
 // Helper function to merge evaluations with conflict resolution
 function mergeEvaluations(localEvaluations = [], remoteEvaluations = []) {
@@ -3671,6 +3574,32 @@ function renderProfileGrid() {
         cumRvCell.innerHTML = badgeForRv(evaluation.cumRv);
         cumRvCell.setAttribute('data-label', 'Cum RV');
         fragment.appendChild(cumRvCell);
+
+        // Actions cell
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'actions-cell';
+        actionsCell.style.textAlign = 'right';
+        actionsCell.setAttribute('data-label', 'Actions');
+
+        const syncStatus = document.createElement('span');
+        syncStatus.className = `sync-status ${evaluation.syncStatus || 'pending'}`;
+        syncStatus.textContent = evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'icon-btn';
+        deleteBtn.textContent = '🗑️';
+        deleteBtn.onclick = () => deleteEvaluation(evaluation.evaluationId);
+
+        const expandIcon = document.createElement('span');
+        expandIcon.className = 'expand-icon';
+        expandIcon.textContent = '▼';
+        expandIcon.onclick = function () { toggleGridDetails(this); };
+
+        actionsCell.appendChild(syncStatus);
+        actionsCell.appendChild(deleteBtn);
+        actionsCell.appendChild(expandIcon);
+        fragment.appendChild(actionsCell);
+
 
         row.appendChild(fragment);
 
@@ -4177,6 +4106,91 @@ function openProfileDashboardFromLogin() {
 // NOTE: showProfileDashboardOnLoad() is defined earlier in this file (around line 2850)
 // DO NOT duplicate it here - the earlier version is correct and persists sessions properly
 
+// Profile persistence helpers and GitHub stubs (added)
+function generateProfileKey(name, email) {
+    const n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const e = String(email || '').toLowerCase().trim();
+    return `rs:${n}|${e}`;
+}
+
+function loadProfileFromLocal(profileKey) {
+    try {
+        return JSON.parse(localStorage.getItem(`profile:${profileKey}`) || 'null');
+    } catch (err) {
+        console.warn('loadProfileFromLocal failed:', err);
+        return null;
+    }
+}
+
+function saveProfileToLocal(profileKey, profile) {
+    try {
+        localStorage.setItem(`profile:${profileKey}`, JSON.stringify(profile));
+    } catch (err) {
+        console.warn('saveProfileToLocal failed:', err);
+    }
+}
+
+function loadEvaluationsFromLocal(profileKey) {
+    try {
+        return JSON.parse(localStorage.getItem(`evaluations:${profileKey}`) || '[]');
+    } catch (err) {
+        console.warn('loadEvaluationsFromLocal failed:', err);
+        return [];
+    }
+}
+
+function saveEvaluationsToLocal(profileKey, evaluations) {
+    try {
+        localStorage.setItem(`evaluations:${profileKey}`, JSON.stringify(evaluations));
+    } catch (err) {
+        console.warn('saveEvaluationsToLocal failed:', err);
+    }
+}
+
+// Optional GitHub integration stubs (safe no-ops)
+async function fetchProfileFromGitHub(profileKey) {
+    // No GitHub configured; return null to keep app fully offline-capable
+    return null;
+}
+
+function mergeProfiles(local, remote) {
+    if (!local) return remote || null;
+    if (!remote) return local;
+    return {
+        ...local,
+        ...remote,
+        totalEvaluations: Math.max(local.totalEvaluations || 0, remote.totalEvaluations || 0),
+        lastUpdated: new Date().toISOString()
+    };
+}
+
+async function syncEvaluationToGitHub(evaluation) {
+    try {
+        const userEmail = (currentProfile && currentProfile.rsEmail) || (evaluation?.rsInfo?.email) || '';
+        if (!userEmail || userEmail === 'offline@local') return false;
+        const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
+        const base = window.API_BASE_URL || location.origin;
+        const url = new URL(endpoint, base).toString();
+        const headers = { 'Content-Type': 'application/json' };
+        try {
+            const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+        } catch (_) {}
+        try {
+            const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+            if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+        } catch (_) {}
+        const resp = await fetch(url, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ evaluation, userEmail }) });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data?.ok) { evaluation.syncStatus = 'synced'; return true; }
+        evaluation.syncStatus = 'error';
+        console.error('Supabase sync failed:', data?.error || resp.statusText);
+        return false;
+    } catch (error) {
+        console.error('Error during Supabase sync:', error);
+        return false;
+    }
+}
 // Inline availability feedback for Create Account username input
 function initUsernameAvailabilityWatcher() {
     // No-op: availability UI removed; server will enforce uniqueness on create
