@@ -6,7 +6,7 @@
   --accent: #4ea1ff;
   --danger: #ff5c77;
   --success: #49d28d;
-  --border: #222834;
+  --border: #334155;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }

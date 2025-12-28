@@ -4443,7 +4443,7 @@ body.sa-modal-open {
    Comprehensive dark theme with high contrast text
    ============================================== */
 body.dark-mode {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    background: #020617;
     color: #f1f5f9;
 }
 
@@ -4455,7 +4455,7 @@ body.dark-mode .container {
 /* Header */
 body.dark-mode .header {
     background: rgba(30, 41, 59, 0.95);
-    border: 1px solid #334155;
+    border: 1px solid #475569;
 }
 
 body.dark-mode .header h1 {
@@ -4507,7 +4507,7 @@ body.dark-mode .directed-comments-card,
 body.dark-mode .section-i-generation-card,
 body.dark-mode .profile-card {
     background: rgba(30, 41, 59, 0.95);
-    border: 1px solid #334155;
+    border: 1px solid #475569;
     color: #f1f5f9;
 }
 
@@ -4516,7 +4516,7 @@ body.dark-mode .form-input,
 body.dark-mode .setup-select,
 body.dark-mode select,
 body.dark-mode textarea {
-    background: #1e293b;
+    background: #0f172a;
     border-color: #475569;
     color: #f8fafc;
 }
@@ -4543,7 +4543,7 @@ body.dark-mode .btn {
 }
 
 body.dark-mode .btn-primary {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
     color: #ffffff;
 }
 
@@ -4604,12 +4604,12 @@ body.dark-mode .accordion-header {
 }
 
 body.dark-mode .accordion-trait-item {
-    background: #0f172a;
+    background: #020617;
     border-color: #334155;
 }
 
 body.dark-mode .accordion-trait-item:hover {
-    background: #1e293b;
+    background: #0f172a;
 }
 
 body.dark-mode .accordion-trait-name {
@@ -4617,13 +4617,13 @@ body.dark-mode .accordion-trait-name {
 }
 
 body.dark-mode .accordion-trait-justification {
-    background: #0f172a;
+    background: #020617;
     border-color: #475569;
     color: #e2e8f0;
 }
 
 body.dark-mode .accordion-content {
-    background: #0f172a;
+    background: #020617;
 }
 
 /* Modals */
@@ -4654,7 +4654,7 @@ body.dark-mode table {
 }
 
 body.dark-mode th {
-    background: #334155;
+    background: #0f172a;
     color: #f8fafc;
 }
 
@@ -4665,7 +4665,7 @@ body.dark-mode td {
 }
 
 body.dark-mode tr:hover td {
-    background: #0f172a;
+    background: #334155;
 }
 
 /* Breadcrumbs */
@@ -4748,7 +4748,7 @@ body.dark-mode .sort-btn:hover {
 body.dark-mode .sort-btn.active {
     background: #c2185b;
     color: #ffffff;
-    border-color: #c2185b;
+    border-color: #f472b6;
 }
 
 /* Rank summary cards dark mode */
@@ -5047,6 +5047,124 @@ body.dark-mode .profile-grid .avg-cell {
     padding: 0;
 }
 
+/* ==============================================
+   New Components (How It Works Card)
+   ============================================== */
+.info-card-title {
+    color: #1e3c72;
+    margin-bottom: 10px;
+}
+
+.decision-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.decision-box {
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.decision-not-meet {
+    background: #ffe6e6;
+}
+
+.decision-meets {
+    background: #e8f5e8;
+}
+
+.decision-surpasses {
+    background: #e3f2fd;
+}
+
+.decision-title-not-meet {
+    color: #d32f2f;
+}
+
+.decision-title-meets {
+    color: #2e7d32;
+}
+
+.decision-title-surpasses {
+    color: #1976d2;
+}
+
+.result-box {
+    background: #f0f7ff;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #2196F3;
+}
+
+.result-box-title {
+    color: #1565c0;
+    margin-bottom: 8px;
+}
+
+/* ==============================================
+   Dark Mode Additions
+   ============================================== */
+
+/* Profile System Dark Mode Fixes */
+body.dark-mode .profile-title {
+    color: #7dd3fc; /* Matches .header-link */
+}
+
+body.dark-mode .profile-description {
+    color: #e2e8f0; /* Matches .form-label */
+}
+
+body.dark-mode .rank-chip {
+    background: #1e293b;
+    color: #f1f5f9;
+    border: 1px solid #334155;
+}
+
+body.dark-mode .metric-value {
+    color: #f1f5f9;
+}
+
+/* How It Works Card Dark Mode */
+body.dark-mode .info-card-title {
+    color: #f8fafc;
+}
+
+body.dark-mode .decision-not-meet {
+    background: rgba(220, 38, 38, 0.2);
+}
+
+body.dark-mode .decision-meets {
+    background: rgba(22, 163, 74, 0.2);
+}
+
+body.dark-mode .decision-surpasses {
+    background: rgba(37, 99, 235, 0.2);
+}
+
+body.dark-mode .decision-title-not-meet {
+    color: #fca5a5;
+}
+
+body.dark-mode .decision-title-meets {
+    color: #86efac;
+}
+
+body.dark-mode .decision-title-surpasses {
+    color: #93c5fd;
+}
+
+body.dark-mode .result-box {
+    background: rgba(30, 41, 59, 0.5);
+    border-left-color: #60a5fa;
+    color: #e2e8f0;
+}
+
+body.dark-mode .result-box-title {
+    color: #bfdbfe;
+}
+
 /* Individual trait items inside accordion */
 .accordion-trait-item {
     padding: 14px 16px;
@@ -5255,3 +5373,126 @@ body.dark-mode .update-list li {
 body.dark-mode .update-list strong {
     color: #7dd3fc;
 }
+
+/* Additional Dark Mode Fixes */
+body.dark-mode .header {
+    background: rgba(30, 41, 59, 0.98);
+    border-bottom: 1px solid #334155;
+}
+
+body.dark-mode .save-profile-content,
+body.dark-mode .sa-modal-panel {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border: 1px solid #334155;
+}
+
+body.dark-mode .guidance-question {
+    color: #f1f5f9;
+}
+
+body.dark-mode .guidance-question strong {
+    color: #7dd3fc;
+}
+
+/* Evaluation Flow Dark Mode Fixes */
+body.dark-mode .section-context {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-left-color: #60a5fa;
+}
+
+body.dark-mode .section-title {
+    color: #f1f5f9;
+}
+
+body.dark-mode .section-progress-text {
+    color: #94a3b8;
+}
+
+body.dark-mode .section-description {
+    color: #cbd5e1;
+}
+
+body.dark-mode .section-importance {
+    color: #94a3b8;
+}
+
+body.dark-mode .trait-subtitle {
+    color: #60a5fa;
+}
+
+body.dark-mode .trait-description {
+    color: #94a3b8;
+}
+
+body.dark-mode .grade-context {
+    background: #1e293b;
+}
+
+body.dark-mode .grade-level {
+    color: #60a5fa;
+}
+
+body.dark-mode .grade-meaning {
+    color: #94a3b8;
+}
+
+body.dark-mode .evaluation-guidance {
+    background: #334155;
+    border-left-color: #fbbf24;
+}
+
+/* Ensure guidance question color is readable on the new background */
+body.dark-mode .guidance-question {
+    color: #f1f5f9;
+}
+
+/* Navigation Helper */
+body.dark-mode .navigation-helper {
+    background: #1e293b;
+    border-top-color: #334155;
+}
+
+body.dark-mode .overall-progress {
+    color: #94a3b8;
+}
+
+body.dark-mode .remaining-sections {
+    color: #64748b;
+}
+
+/* Validation Panel */
+body.dark-mode .validation-panel {
+    background: #1e293b;
+}
+
+body.dark-mode .validation-success {
+    background: rgba(22, 163, 74, 0.2);
+    border-left-color: #4ade80;
+    color: #f1f5f9;
+}
+
+body.dark-mode .validation-icon {
+    color: #4ade80;
+}
+
+body.dark-mode .validation-summary {
+    border-bottom-color: #334155;
+}
+
+body.dark-mode .validation-summary h4 {
+    color: #f1f5f9;
+}
+
+body.dark-mode .error-count {
+    background: rgba(220, 38, 38, 0.2);
+    color: #f87171;
+    border-color: #991b1b;
+}
+
+body.dark-mode .warning-count {
+    background: rgba(234, 88, 12, 0.2);
+    color: #fb923c;
+    border-color: #9a3412;
+}
+

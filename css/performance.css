@@ -154,3 +154,14 @@
 .profile-grid tr {
     contain: layout style;
 }
+
+/* Dark Mode Skeletons */
+body.dark-mode .skeleton-avatar,
+body.dark-mode .skeleton-line {
+    background: linear-gradient(
+        90deg,
+        #1e293b 25%,
+        #334155 50%,
+        #1e293b 75%
+    );
+}
