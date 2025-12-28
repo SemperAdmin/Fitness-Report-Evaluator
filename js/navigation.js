@@ -30,15 +30,31 @@ function updateNavigationState(step) {
     try {
         history.pushState({ step }, '', '#' + step);
     } catch (_) {}
-    
+
     // Update navigation menu states
     updateNavigationMenu();
-    
+
     // Update progress bar
     updateNavigationProgress();
 
     // Update breadcrumbs
     renderBreadcrumbs();
+
+    // Toggle compact header mode for evaluation steps
+    updateHeaderCompactMode(step);
+}
+
+/**
+ * Toggle compact header mode based on current step
+ * Compact mode: evaluation, comments, sectionI, summary
+ * Full mode: setup (and home/login screens)
+ */
+function updateHeaderCompactMode(step) {
+    const header = document.querySelector('.header');
+    if (!header) return;
+
+    const compactSteps = [STEPS.evaluation, STEPS.comments, STEPS.sectionI, STEPS.summary];
+    header.classList.toggle('compact', compactSteps.includes(step));
 }
 
 function goBack() {
@@ -446,36 +462,6 @@ function hideAllCards() {
     });
 }
 
-function jumpToStep(step) {
-    // Validate if step is accessible
-    if (!isStepAccessible(step)) {
-        showToast('Please complete previous steps first', 'warning');
-        return;
-    }
-    
-    // Navigate to step
-    switch(step) {
-        case STEPS.setup:
-            showSetupCard();
-            break;
-        case STEPS.evaluation:
-            showEvaluationStep();
-            break;
-        case STEPS.comments:
-            showDirectedCommentsStep();
-            break;
-        case STEPS.sectionI:
-            showSectionIStep();
-            break;
-        case STEPS.summary:
-            showSummaryStep();
-            break;
-    }
-    
-    updateNavigationState(step);
-    toggleMenu(); // Close menu after navigation
-}
-
 // Update the original functions to use the new step functions
 function showDirectedCommentsScreen() {
     showDirectedCommentsStep();
@@ -491,68 +477,6 @@ function showSectionIGeneration() {
     // Initialize the analysis
     const analysis = analyzeTraitEvaluations();
     updateAnalysisDisplay(analysis);
-}
-
-function showSummary() {
-    showSummaryStep();
-    
-    const fitrepAverage = calculateFitrepAverage();
-    document.getElementById('fitrepAverage').textContent = 
-        `FITREP Average: ${fitrepAverage}`;
-    
-    const metaDiv = document.getElementById('evaluationMeta');
-    metaDiv.innerHTML = `
-        <strong>Marine:</strong> ${evaluationMeta.marineName} | 
-        <strong>Period:</strong> ${evaluationMeta.fromDate} to ${evaluationMeta.toDate} | 
-        <strong>Reporting Senior:</strong> ${evaluationMeta.evaluatorName} | 
-        <strong>Completed:</strong> ${new Date().toLocaleDateString()}
-    `;
-    
-    const summaryGrid = document.getElementById('summaryGrid');
-    summaryGrid.innerHTML = '';
-    
-    // Add trait evaluations
-    Object.keys(evaluationResults).forEach(key => {
-        const result = evaluationResults[key];
-        const item = document.createElement('div');
-        item.className = 'summary-item';
-        item.innerHTML = `
-            <div class="summary-trait">${result.section}: ${result.trait}</div>
-            <div class="summary-grade">Grade: ${result.grade} (${result.gradeNumber})</div>
-            <div class="summary-justification">${result.justification}</div>
-        `;
-        summaryGrid.appendChild(item);
-    });
-    
-    // Add Section I comments if present
-    if (evaluationMeta.sectionIComments && evaluationMeta.sectionIComments.trim()) {
-        const sectionIItem = document.createElement('div');
-        sectionIItem.className = 'summary-item';
-        sectionIItem.style.gridColumn = '1 / -1'; // Span full width
-        sectionIItem.style.background = '#e8f5e8';
-        sectionIItem.innerHTML = `
-            <div class="summary-trait">Section I - Narrative Comments</div>
-            <div class="summary-justification" style="max-height: none; font-size: 13px; line-height: 1.4; white-space: pre-line;">
-                ${evaluationMeta.sectionIComments}
-            </div>
-        `;
-        summaryGrid.appendChild(sectionIItem);
-    }
-    
-    // Add directed comments if present
-    if (evaluationMeta.directedComments && evaluationMeta.directedComments.trim()) {
-        const directedCommentsItem = document.createElement('div');
-        directedCommentsItem.className = 'summary-item';
-        directedCommentsItem.style.gridColumn = '1 / -1'; // Span full width
-        directedCommentsItem.style.background = '#f0f7ff';
-        directedCommentsItem.innerHTML = `
-            <div class="summary-trait">Section I - Directed Comments</div>
-            <div class="summary-justification" style="max-height: none; font-size: 13px; line-height: 1.4; white-space: pre-line;">
-                ${evaluationMeta.directedComments}
-            </div>
-        `;
-        summaryGrid.appendChild(directedCommentsItem);
-    }
 }
 
 // Edit Functions

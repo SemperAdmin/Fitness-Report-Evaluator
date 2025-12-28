@@ -4,7 +4,7 @@
 (function(){
   /**
    * UI display values
-   * @typedef {{ BLOCK: string, NONE: string, FLEX?: string, INLINE_BLOCK?: string }} DisplayValues
+   * @typedef {{ BLOCK: string, NONE: string, FLEX?: string, INLINE_BLOCK?: string, SHOW?: string, HIDE?: string }} DisplayValues
    */
   /**
    * Common CSS class names used across UI components
@@ -80,7 +80,9 @@
       BLOCK: 'block',
       NONE: 'none',
       FLEX: 'flex',
-      INLINE_BLOCK: 'inline-block'
+      INLINE_BLOCK: 'inline-block',
+      SHOW: 'block', // Alias for app.js compatibility
+      HIDE: 'none'   // Alias for app.js compatibility
     }),
     CSS: /** @type {CssClasses} */({
       ACTIVE: 'active',

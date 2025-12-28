@@ -89,13 +89,88 @@
     }
   }
 
+  async function clearForEmail(email) {
+    try {
+      const db = await openDb();
+      const ok1 = await new Promise((resolve, reject) => {
+        try {
+          const tx = db.transaction('indexes', 'readwrite');
+          const store = tx.objectStore('indexes');
+          const req = store.delete(email);
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(req.error);
+        } catch (err) {
+          reject(err);
+        }
+      });
+      const ok2 = await new Promise((resolve, reject) => {
+        try {
+          const tx = db.transaction('details', 'readwrite');
+          const store = tx.objectStore('details');
+          const prefix = String(email || '').trim() + '|';
+          const req = store.openCursor();
+          req.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+              const k = String(cursor.key || '');
+              if (k.startsWith(prefix)) {
+                store.delete(cursor.key);
+              }
+              cursor.continue();
+            } else {
+              resolve(true);
+            }
+          };
+          req.onerror = () => reject(req.error);
+        } catch (err) {
+          reject(err);
+        }
+      });
+      return ok1 && ok2;
+    } catch (e) {
+      console.warn('IDB clearForEmail failed:', e);
+      return false;
+    }
+  }
+
+  async function clearAll() {
+    try {
+      const db = await openDb();
+      const ok1 = await new Promise((resolve, reject) => {
+        try {
+          const tx = db.transaction('indexes', 'readwrite');
+          const store = tx.objectStore('indexes');
+          const req = store.clear();
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(req.error);
+        } catch (err) {
+          reject(err);
+        }
+      });
+      const ok2 = await new Promise((resolve, reject) => {
+        try {
+          const tx = db.transaction('details', 'readwrite');
+          const store = tx.objectStore('details');
+          const req = store.clear();
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(req.error);
+        } catch (err) {
+          reject(err);
+        }
+      });
+      return ok1 && ok2;
+    } catch (e) {
+      console.warn('IDB clearAll failed:', e);
+      return false;
+    }
+  }
+
   // Expose
-  const api = { putIndex, getIndex, putDetail, getDetail };
+  const api = { putIndex, getIndex, putDetail, getDetail, clearForEmail, clearAll };
   if (typeof window !== 'undefined') {
     window.idbStore = api;
   }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   }
-})();
-
+  })();

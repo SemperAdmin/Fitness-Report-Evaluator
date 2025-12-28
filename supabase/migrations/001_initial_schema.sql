@@ -5,8 +5,9 @@
 -- ============================================================================
 -- 1. USERS TABLE
 -- ============================================================================
--- Stores Reporting Senior (RS) user accounts
-CREATE TABLE IF NOT EXISTS users (
+-- 1. FIT_USERS TABLE
+-- Stores Reporting Senior (RS) user accounts for Fitness Report Evaluator
+CREATE TABLE IF NOT EXISTS fit_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   rs_email TEXT UNIQUE NOT NULL,
   rs_name TEXT NOT NULL,
@@ -20,10 +21,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Index for fast email lookups (login)
-CREATE INDEX idx_users_email ON users(rs_email);
+CREATE INDEX idx_users_email ON fit_users(rs_email);
 
 -- Index for filtering by rank
-CREATE INDEX idx_users_rank ON users(rs_rank);
+CREATE INDEX idx_users_rank ON fit_users(rs_rank);
 
 -- ============================================================================
 -- 2. EVALUATIONS TABLE
@@ -31,7 +32,7 @@ CREATE INDEX idx_users_rank ON users(rs_rank);
 -- Stores fitness report evaluations for Marines
 CREATE TABLE IF NOT EXISTS evaluations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES fit_users(id) ON DELETE CASCADE,
 
   -- Evaluation Identifiers
   evaluation_id TEXT UNIQUE NOT NULL,
@@ -55,6 +56,9 @@ CREATE TABLE IF NOT EXISTS evaluations (
 
   -- Comments and Status
   section_i_comments TEXT,
+  section_i_comments_version INTEGER NOT NULL DEFAULT 1,
+  directed_comments TEXT,
+  directed_comments_version INTEGER NOT NULL DEFAULT 1,
   sync_status TEXT DEFAULT 'synced',
 
   -- Timestamps
@@ -105,42 +109,42 @@ CREATE INDEX idx_trait_evaluations_section ON trait_evaluations(section);
 -- 4. ROW LEVEL SECURITY (RLS) POLICIES
 -- ============================================================================
 -- Enable RLS on all tables
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fit_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trait_evaluations ENABLE ROW LEVEL SECURITY;
 
 -- Users can only read/update their own profile
-CREATE POLICY users_select_own ON users
+CREATE POLICY users_select_own ON fit_users
   FOR SELECT
   USING (auth.uid()::text = id::text OR rs_email = current_setting('request.jwt.claims', true)::json->>'email');
 
-CREATE POLICY users_update_own ON users
+CREATE POLICY users_update_own ON fit_users
   FOR UPDATE
   USING (auth.uid()::text = id::text OR rs_email = current_setting('request.jwt.claims', true)::json->>'email');
 
 -- Users can only access their own evaluations
 CREATE POLICY evaluations_select_own ON evaluations
   FOR SELECT
-  USING (user_id IN (SELECT id FROM users WHERE auth.uid()::text = id::text));
+  USING (user_id IN (SELECT id FROM fit_users WHERE auth.uid()::text = id::text));
 
 CREATE POLICY evaluations_insert_own ON evaluations
   FOR INSERT
-  WITH CHECK (user_id IN (SELECT id FROM users WHERE auth.uid()::text = id::text));
+  WITH CHECK (user_id IN (SELECT id FROM fit_users WHERE auth.uid()::text = id::text));
 
 CREATE POLICY evaluations_update_own ON evaluations
   FOR UPDATE
-  USING (user_id IN (SELECT id FROM users WHERE auth.uid()::text = id::text));
+  USING (user_id IN (SELECT id FROM fit_users WHERE auth.uid()::text = id::text));
 
 CREATE POLICY evaluations_delete_own ON evaluations
   FOR DELETE
-  USING (user_id IN (SELECT id FROM users WHERE auth.uid()::text = id::text));
+  USING (user_id IN (SELECT id FROM fit_users WHERE auth.uid()::text = id::text));
 
 -- Trait evaluations inherit access from parent evaluation
 CREATE POLICY trait_evaluations_select_own ON trait_evaluations
   FOR SELECT
   USING (evaluation_id IN (
     SELECT e.id FROM evaluations e
-    INNER JOIN users u ON e.user_id = u.id
+    INNER JOIN fit_users u ON e.user_id = u.id
     WHERE auth.uid()::text = u.id::text
   ));
 
@@ -148,7 +152,7 @@ CREATE POLICY trait_evaluations_insert_own ON trait_evaluations
   FOR INSERT
   WITH CHECK (evaluation_id IN (
     SELECT e.id FROM evaluations e
-    INNER JOIN users u ON e.user_id = u.id
+    INNER JOIN fit_users u ON e.user_id = u.id
     WHERE auth.uid()::text = u.id::text
   ));
 
@@ -156,7 +160,7 @@ CREATE POLICY trait_evaluations_update_own ON trait_evaluations
   FOR UPDATE
   USING (evaluation_id IN (
     SELECT e.id FROM evaluations e
-    INNER JOIN users u ON e.user_id = u.id
+    INNER JOIN fit_users u ON e.user_id = u.id
     WHERE auth.uid()::text = u.id::text
   ));
 
@@ -164,7 +168,7 @@ CREATE POLICY trait_evaluations_delete_own ON trait_evaluations
   FOR DELETE
   USING (evaluation_id IN (
     SELECT e.id FROM evaluations e
-    INNER JOIN users u ON e.user_id = u.id
+    INNER JOIN fit_users u ON e.user_id = u.id
     WHERE auth.uid()::text = u.id::text
   ));
 
@@ -181,17 +185,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION update_last_updated_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.last_updated = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Trigger for evaluations table
 CREATE TRIGGER update_evaluations_updated_at
   BEFORE UPDATE ON evaluations
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- Trigger for users table
-CREATE TRIGGER update_users_last_updated
-  BEFORE UPDATE ON users
+-- Trigger for fit_users table
+CREATE TRIGGER update_fit_users_last_updated
+  BEFORE UPDATE ON fit_users
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION update_last_updated_column();
 
 -- ============================================================================
 -- 6. HELPER VIEWS
@@ -215,7 +227,7 @@ SELECT
   u.rs_email,
   COUNT(t.id) as trait_count
 FROM evaluations e
-INNER JOIN users u ON e.user_id = u.id
+INNER JOIN fit_users u ON e.user_id = u.id
 LEFT JOIN trait_evaluations t ON e.id = t.evaluation_id
 GROUP BY e.id, e.evaluation_id, e.marine_name, e.marine_rank, e.occasion,
          e.completed_date, e.fitrep_average, e.rs_name, e.rs_rank,

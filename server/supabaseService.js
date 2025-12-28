@@ -7,7 +7,7 @@
  * All functions return standardized responses: { data, error }
  */
 
-const { getClient, isSupabaseAvailable } = require('./supabaseClient');
+const { getClient, isSupabaseAvailable, USERS_TABLE, EVALUATIONS_TABLE, TRAITS_TABLE } = require('./supabaseClient');
 
 // ============================================================================
 // USER OPERATIONS
@@ -31,13 +31,12 @@ async function createUser({ email, name, rank, username, passwordHash }) {
     const client = getClient(true); // Use admin client for user creation
 
     const { data, error } = await client
-      .from('users')
+      .from(USERS_TABLE)
       .insert([
         {
-          email: email,
-          name: name,
-          rank: rank,
-          username: username,
+          rs_email: email,
+          rs_name: name,
+          rs_rank: rank,
           password_hash: passwordHash || '',
           created_date: new Date().toISOString(),
           last_updated: new Date().toISOString(),
@@ -91,14 +90,14 @@ async function getUserByEmail(identifier) {
     const client = getClient(true); // Use admin to bypass RLS
 
     let { data, error } = await client
-      .from('users')
+      .from(USERS_TABLE)
       .select('*')
-      .ilike('email', identifier)
+      .ilike('rs_email', identifier)
       .limit(1);
     const candidate = Array.isArray(data) ? data[0] : data;
     if (!candidate) {
       const { data: byUsername } = await client
-        .from('users')
+        .from(USERS_TABLE)
         .select('*')
         .ilike('username', identifier)
         .limit(1);
@@ -109,16 +108,6 @@ async function getUserByEmail(identifier) {
       return { data: cand2, error: null };
     }
     return { data: candidate, error: null };
-
-    if (error) {
-      // Not found is not an error in this context
-      if (error.code === 'PGRST116') {
-        return { data: null, error: null };
-      }
-      return { data: null, error };
-    }
-
-    return { data, error: null };
   } catch (err) {
     console.error('Error getting user:', err);
     return { data: null, error: err };
@@ -138,28 +127,87 @@ async function updateUser(rsEmail, updates) {
 
   try {
     const client = getClient(true);
+    let { data: existingUser, error: lookupError } = await getUserByEmail(rsEmail);
 
-    // Filter out immutable fields
-    const allowedUpdates = {
+    // FALLBACK: If user not found by identifier, try finding by rs_name if provided
+    // This handles cases where rs_email is NULL in DB but user exists with name
+    if ((!existingUser || !existingUser.id) && updates.rsName) {
+      try {
+        const { data: byName } = await client
+          .from(USERS_TABLE)
+          .select('*')
+          .eq('rs_name', updates.rsName)
+          .limit(1);
+        
+        if (byName && byName.length > 0) {
+          // If rank also matches (if provided), or just trust the name
+          const candidate = byName[0];
+          if (!updates.rsRank || candidate.rs_rank === updates.rsRank) {
+            existingUser = candidate;
+            lookupError = null;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (lookupError) {
+      return { data: null, error: lookupError };
+    }
+    if (!existingUser || !existingUser.id) {
+      return { data: null, error: new Error('User not found') };
+    }
+
+    // Safe Update Strategy:
+    // 1. Attempt to update only standard fields (rs_email, rs_name, rs_rank)
+    // 2. If successful, attempt to update username (ignoring errors if column missing)
+    
+    // Standard fields (guaranteed to exist)
+    const standardUpdates = {
       rs_name: updates.rsName,
       rs_rank: updates.rsRank,
       last_updated: new Date().toISOString(),
     };
 
-    // Remove undefined values
-    Object.keys(allowedUpdates).forEach(
-      (key) => allowedUpdates[key] === undefined && delete allowedUpdates[key]
+    if (updates.contactEmail && updates.contactEmail.includes('@')) {
+      standardUpdates.rs_email = updates.contactEmail;
+    }
+    
+    // Self-healing: If rs_email is NULL, force it
+    if (!existingUser.rs_email && !standardUpdates.rs_email) {
+      const newEmail = updates.contactEmail || (rsEmail.includes('@') ? rsEmail : null);
+      if (newEmail) standardUpdates.rs_email = newEmail;
+    }
+
+    // Remove undefined
+    Object.keys(standardUpdates).forEach(
+      (key) => standardUpdates[key] === undefined && delete standardUpdates[key]
     );
 
+    // Execute Standard Update
     const { data, error } = await client
-      .from('users')
-      .update(allowedUpdates)
-      .eq('rs_email', rsEmail)
+      .from(USERS_TABLE)
+      .update(standardUpdates)
+      .eq('id', existingUser.id)
       .select()
       .single();
 
     if (error) {
+      // If standard update fails, return error immediately
       return { data: null, error };
+    }
+
+    // Optional fields (might not exist in schema)
+    if (updates.username) {
+      try {
+        await client
+          .from(USERS_TABLE)
+          .update({ username: updates.username })
+          .eq('id', existingUser.id);
+      } catch (err) {
+        // Ignore username update failures (column missing, etc.)
+        // This ensures the main profile update succeeds even if username fails
+        console.warn('Username update skipped:', err.message);
+      }
     }
 
     return { data, error: null };
@@ -182,14 +230,26 @@ async function updateUserEmail(oldEmail, newEmail) {
 
   try {
     const client = getClient(true);
+    const { data: existingUser, error: lookupError } = await getUserByEmail(oldEmail);
+    if (lookupError) {
+      return { data: null, error: lookupError };
+    }
+    if (!existingUser || !existingUser.id) {
+      return { data: null, error: new Error('User not found') };
+    }
+
+    // Idempotency check: If email is already updated, return success
+    if (existingUser.rs_email === newEmail) {
+      return { data: existingUser, error: null };
+    }
 
     const { data, error } = await client
-      .from('users')
+      .from(USERS_TABLE)
       .update({
         rs_email: newEmail,
         last_updated: new Date().toISOString(),
       })
-      .eq('rs_email', oldEmail)
+      .eq('id', existingUser.id)
       .select()
       .single();
 
@@ -264,22 +324,33 @@ async function saveEvaluation(evaluationData) {
       rs_email: evaluationData.rsInfo?.email || evaluationData.rsEmail,
       rs_rank: evaluationData.rsInfo?.rank || evaluationData.rsRank,
       section_i_comments: evaluationData.sectionIComments,
+      directed_comments: evaluationData.directedComments,
       sync_status: evaluationData.syncStatus || 'synced',
       saved_at: evaluationData.savedAt || new Date().toISOString(),
     };
 
-    // Check if evaluation exists
+    // Check if evaluation exists (and get comments for versioning)
     const { data: existing } = await client
-      .from('evaluations')
-      .select('id')
+      .from(EVALUATIONS_TABLE)
+      .select('id, section_i_comments, section_i_comments_version, directed_comments, directed_comments_version')
       .eq('evaluation_id', evaluationData.evaluationId)
       .single();
 
     let savedEval;
     if (existing) {
+      const prevComments = existing.section_i_comments || '';
+      const newComments = evaluationData.sectionIComments || '';
+      const prevVersion = Number(existing.section_i_comments_version || 1);
+      const nextVersion = prevVersion + (newComments !== prevComments ? 1 : 0);
+      evalRecord.section_i_comments_version = nextVersion;
+      const prevDirected = existing.directed_comments || '';
+      const newDirected = evaluationData.directedComments || '';
+      const prevDirectedVersion = Number(existing.directed_comments_version || 1);
+      const nextDirectedVersion = prevDirectedVersion + (newDirected !== prevDirected ? 1 : 0);
+      evalRecord.directed_comments_version = nextDirectedVersion;
       // Update existing evaluation
       const { data, error } = await client
-        .from('evaluations')
+        .from(EVALUATIONS_TABLE)
         .update(evalRecord)
         .eq('id', existing.id)
         .select()
@@ -288,9 +359,11 @@ async function saveEvaluation(evaluationData) {
       if (error) return { data: null, error };
       savedEval = data;
     } else {
+      evalRecord.section_i_comments_version = 1;
+      evalRecord.directed_comments_version = 1;
       // Insert new evaluation
       const { data, error } = await client
-        .from('evaluations')
+        .from(EVALUATIONS_TABLE)
         .insert([evalRecord])
         .select()
         .single();
@@ -299,25 +372,44 @@ async function saveEvaluation(evaluationData) {
       savedEval = data;
     }
 
-    // Save trait evaluations if provided
-    if (evaluationData.traitEvaluations && evaluationData.traitEvaluations.length > 0) {
+    // Normalize trait evaluations (support object maps from UI) and save if provided
+    let traitsSrc = evaluationData.traitEvaluations;
+    if (traitsSrc && !Array.isArray(traitsSrc) && typeof traitsSrc === 'object') {
+      try { traitsSrc = Object.values(traitsSrc); } catch (_) { traitsSrc = []; }
+    }
+    if (Array.isArray(traitsSrc) && traitsSrc.length > 0) {
       // Delete existing traits for this evaluation
       await client
-        .from('trait_evaluations')
+        .from(TRAITS_TABLE)
         .delete()
         .eq('evaluation_id', savedEval.id);
 
       // Insert new traits
-      const traits = evaluationData.traitEvaluations.map((trait) => ({
-        evaluation_id: savedEval.id,
-        section: trait.section,
-        trait: trait.trait,
-        grade: trait.grade,
-        grade_number: trait.gradeNumber,
-      }));
+      const sectionMap = {
+        'Mission Accomplishment': 'A',
+        'Leadership': 'B',
+        'Individual Character': 'C',
+        'Intellect and Wisdom': 'D',
+        'Fulfillment of Evaluation Responsibilities': 'E',
+      };
+      const traits = traitsSrc.map((trait) => {
+        const s = trait.section;
+        const normalized =
+          typeof s === 'string'
+            ? (sectionMap[s] || s)
+            : s;
+        return {
+          evaluation_id: savedEval.id,
+          section: normalized,
+          trait: trait.trait,
+          grade: String(trait.grade || '').toUpperCase(),
+          grade_number: Math.min(7, Math.max(1, Number(trait.gradeNumber || 0))),
+          justification: trait.justification || null,
+        };
+      });
 
       const { error: traitError } = await client
-        .from('trait_evaluations')
+        .from(TRAITS_TABLE)
         .insert(traits);
 
       if (traitError) {
@@ -354,7 +446,7 @@ async function getEvaluationsByUser(rsEmail) {
 
     // Get evaluations
     const { data, error } = await client
-      .from('evaluations')
+      .from(EVALUATIONS_TABLE)
       .select('*')
       .eq('user_id', user.id)
       .order('completed_date', { ascending: false, nullsFirst: false })
@@ -384,62 +476,107 @@ async function getFullEvaluationsByUser(rsEmail) {
   try {
     const client = getClient(true);
 
-    // Get evaluations with traits in a single query using JOIN
-    // Using denormalized rs_email column for optimal performance (1 query instead of 2)
-    const { data: evaluations, error } = await client
-      .from('evaluations')
-      .select(`
-        *,
-        trait_evaluations (
-          id,
-          section,
-          trait,
-          grade,
-          grade_number
-        )
-      `)
-      .eq('rs_email', rsEmail)
-      .order('completed_date', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false });
+    // 1. Resolve user first to get user_id (definitive source for account ownership)
+    let userId = null;
+    const { data: user, error: uErr } = await getUserByEmail(rsEmail);
+    if (!uErr && user && user.id) {
+      userId = user.id;
+    }
 
-    if (error) {
-      return { data: null, error };
+    let evaluations = [];
+
+    // 2. Query by user_id if available (primary method)
+    if (userId) {
+      const { data: evalByUserId, error: userErr } = await client
+        .from(EVALUATIONS_TABLE)
+        .select(`
+          *,
+          trait_evaluations (
+            id,
+            section,
+            trait,
+            grade,
+            grade_number,
+            justification
+          )
+        `)
+        .eq('user_id', userId)
+        .order('completed_date', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+
+      if (userErr) {
+        console.warn('Error fetching evaluations by user_id (falling back to email):', userErr);
+      } else if (Array.isArray(evalByUserId)) {
+        evaluations = evalByUserId;
+      }
+    }
+
+    // 3. Fallback: Query by denormalized rs_email if no evaluations found via user_id
+    // This handles legacy data, mixed records during migration, or cases where user_id might be missing
+    if (!evaluations.length) {
+      const { data: evalByEmail, error: emailErr } = await client
+        .from(EVALUATIONS_TABLE)
+        .select(`
+          *,
+          trait_evaluations (
+            id,
+            section,
+            trait,
+            grade,
+            grade_number,
+            justification
+          )
+        `)
+        .ilike('rs_email', rsEmail)
+        .order('completed_date', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+
+      if (emailErr) {
+        return { data: null, error: emailErr };
+      }
+      if (Array.isArray(evalByEmail)) {
+        evaluations = evalByEmail;
+      }
     }
 
     // Format to match frontend JSON structure
-    const formatted = (evaluations || []).map((eval) => ({
-      version: eval.version,
-      savedAt: eval.saved_at,
-      rsEmail: eval.rs_email,
-      rsName: eval.rs_name,
-      rsRank: eval.rs_rank,
+    const formatted = (evaluations || []).map((ev) => ({
+      version: ev.version,
+      savedAt: ev.saved_at,
+      rsEmail: ev.rs_email,
+      rsName: ev.rs_name,
+      rsRank: ev.rs_rank,
       evaluation: {
-        evaluationId: eval.evaluation_id,
-        occasion: eval.occasion,
-        completedDate: eval.completed_date,
-        fitrepAverage: eval.fitrep_average?.toString(),
+        evaluationId: ev.evaluation_id,
+        occasion: ev.occasion,
+        completedDate: ev.completed_date,
+        fitrepAverage: ev.fitrep_average?.toString(),
         marineInfo: {
-          name: eval.marine_name,
-          rank: eval.marine_rank,
+          name: ev.marine_name,
+          rank: ev.marine_rank,
           evaluationPeriod: {
-            from: eval.evaluation_period_from,
-            to: eval.evaluation_period_to,
+            from: ev.evaluation_period_from,
+            to: ev.evaluation_period_to,
           },
         },
         rsInfo: {
-          name: eval.rs_name,
-          email: eval.rs_email,
-          rank: eval.rs_rank,
+          name: ev.rs_name,
+          email: ev.rs_email,
+          rank: ev.rs_rank,
         },
-        sectionIComments: eval.section_i_comments,
-        traitEvaluations: (eval.trait_evaluations || []).map((trait) => ({
+        sectionIComments: ev.section_i_comments,
+        sectionICommentsVersion: ev.section_i_comments_version,
+        directedComments: ev.directed_comments,
+        directedCommentsVersion: ev.directed_comments_version,
+        traitEvaluations: (ev.trait_evaluations || []).map((trait) => ({
           id: trait.id,
           section: trait.section,
           trait: trait.trait,
           grade: trait.grade,
           gradeNumber: trait.grade_number,
+          justification: trait.justification,
         })),
-        syncStatus: eval.sync_status,
+        syncStatus: ev.sync_status,
       },
     }));
 
@@ -465,7 +602,7 @@ async function getEvaluationById(evaluationId) {
 
     // Get evaluation
     const { data: evaluation, error: evalError } = await client
-      .from('evaluations')
+      .from(EVALUATIONS_TABLE)
       .select('*')
       .eq('evaluation_id', evaluationId)
       .single();
@@ -476,7 +613,7 @@ async function getEvaluationById(evaluationId) {
 
     // Get traits
     const { data: traits, error: traitError } = await client
-      .from('trait_evaluations')
+      .from(TRAITS_TABLE)
       .select('*')
       .eq('evaluation_id', evaluation.id)
       .order('section')
@@ -512,6 +649,9 @@ async function getEvaluationById(evaluationId) {
           rank: evaluation.rs_rank,
         },
         sectionIComments: evaluation.section_i_comments,
+        sectionICommentsVersion: evaluation.section_i_comments_version,
+        directedComments: evaluation.directed_comments,
+        directedCommentsVersion: evaluation.directed_comments_version,
         traitEvaluations: traits || [],
         syncStatus: evaluation.sync_status,
       },
@@ -539,7 +679,7 @@ async function deleteEvaluation(evaluationId) {
 
     // Delete evaluation (traits will cascade delete)
     const { error } = await client
-      .from('evaluations')
+      .from(EVALUATIONS_TABLE)
       .delete()
       .eq('evaluation_id', evaluationId);
 

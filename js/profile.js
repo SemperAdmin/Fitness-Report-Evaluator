@@ -127,6 +127,7 @@ async function profileLogin() {
             rsName: name,
             rsEmail: email,
             rsRank: rank,
+            username: email,
             createdDate: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             totalEvaluations: Array.isArray(localEvaluations) ? localEvaluations.length : 0,
@@ -161,10 +162,11 @@ async function createAccount() {
     const rank = document.getElementById('caRankInput')?.value;
     const name = document.getElementById('caNameInput')?.value.trim();
     const email = document.getElementById('caEmailInput')?.value.trim();
+    const emailAddr = document.getElementById('caEmailAddrInput')?.value.trim();
     const password = document.getElementById('caPasswordInput')?.value;
     const confirm = document.getElementById('caPasswordConfirmInput')?.value;
 
-    if (!branch || !rank || !name || !email || !password) {
+    if (!branch || !rank || !name || !email || !emailAddr || !password || !confirm) {
         alert('Please complete all fields.');
         return;
     }
@@ -201,9 +203,9 @@ async function createAccount() {
     // Removed availability preflight; rely on server-side uniqueness check during create
 
     try {
-        // Send explicit username for clarity; keep email for compatibility
+        // Send explicit username for clarity; include contactEmail as optional
         const CREATE_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_CREATE) || '/api/account/create';
-        const res = await postJson(CREATE_ROUTE, { branch, rank, name, email, username: email, password });
+        const res = await postJson(CREATE_ROUTE, { branch, rank, name, email, username: email, password, contactEmail: emailAddr });
         if (!res || !res.ok) {
             const msg = res && res.error ? res.error : 'Account creation failed.';
             alert(msg);
@@ -214,13 +216,14 @@ async function createAccount() {
         const profileKey = generateProfileKey(name, email);
         const profile = {
             full_name: name,
-            email: email,
+            email: emailAddr,
             rank: rank,
             branch: branch,
             // Legacy fields
             rsName: name,
             rsEmail: email,
             rsRank: rank,
+            username: email,
             createdDate: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             totalEvaluations: 0,
@@ -304,8 +307,9 @@ async function accountLogin() {
             rank: user.rank || res.rsRank,
             branch: user.branch || 'USMC',
             rsName: user.name || user.full_name || res.rsName,
-            rsEmail: user.username || email,
+            rsEmail: user.rsEmail || user.email || '',
             rsRank: user.rank || res.rsRank,
+            username: user.username || email,
             lastUpdated: new Date().toISOString()
         };
 
@@ -314,7 +318,8 @@ async function accountLogin() {
             const USER_LOAD_ROUTE = (window.CONSTANTS?.ROUTES?.API?.USER_LOAD) || '/api/user/load';
             const base = window.API_BASE_URL || location.origin;
             const url = new URL(USER_LOAD_ROUTE, base);
-            url.searchParams.set('email', email);
+            url.searchParams.set('email', baseProfile.rsEmail || email);
+            const endpoint = url.toString();
             const headers = {};
             try {
                 const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
@@ -324,11 +329,20 @@ async function accountLogin() {
                 const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
                 if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
             } catch (_) {}
-            const resp = await fetch(url.toString(), { method: 'GET', headers, credentials: 'include' });
+            const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
+                ? window.githubService.getFetchCredentials(endpoint)
+                : 'include';
+            const resp = await fetch(endpoint, { method: 'GET', headers, credentials: credentialsMode });
             const data = await resp.json().catch(() => ({}));
-            if (resp.ok && data?.data && typeof data.data === 'object') {
-                const repoEmail = (data.data.contactEmail || '').trim();
-                if (repoEmail) baseProfile.email = repoEmail;
+            if (resp.ok && data && typeof data === 'object') {
+                const repoEmail = String((data.contactEmail || data.rsEmail || '')).trim();
+                if (repoEmail) {
+                    baseProfile.email = repoEmail;
+                    if (repoEmail.includes('@')) baseProfile.rsEmail = repoEmail;
+                }
+                if (data.username) {
+                    baseProfile.username = data.username;
+                }
             }
         } catch (e) {
             /* ignore load failures; fall back to existing baseProfile.email */
@@ -358,7 +372,8 @@ async function accountLogin() {
             const LIST_ROUTE = (window.CONSTANTS?.ROUTES?.API?.EVALUATIONS_LIST) || '/api/evaluations/list';
             const base = window.API_BASE_URL || location.origin;
             const url = new URL(LIST_ROUTE, base);
-            url.searchParams.set('email', email);
+            url.searchParams.set('email', baseProfile.rsEmail || email);
+            const endpoint = url.toString();
             const headers = {};
             try {
                 const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
@@ -368,7 +383,10 @@ async function accountLogin() {
                 const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
                 if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
             } catch (_) {}
-            const resp = await fetch(url.toString(), { method: 'GET', headers, credentials: 'include' });
+            const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
+                ? window.githubService.getFetchCredentials(endpoint)
+                : 'include';
+            const resp = await fetch(endpoint, { method: 'GET', headers, credentials: credentialsMode });
             const data = await resp.json().catch(() => ({}));
             if (resp.ok && Array.isArray(data?.evaluations)) {
                 evaluations = data.evaluations;
@@ -393,6 +411,21 @@ async function accountLogin() {
 
         // Hide animation before transitioning to dashboard
         if (typewriter) typewriter.style.display = 'none';
+
+        // Check if this is an admin user - redirect to admin dashboard
+        const username = (user.username || email || '').toLowerCase().trim();
+        const isAdmin = user.isAdmin === true || username === 'semperadmin';
+
+        if (isAdmin) {
+            // Redirect to admin dashboard
+            window.location.href = 'admin.html';
+            return;
+        }
+
+        const needsContactEmail = ![currentProfile?.email, currentProfile?.rsEmail].some(e => e && String(e).includes('@'));
+        if (needsContactEmail) {
+            openMissingRsEmailModal();
+        }
         showProfileDashboard();
 
         // Auto-sync any locally pending evaluations after successful login
@@ -411,6 +444,60 @@ async function accountLogin() {
         const offline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
         const msg = offline ? 'Offline: connect to login.' : 'Network error during login. Please retry.';
         showToast(msg, 'error');
+    }
+}
+
+function showForgotPassword() {
+    const loginFields = document.getElementById('loginFields');
+    const createSection = document.getElementById('createAccountSection');
+    const forgotSection = document.getElementById('forgotPasswordSection');
+    if (loginFields) loginFields.style.display = 'none';
+    if (createSection) createSection.style.display = 'none';
+    if (forgotSection) forgotSection.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+function hideForgotPassword() {
+    const loginFields = document.getElementById('loginFields');
+    const forgotSection = document.getElementById('forgotPasswordSection');
+    if (forgotSection) forgotSection.style.display = 'none';
+    if (loginFields) loginFields.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+async function resetPassword() {
+    const rsEmail = document.getElementById('fpEmailInput')?.value.trim();
+    const username = document.getElementById('fpUsernameInput')?.value.trim();
+    const newPassword = document.getElementById('fpPasswordInput')?.value || '';
+    const confirmPassword = document.getElementById('fpPasswordConfirmInput')?.value || '';
+    if (!rsEmail || !username || !newPassword || !confirmPassword) {
+        showToast('Enter RS email, username, and new password', 'error');
+        return;
+    }
+    if (!isValidUsernameClient(username)) {
+        showToast('Invalid username format', 'error');
+        return;
+    }
+    if (!isStrongPasswordClient(newPassword)) {
+        showToast('Weak password: use upper, lower, and number', 'error');
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+    try {
+        const RESET_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_RESET) || '/api/account/reset-password';
+        const res = await postJson(RESET_ROUTE, { rsEmail, username, newPassword, confirmPassword });
+        if (res && res.ok && res.status === 200) {
+            showToast('Password updated. Login with your new password.', 'success');
+            hideForgotPassword();
+        } else {
+            const msg = (res && res.error) ? res.error : 'Password reset failed';
+            showToast(msg, 'error');
+        }
+    } catch (err) {
+        showToast('Network error during password reset', 'error');
     }
 }
 
@@ -477,25 +564,14 @@ async function postJson(url, body) {
     } else {
         debugWarn('[csrf] No CSRF token available to set in header for endpoint:', endpoint);
     }
-    let assembledToken = null;
     try {
-        let token = (typeof window !== 'undefined' && window.GITHUB_CONFIG && window.GITHUB_CONFIG.token)
-            ? window.GITHUB_CONFIG.token
-            : null;
-        // Optional: allow using assembleToken in production when explicitly enabled
-        if (!token && typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
-            try { assembledToken = window.assembleToken(); } catch (_) { assembledToken = null; }
-            token = assembledToken || token;
+        const sessTok = (typeof sessionStorage !== 'undefined') ? (sessionStorage.getItem('fitrep_session_token') || '') : '';
+        if (sessTok) {
+            headers['Authorization'] = `Bearer ${sessTok}`;
         }
-        if (token) {
-            headers['X-GitHub-Token'] = token;
-        }
-    } catch (_) { /* no-op */ }
+    } catch (_) {}
 
-    // Include token in body as a secondary channel accepted by the server
-    const payload = (assembledToken && typeof assembledToken === 'string' && assembledToken.length)
-        ? { ...body, token: assembledToken }
-        : body;
+    const payload = body;
 
     // Offline fast-fail
     if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) {
@@ -626,23 +702,19 @@ async function postForm(url, body) {
         ? (resolvedUrl.origin !== window.location.origin)
         : false;
 
-    // Build form data; include optional assembled token if present
-    let assembledToken = null;
-    try {
-        if (typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
-            try { assembledToken = window.assembleToken(); } catch (_) { assembledToken = null; }
-        }
-    } catch (_) { /* ignore */ }
     const payload = new URLSearchParams();
-    Object.entries(assembledToken ? { ...body, token: assembledToken } : body).forEach(([k, v]) => {
+    Object.entries(body).forEach(([k, v]) => {
         if (v !== undefined && v !== null) payload.append(k, String(v));
     });
 
     try {
+        const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
+            ? window.githubService.getFetchCredentials(endpoint)
+            : (isCrossOrigin ? 'include' : 'include');
         const resp = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            credentials: isCrossOrigin ? 'omit' : 'include',
+            credentials: credentialsMode,
             mode: 'cors',
             cache: 'no-store',
             body: payload.toString()
@@ -674,7 +746,7 @@ async function postForm(url, body) {
                     endpoint: endpoint,
                     pageOrigin,
                     endpointOrigin,
-                    credentials: (isCrossOrigin ? 'omit' : 'include')
+                    credentials: credentialsMode
                 };
             } else if (typeof window !== 'undefined') {
                 window.__lastApiError = { type: 'network', message: String(err && err.message || err) };
@@ -747,6 +819,7 @@ let selectedRankFilter = '';
 function applyRankFromSummary(rank) {
     setRankFilter(rank);
     toggleGridView(true);
+    hideSummaryGridAnimated();
 }
 
 // Show RS Summary (main page) and clear any active rank filter
@@ -785,11 +858,11 @@ function showProfileDashboard() {
         dash.classList.add('active');
     }
 
-    // Leaving login/home state; keep header hidden in dashboard but clear login/home classes
+    // Leaving login/home state; keep header visible and clear login/home classes
     try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) { }
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
-    if (header) header.style.display = 'none';
+    if (header) header.style.display = '';
     if (warning) warning.style.display = 'none';
 
     // Hide all app cards while in Dashboard
@@ -862,10 +935,17 @@ function renderProfileHeader() {
             };
             return map[rank] || '';
         })(rankNorm);
+        // On mobile, show only rank + last name; on desktop show full name
+        const fullName = currentProfile.rsName || '';
+        const nameParts = fullName.trim().split(/\s+/);
+        const lastName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : fullName;
+        const isMobile = window.innerWidth <= 480;
+        const displayName = isMobile ? lastName : fullName;
+
         if (imgSrc) {
-            nameEl.innerHTML = `<img src="${imgSrc}" alt="${escapeHtml(rankDisplay)} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/>${escapeHtml(rankDisplay)} ${escapeHtml(currentProfile.rsName)}`;
+            nameEl.innerHTML = `<img src="${imgSrc}" alt="${escapeHtml(rankDisplay)} insignia" style="width:24px;height:24px;object-fit:contain;margin-right:8px;vertical-align:middle;border-radius:4px"/><span class="profile-full-name">${escapeHtml(rankDisplay)} ${escapeHtml(fullName)}</span><span class="profile-short-name">${escapeHtml(rankDisplay)} ${escapeHtml(lastName)}</span>`;
         } else {
-            nameEl.textContent = `${rankDisplay} ${currentProfile.rsName}`;
+            nameEl.innerHTML = `<span class="profile-full-name">${escapeHtml(rankDisplay)} ${escapeHtml(fullName)}</span><span class="profile-short-name">${escapeHtml(rankDisplay)} ${escapeHtml(lastName)}</span>`;
         }
     }
     if (emailEl && currentProfile) {
@@ -907,7 +987,7 @@ function openEditProfile() {
 
         if (currentProfile) {
             if (nameInput) nameInput.value = currentProfile.rsName || '';
-            if (emailInput) emailInput.value = currentProfile.rsEmail || '';
+            if (emailInput) emailInput.value = (currentProfile.username || '');
             if (emailAddrInput) emailAddrInput.value = (currentProfile.email || currentProfile.rsEmail || '');
 
             // Initialize branch and rank
@@ -920,13 +1000,9 @@ function openEditProfile() {
             }
         }
 
-        if (nameInput && currentProfile?.rsName) nameInput.value = currentProfile.rsName;
-        if (emailInput && currentProfile?.rsEmail) emailInput.value = currentProfile.rsEmail;
-        if (emailAddrInput && (currentProfile?.email || currentProfile?.rsEmail)) emailAddrInput.value = (currentProfile.email || currentProfile.rsEmail);
-        if (rankInput && currentProfile?.rsRank) rankInput.value = currentProfile.rsRank;
         console.info('[Prefill] applied from currentProfile', {
             name: currentProfile?.rsName,
-            email: currentProfile?.rsEmail,
+            email: currentProfile?.username || currentProfile?.rsEmail,
             rank: currentProfile?.rsRank
         });
 
@@ -1086,6 +1162,97 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function openResetPasswordModal() {
+    const modal = document.getElementById('resetPasswordModal');
+    if (!modal) return;
+    const email = (window.currentProfile && window.currentProfile.rsEmail) ? String(window.currentProfile.rsEmail).trim() : '';
+    const username = (window.currentProfile && window.currentProfile.username) ? String(window.currentProfile.username).trim() : (email || '');
+    const emailEl = document.getElementById('rpEmailDisplay');
+    const userEl = document.getElementById('rpUsernameDisplay');
+    if (emailEl) emailEl.textContent = email || 'Not available';
+    if (userEl) userEl.textContent = username || 'Not available';
+    try {
+        if (window.ModalController && typeof window.ModalController.openById === 'function') {
+            window.ModalController.register('resetPasswordModal', { labelledBy: 'resetPasswordTitle', focusFirst: '#rpNewPasswordInput' });
+            window.ModalController.openById('resetPasswordModal');
+        } else {
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            try { if (window.A11y && typeof window.A11y.openDialog === 'function') window.A11y.openDialog(modal, { labelledBy: 'resetPasswordTitle', focusFirst: '#rpNewPasswordInput' }); } catch (_) {}
+            try { modal.style.display = 'flex'; } catch (_) {}
+        }
+    } catch (_) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        try { modal.style.display = 'flex'; } catch (_) {}
+    }
+}
+
+function closeResetPasswordModal() {
+    const modal = document.getElementById('resetPasswordModal');
+    if (!modal) return;
+    try {
+        if (window.ModalController && typeof window.ModalController.closeById === 'function') {
+            window.ModalController.closeById('resetPasswordModal');
+        } else {
+            try { if (window.A11y && typeof window.A11y.closeDialog === 'function') window.A11y.closeDialog(modal); } catch (_) {}
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+            try { modal.style.display = 'none'; } catch (_) {}
+        }
+    } catch (_) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        try { modal.style.display = 'none'; } catch (_) {}
+    }
+}
+
+async function confirmProfilePasswordReset() {
+    const email = (window.currentProfile && window.currentProfile.rsEmail) ? String(window.currentProfile.rsEmail).trim() : '';
+    const username = (window.currentProfile && window.currentProfile.username) ? String(window.currentProfile.username).trim() : '';
+    const newPassword = document.getElementById('rpNewPasswordInput')?.value || '';
+    const confirmPassword = document.getElementById('rpConfirmPasswordInput')?.value || '';
+    if (!email || !username) {
+        showToast('Missing profile email/username', 'error');
+        return;
+    }
+    if (!newPassword || !confirmPassword) {
+        showToast('Enter new and confirm passwords', 'error');
+        return;
+    }
+    if (!isStrongPasswordClient(newPassword)) {
+        showToast('Weak password: use upper, lower, and number', 'error');
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+    try {
+        const RESET_ROUTE = (window.CONSTANTS?.ROUTES?.API?.ACCOUNT_RESET) || '/api/account/reset-password';
+        const res = await postJson(RESET_ROUTE, { rsEmail: email, username, newPassword, confirmPassword });
+        if (res && res.ok && res.status === 200) {
+            showToast('Password updated', 'success');
+            try {
+                document.getElementById('rpNewPasswordInput').value = '';
+                document.getElementById('rpConfirmPasswordInput').value = '';
+            } catch (_) {}
+            closeResetPasswordModal();
+        } else {
+            const msg = (res && res.error) ? res.error : 'Password reset failed';
+            showToast(msg, 'error');
+        }
+    } catch (_) {
+        showToast('Network error during password reset', 'error');
+    }
+}
+
+try {
+    window.openResetPasswordModal = openResetPasswordModal;
+    window.closeResetPasswordModal = closeResetPasswordModal;
+    window.confirmProfilePasswordReset = confirmProfilePasswordReset;
+} catch (_) {}
+
 async function saveProfileUpdates() {
     try {
         console.group('ProfileEdit: saveProfileUpdates');
@@ -1110,7 +1277,7 @@ async function saveProfileUpdates() {
             if (window.FormValidationUI && container) {
                 validAll = window.FormValidationUI.validateForm(container);
             } else {
-                validAll = !!(newName && newEmail && newBranch && newRank);
+                validAll = !!(newName && newEmailAddr && newBranch && newRank);
             }
             if (!validAll) {
                 console.warn('[Abort] Validation failed: fields invalid');
@@ -1143,7 +1310,7 @@ async function saveProfileUpdates() {
             copy.rsInfo = {
                 ...(e.rsInfo || {}),
                 name: newName,
-                email: newEmail,
+                email: newEmailAddr,
                 rank: newRank
             };
             return copy;
@@ -1152,18 +1319,19 @@ async function saveProfileUpdates() {
 
         // Update profile object
         currentProfile.rsName = newName;
-        currentProfile.rsEmail = newEmail;
+        currentProfile.username = newEmail; // newEmail variable holds the username input value
         currentProfile.rsRank = newRank;
         currentProfile.branch = newBranch;
         currentProfile.full_name = newName;
         currentProfile.rank = newRank;
         currentProfile.email = newEmailAddr;
+        currentProfile.rsEmail = newEmailAddr;
         currentProfile.totalEvaluations = profileEvaluations.length;
         currentProfile.lastUpdated = new Date().toISOString();
         console.info('[Profile] Updated in-memory profile');
 
         // Migrate local storage keys when name/email changes
-        const newKey = generateProfileKey(newName, newEmail);
+        const newKey = generateProfileKey(newName, currentProfile.rsEmail);
         console.debug('[Local] Saving to newKey', newKey);
         saveProfileToLocal(newKey, currentProfile);
         saveEvaluationsToLocal(newKey, profileEvaluations);
@@ -1182,79 +1350,37 @@ async function saveProfileUpdates() {
         localStorage.setItem('has_profile', 'true');
         console.debug('[Session] Snapshot updated');
 
-        // Attempt GitHub or backend sync (delete old if email changed)
+        // Attempt backend Supabase sync first; fallback to GitHub ONLY if backend indicates legacy mode
         let synced = false;
         let statusMsg = '';
         if (navigator.onLine) {
-            let token = null;
-            try { token = await githubService.getTokenFromEnvironment?.(); } catch (_) { }
-            if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
-                token = window.GITHUB_CONFIG.token;
-            }
-            console.info('[GitHub] Token present:', !!token);
-            if (token) {
-                try {
-                    githubService.initialize(token);
-                    const connected = await githubService.verifyConnection?.();
-                    console.info('[GitHub] Connected:', connected);
-                    if (connected) {
-                        // Persist new data
-                        const result = await githubService.saveUserData({
-                            rsName: currentProfile.rsName,
-                            rsEmail: currentProfile.rsEmail,
-                            rsRank: currentProfile.rsRank,
-                            branch: currentProfile.branch,
-                            contactEmail: currentProfile.email,
-                            ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
-                        });
-                        if (result?.success) {
-                            synced = true;
-                            statusMsg = result?.message || '';
-                            console.info('[GitHub] saveUserData success');
-                            // If email changed, remove old file
-                            if (oldEmail !== newEmail) {
-                                console.debug('[GitHub] Email changed; deleting old file for', oldEmail);
-                                try {
-                                    await githubService.deleteUserFile(oldEmail, `Remove old profile for ${oldName}`);
-                                } catch (delErr) {
-                                    console.warn('Failed to delete old user file:', delErr);
-                                }
-                            }
-                        } else {
-                            console.warn('[GitHub] saveUserData failed', result);
-                        }
-                    }
-                } catch (err) {
-                    console.warn('GitHub sync on profile update failed:', err);
+            try {
+                const SAVE_ROUTE = (window.CONSTANTS?.ROUTES?.API?.USER_SAVE) || '/api/user/save';
+                const payload = {
+                    rsEmail: currentProfile.rsEmail,
+                    username: currentProfile.username,
+                    rsName: currentProfile.rsName,
+                    rsRank: currentProfile.rsRank,
+                    ...(oldEmail !== currentProfile.rsEmail ? { previousEmail: oldEmail } : {})
+                };
+                const res = await postJson(SAVE_ROUTE, { ...payload, contactEmail: currentProfile.rsEmail, userData: { ...payload, contactEmail: currentProfile.rsEmail } });
+                if (res && res.ok) {
+                    synced = true;
+                    statusMsg = 'Profile saved to server';
+                    try { window.__forceFreshEvaluationsOnce = true; } catch (_) { }
+                    try { showToast('Profile saved to server', 'success'); } catch (_) { }
+                } else if (res && res.status === 501) {
+                    statusMsg = 'Server legacy mode; GitHub client sync disabled';
+                } else {
+                    const reason = (res && (res.message || res.error)) || 'Unknown error';
+                    const msg = (res && res.status === 403)
+                        ? 'Not authorized. Please log in again.'
+                        : `Save failed: ${reason}`;
+                    try { showToast(msg, 'error'); } catch (_) { }
                 }
-            } else {
-                // No token but online: attempt backend fallback save for visibility
-                try {
-                    const result = await githubService.saveUserData({
-                        rsName: currentProfile.rsName,
-                        rsEmail: currentProfile.rsEmail,
-                        rsRank: currentProfile.rsRank,
-                        branch: currentProfile.branch,
-                        contactEmail: currentProfile.email,
-                        ...(oldEmail !== newEmail ? { previousEmail: oldEmail } : {})
-                    });
-                    if (result?.success) {
-                        statusMsg = result?.message || '';
-                        try { window.__forceFreshEvaluationsOnce = true; } catch (_) { }
-                        console.info('[Backend] saveUserData fallback success', result);
-                        try { showToast('Profile saved to server', 'success'); } catch (_) { }
-                    } else {
-                        console.warn('[Backend] saveUserData fallback failed', result);
-                        const reason = (result && (result.message || result.error)) || 'Unknown error';
-                        const msg = (result && result.status === 403)
-                            ? 'Not authorized. Please log in again.'
-                            : `Save failed: ${reason}`;
-                        try { showToast(msg, 'error'); } catch (_) { }
-                    }
-                } catch (e) {
-                    console.warn('Backend fallback save error:', e);
-                    try { showToast('Save failed due to a network error.', 'error'); } catch (_) { }
-                }
+            } catch (e) {
+                console.warn('Backend save error:', e);
+                try { showToast('Save failed due to a network error.', 'error'); } catch (_) { }
             }
         } else {
             console.info('[GitHub] Offline; skipping sync');
@@ -1459,6 +1585,13 @@ function renderEvaluationsList() {
             cardsContainer.appendChild(card);
         });
 
+        cardsContainer.addEventListener('click', function (e) {
+            const btn = e.target.closest('button');
+            if (btn) {
+                hideSummaryGridAnimated();
+            }
+        });
+
         container.innerHTML = toolbarHtml;
         container.appendChild(cardsContainer);
     });
@@ -1502,31 +1635,32 @@ function createEvaluationListItem(evaluation) {
 }
 
 function renderEvaluationDetails(evaluation) {
-    let justificationsHTML = '';
-    Object.values(evaluation.traitEvaluations).forEach(trait => {
-        justificationsHTML += `
-            <div class="justification-item">
-                <strong>${escapeHtml(trait.trait)} (${escapeHtml(String(trait.grade))}):</strong>
-                <p>${trait.justification ? nl2br(escapeHtml(trait.justification)) : '<em>No justification provided</em>'}</p>
-            </div>
-        `;
-    });
-
+    const items = Array.isArray(evaluation.traitEvaluations)
+        ? evaluation.traitEvaluations
+        : (evaluation.traitEvaluations && typeof evaluation.traitEvaluations === 'object' ? Object.values(evaluation.traitEvaluations) : []);
+    const justificationsHTML = (items || []).map(trait => {
+        const letter = escapeHtml(String(trait.grade || '').trim());
+        const traitName = escapeHtml(String(trait.trait || '').trim());
+        const text = trait.justification ? nl2br(escapeHtml(trait.justification)) : '<em>No justification provided</em>';
+        return `<div class="justification-item"><span class="trait-name">${traitName}</span><span class="sep"> - </span><span class="grade-letter">${letter}</span><p>${text}</p></div>`;
+    }).join('');
+    const avgText = escapeHtml(String(evaluation.fitrepAverage || ''));
+    const avgHTML = `<div class="grade-item"><span class="trait-name">Avg</span><span class="sep"> - </span><span class="grade-letter">${avgText}</span></div>`;
     return `
         <div class="eval-details-grid">
+            ${justificationsHTML}
+            ${avgHTML}
+            <div class="detail-section">
+                <h4>Directed Comments</h4>
+                <div class="comments-text">${evaluation.directedComments ? nl2br(escapeHtml(evaluation.directedComments)) : 'No directed comments provided'}</div>
+            </div>
             <div class="detail-section">
                 <h4>Section I Comments</h4>
                 <div class="comments-text">${evaluation.sectionIComments ? nl2br(escapeHtml(evaluation.sectionIComments)) : 'No comments provided'}</div>
             </div>
-            <div class="detail-section full-width">
-                <h4>Justifications</h4>
-                <div class="justifications-list">${justificationsHTML}</div>
-            </div>
         </div>
         <div class="eval-detail-actions">
-            <button class="btn btn-secondary" onclick="exportEvaluation('${escapeHtml(evaluation.evaluationId)}')">
-                Export This Evaluation
-            </button>
+            <button class="btn btn-secondary" onclick="exportEvaluation('${escapeHtml(evaluation.evaluationId)}')">Export This Evaluation</button>
         </div>
     `;
 }
@@ -1553,7 +1687,27 @@ async function toggleEvaluation(header) {
             if (!evaluation && window.idbStore && email) {
                 try { evaluation = await window.idbStore.getDetail(email, evalId); } catch (_) { }
             }
-            // Try remote GitHub
+            // Try server API (Supabase)
+            if (!evaluation) {
+                try {
+                    const headers = { 'Accept': 'application/json' };
+                    try { const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || ''); if (csrf) headers['X-CSRF-Token'] = csrf; } catch (_) {}
+                    try { const sessTok = sessionStorage.getItem('fitrep_session_token') || ''; if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`; } catch (_) {}
+                    const base = window.API_BASE_URL || location.origin;
+                    const endpoint = new URL(`/api/evaluation/${encodeURIComponent(evalId)}`, base).toString();
+                    const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
+                        ? window.githubService.getFetchCredentials(endpoint)
+                        : 'include';
+                    const resp = await fetch(endpoint, { method: 'GET', credentials: credentialsMode, headers });
+                    if (resp && resp.ok) {
+                        const data = await resp.json();
+                        evaluation = (data && data.evaluation) ? data.evaluation : data;
+                    }
+                } catch (e) {
+                    console.warn('Server detail fetch failed:', e);
+                }
+            }
+            // Try remote GitHub (fallback)
             if (!evaluation && typeof githubService !== 'undefined' && navigator.onLine) {
                 try {
                     const token = await githubService.getTokenFromEnvironment?.();
@@ -1825,84 +1979,19 @@ async function syncAllEvaluations() {
     }
 }
 
-// Bulk sync directly to Supabase via backend API
-async function syncAllToSupabase() {
-    try {
-        if (!navigator.onLine) {
-            showToast('Offline: connect to the internet to sync.', 'warning');
-            return;
-        }
-
-        const userEmail = (currentProfile && currentProfile.rsEmail) || '';
-        if (!userEmail) {
-            alert('No logged-in user detected. Please login first.');
-            return;
-        }
-
-        const all = Array.isArray(profileEvaluations) ? profileEvaluations.slice() : [];
-        if (all.length === 0) {
-            showToast('No evaluations to sync.', 'info');
-            return;
-        }
-
-        const btn = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
-        if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
-
-        const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
-        const base = window.API_BASE_URL || location.origin;
-        const url = new URL(endpoint, base).toString();
-        const headers = { 'Content-Type': 'application/json' };
-        try {
-            const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
-            if (csrf) headers['X-CSRF-Token'] = csrf;
-        } catch (_) {}
-        try {
-            const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
-            if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
-        } catch (_) {}
-
-        let success = 0, failure = 0;
-        for (let i = 0; i < all.length; i++) {
-            const ev = all[i];
-            try {
-                const resp = await fetch(url, {
-                    method: 'POST',
-                    headers,
-                    credentials: 'include',
-                    body: JSON.stringify({ evaluation: ev, userEmail })
-                });
-                const data = await resp.json().catch(() => ({}));
-                if (!resp.ok || !data?.ok) {
-                    failure++;
-                    console.warn('Supabase sync failed:', data);
-                } else {
-                    success++;
-                    ev.syncStatus = 'synced';
-                }
-            } catch (e) {
-                failure++;
-                console.error('Supabase sync exception:', e);
-            }
-        }
-
-        const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
-        saveEvaluationsToLocal(profileKey, profileEvaluations);
-        renderEvaluationsList();
-        if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync to Supabase'; }
-        const msg = `Sync complete: ${success} succeeded${failure ? `, ${failure} failed` : ''}.`;
-        showToast(msg, failure ? 'warning' : 'success');
-    } catch (err) {
-        console.error('Bulk Supabase sync error:', err);
-        alert('Bulk sync failed. Please try again.');
-    }
-}
-
-// Removed: syncAllFromGitHubToSupabase (Supabase integration disabled)
 
 // Pending sync guard helpers
 function hasPendingSyncs() {
     try {
-        return Array.isArray(window.profileEvaluations) && window.profileEvaluations.some(e => String(e.syncStatus || 'pending') !== 'synced');
+        // No profile means no pending syncs
+        if (!window.currentProfile || !window.currentProfile.rsName) {
+            return false;
+        }
+        // Check if there are actual evaluations with pending sync status
+        if (!Array.isArray(window.profileEvaluations) || window.profileEvaluations.length === 0) {
+            return false;
+        }
+        return window.profileEvaluations.some(e => String(e.syncStatus || 'pending') !== 'synced');
     } catch (_) {
         return false;
     }
@@ -1947,10 +2036,24 @@ function closePendingSyncModal() {
     }
     const nextEl = document.getElementById('pendingSyncNextAction');
     if (nextEl) nextEl.value = '';
+    // Thoroughly clean up all modal backdrops
+    cleanupModalBackdrops();
+}
+
+// Helper to remove all modal backdrops and restore body scroll
+function cleanupModalBackdrops() {
     try {
+        // Remove all backdrop types
         document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch (_) { } });
+        document.querySelectorAll('[data-modal-id]').forEach(el => {
+            if (el.classList.contains('sa-modal-backdrop')) {
+                try { el.remove(); } catch (_) { }
+            }
+        });
+        // Restore body state
         document.body.classList.remove('sa-modal-open');
         document.body.style.overflow = '';
+        document.body.style.pointerEvents = '';
     } catch (_) { }
 }
 
@@ -2070,7 +2173,17 @@ function deleteEvaluation(evalId) {
         profileEvaluations = profileEvaluations.filter(e => e.evaluationId !== evalId);
         const profileKey = generateProfileKey(currentProfile.rsName, currentProfile.rsEmail);
         saveEvaluationsToLocal(profileKey, profileEvaluations);
-        renderEvaluationsList();
+        try {
+          const grid = document.getElementById('profileGridContainer');
+          if (grid && grid.style.display !== 'none') {
+            renderProfileGrid();
+          } else {
+            renderEvaluationsList();
+          }
+        } catch (_) {
+          renderEvaluationsList();
+        }
+        try { closeGridDetailPanel(); } catch (_) {}
       })
       .catch((err) => {
         console.error('Delete evaluation error:', err);
@@ -2479,16 +2592,11 @@ function continueLogoutProfile() {
         try {
             if (window.ModalController && typeof window.ModalController.closeAll === 'function') {
                 window.ModalController.closeAll();
-            } else {
-                document.querySelectorAll('.sa-modal-backdrop').forEach(el => { try { el.remove(); } catch (_) { } });
-                document.body.classList.remove('sa-modal-open');
-                document.body.style.position = '';
-                document.body.style.top = '';
-                document.body.style.width = '';
             }
+            // Always clean up backdrops regardless of ModalController
+            cleanupModalBackdrops();
             const navOverlay = document.getElementById('navMenuOverlay');
             if (navOverlay) navOverlay.classList.remove('active');
-            document.body.style.overflow = '';
         } catch (_) { /* ignore cleanup errors */ }
 
         // Attempt to clear server-side session cookies
@@ -2498,6 +2606,32 @@ function continueLogoutProfile() {
             const endpoint = new URL(LOGOUT_ROUTE, base).toString();
             fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => { });
         } catch (_) { /* ignore */ }
+        const emailForClear = (currentProfile && currentProfile.rsEmail) ? String(currentProfile.rsEmail).trim() : '';
+        try {
+            if (typeof evaluationDetailsCache !== 'undefined' && evaluationDetailsCache && typeof evaluationDetailsCache.clear === 'function') {
+                evaluationDetailsCache.clear();
+            } else if (evaluationDetailsCache && evaluationDetailsCache instanceof Map) {
+                try { evaluationDetailsCache.clear(); } catch (_) {}
+            }
+        } catch (_) { }
+        try {
+            if (window.idbStore && emailForClear) {
+                Promise.resolve(window.idbStore.clearForEmail(emailForClear)).catch(() => {});
+            }
+        } catch (_) { }
+        try {
+            if (window.unifiedStorage && typeof window.unifiedStorage.clearStore === 'function') {
+                Promise.resolve(window.unifiedStorage.clearStore('profiles')).catch(() => {});
+                Promise.resolve(window.unifiedStorage.clearStore('evaluations')).catch(() => {});
+                Promise.resolve(window.unifiedStorage.clearStore('evaluationIndexes')).catch(() => {});
+                Promise.resolve(window.unifiedStorage.clearStore('sessions')).catch(() => {});
+            }
+        } catch (_) { }
+        try {
+            if (window.networkEfficiency && typeof window.networkEfficiency.clearCache === 'function') {
+                window.networkEfficiency.clearCache();
+            }
+        } catch (_) { }
         currentProfile = null;
         profileEvaluations = [];
 
@@ -2510,6 +2644,7 @@ function continueLogoutProfile() {
         try {
             sessionStorage.removeItem('login_source');
             sessionStorage.removeItem('fitrep_csrf_token');
+            sessionStorage.removeItem('fitrep_session_token');
         } catch (_) { }
 
         // Hide dashboard
@@ -2559,12 +2694,12 @@ function continueLogoutProfile() {
         // Show RS Login by default after logout
         try {
             if (window.UIStates && typeof window.UIStates.toggleExclusive === 'function') {
-                window.UIStates.toggleExclusive('profileLoginCard', 'modeSelectionCard');
+                window.UIStates.toggleExclusive('modeSelectionCard', 'profileLoginCard');
             }
         } catch (_) { }
-        if (mode) { mode.classList.remove('active'); mode.style.display = 'none'; }
-        if (login) { login.classList.add('active'); login.style.display = 'block'; }
-        if (loginFields) { loginFields.style.display = 'block'; }
+        if (mode) { mode.classList.add('active'); mode.style.display = 'block'; }
+        if (login) { login.classList.remove('active'); login.style.display = 'none'; }
+        if (loginFields) { loginFields.style.display = 'none'; }
         const createSection = document.getElementById('createAccountSection');
         if (createSection) { createSection.style.display = 'none'; }
         if (typewriter) { typewriter.style.display = 'none'; }
@@ -2585,6 +2720,81 @@ try {
     window.handlePendingSyncConfirm = handlePendingSyncConfirm;
     window.closePendingSyncModal = closePendingSyncModal;
 } catch (_) { /* ignore */ }
+
+function ensureMissingRsEmailModal() {
+    const id = 'missingRsEmailModal';
+    let modal = document.getElementById(id);
+    if (!modal && window.ModalController && typeof window.ModalController.create === 'function') {
+        const content = `
+            <p>Please add your RS email to continue.</p>
+            <div class="sa-modal-actions">
+                <button id="missingRsEmailAddBtn" class="btn btn-meets">Add Email Now</button>
+                <button id="missingRsEmailCloseBtn" class="btn btn-secondary">Close</button>
+            </div>
+        `;
+        modal = window.ModalController.create({
+            id,
+            title: 'Add RS Email',
+            content,
+            closeLabel: 'Close',
+            className: 'help-modal',
+            focusFirst: 'missingRsEmailAddBtn'
+        });
+        try {
+            modal.style.background = 'rgba(0,0,0,0.5)';
+            modal.style.backdropFilter = 'saturate(120%) blur(4px)';
+            modal.style.padding = '24px';
+        } catch (_) {}
+        const panel = modal ? modal.querySelector('.sa-modal-panel') : null;
+        if (panel) {
+            try {
+                panel.style.width = '100%';
+                panel.style.maxWidth = '720px';
+                panel.style.maxHeight = '80vh';
+                panel.style.overflowY = 'auto';
+                panel.style.background = '#ffffff';
+                panel.style.color = '#111827';
+                panel.style.borderRadius = '12px';
+                panel.style.padding = '20px';
+                panel.style.boxShadow = '0 10px 24px rgba(0,0,0,0.25)';
+            } catch (_) {}
+        }
+        const addBtn = modal ? modal.querySelector('#missingRsEmailAddBtn') : null;
+        const closeBtn = modal ? modal.querySelector('#missingRsEmailCloseBtn') : null;
+        const xBtn = modal ? modal.querySelector('.sa-modal-close') : null;
+        if (xBtn && xBtn.parentNode) {
+            try { xBtn.parentNode.removeChild(xBtn); } catch (_) {}
+        }
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                try { openEditProfile(); } catch (_) {}
+                try { window.ModalController.closeById(id); } catch (_) {}
+            });
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                try { window.ModalController.closeById(id); } catch (_) {}
+            });
+        }
+    }
+    return modal;
+}
+
+function openMissingRsEmailModal() {
+    const modal = ensureMissingRsEmailModal();
+    if (!modal) return;
+    try {
+        if (window.ModalController && typeof window.ModalController.openById === 'function') {
+            window.ModalController.openById('missingRsEmailModal');
+        } else {
+            modal.style.display = 'block';
+            modal.classList.add('active');
+        }
+    } catch (_) {
+        modal.style.display = 'block';
+        modal.classList.add('active');
+    }
+}
 
 // Connection Status
 function updateConnectionStatus() {
@@ -2846,11 +3056,8 @@ function showProfileDashboardOnLoad() {
     const modeCard = document.getElementById('modeSelectionCard');
     if (!loginCard || !dashboardCard) return;
 
-    // Only auto-open if the user explicitly logged in in THIS SESSION
-    const hasProfile = localStorage.getItem('has_profile') === 'true';
-    const loginSource = sessionStorage.getItem('login_source'); // session-scoped, not persistent
-    if (!hasProfile || loginSource !== 'form') {
-        // Default to Mode Selection on initial load
+    // Helper to show Mode Selection (default state)
+    function showModeSelection() {
         if (modeCard) {
             modeCard.classList.add('active');
             modeCard.style.display = 'block';
@@ -2866,20 +3073,42 @@ function showProfileDashboardOnLoad() {
             setupCard.classList.remove('active');
             setupCard.style.display = 'none';
         }
+    }
+
+    // Only auto-open if the user has a saved profile
+    const hasProfile = localStorage.getItem('has_profile') === 'true';
+    if (!hasProfile) {
+        showModeSelection();
         return;
     }
 
     const stored = loadProfileFromStorage();
-    if (!stored) return;
 
+    // Validate stored profile has real data (not placeholders)
+    const isValidProfile = stored &&
+        stored.rsName &&
+        stored.rsName !== 'RS Name' &&
+        stored.rsEmail &&
+        stored.rsEmail !== 'rs@email' &&
+        stored.rsEmail.includes('@');
+
+    if (!isValidProfile) {
+        // Clear invalid profile data and show Mode Selection
+        localStorage.removeItem('has_profile');
+        localStorage.removeItem('current_profile');
+        localStorage.removeItem('current_evaluations');
+        showModeSelection();
+        return;
+    }
+
+    const storedEvals = stored.evaluations || [];
+    const { evaluations: _ignoredEvals, ...storedProfile } = stored;
     window.currentProfile = {
-        rsName: stored.rsName,
-        rsEmail: stored.rsEmail,
-        rsRank: stored.rsRank,
-        totalEvaluations: (stored.evaluations || []).length,
+        ...storedProfile,
+        totalEvaluations: storedEvals.length,
         lastUpdated: stored.lastUpdated || new Date().toISOString()
     };
-    window.profileEvaluations = stored.evaluations || [];
+    window.profileEvaluations = storedEvals;
 
     showProfileDashboard();
 
@@ -2889,6 +3118,77 @@ function showProfileDashboardOnLoad() {
 
     const setupCard = document.getElementById('setupCard');
     if (setupCard) setupCard.style.display = 'none';
+
+    try {
+        if (navigator.onLine) {
+            (async () => {
+                try {
+                    const USER_LOAD_ROUTE = (window.CONSTANTS?.ROUTES?.API?.USER_LOAD) || '/api/user/load';
+                    const base = window.API_BASE_URL || location.origin;
+                    const headers = {};
+                    try {
+                        const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
+                        if (csrf) headers['X-CSRF-Token'] = csrf;
+                    } catch (_) {}
+                    try {
+                        const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
+                        if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+                    } catch (_) {}
+
+                    const candidates = [
+                        String(window.currentProfile?.rsEmail || '').trim(),
+                        String(window.currentProfile?.username || '').trim()
+                    ].filter(Boolean);
+
+                    let data = null;
+                    for (const identifier of candidates) {
+                        try {
+                            const url = new URL(USER_LOAD_ROUTE, base);
+                            url.searchParams.set('email', identifier);
+                            const endpoint = url.toString();
+                            const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
+                                ? window.githubService.getFetchCredentials(endpoint)
+                                : 'include';
+                            const resp = await fetch(endpoint, { method: 'GET', headers, credentials: credentialsMode });
+                            const json = await resp.json().catch(() => ({}));
+                            if (resp.ok && json && typeof json === 'object') {
+                                data = json;
+                                break;
+                            }
+                        } catch (_) { }
+                    }
+
+                    const refreshedEmail = String((data?.rsEmail || data?.contactEmail || '')).trim();
+                    const refreshedUsername = String((data?.username || '')).trim();
+                    let needsSave = false;
+
+                    if (refreshedEmail && refreshedEmail.includes('@')) {
+                        const prev = String(window.currentProfile?.rsEmail || '').trim();
+                        if (!prev || prev !== refreshedEmail) {
+                            window.currentProfile.rsEmail = refreshedEmail;
+                            window.currentProfile.email = refreshedEmail;
+                            needsSave = true;
+                        }
+                    }
+
+                    if (refreshedUsername) {
+                        const prevUser = String(window.currentProfile?.username || '').trim();
+                        // If previous username was missing OR looked like an email (and new one doesn't, or simply is different)
+                        // Actually, just if it's different.
+                        if (!prevUser || prevUser !== refreshedUsername) {
+                            window.currentProfile.username = refreshedUsername;
+                            needsSave = true;
+                        }
+                    }
+
+                    if (needsSave) {
+                        try { localStorage.setItem('current_profile', JSON.stringify(window.currentProfile)); } catch (_) { }
+                        try { renderProfileHeader(); } catch (_) { }
+                    }
+                } catch (_) { }
+            })();
+        }
+    } catch (_) { }
 }
 
 // Profile persistence helpers and GitHub stubs (added)
@@ -2979,9 +3279,7 @@ async function syncEvaluationToGitHub(evaluation) {
         } catch (e) {
             console.warn('Token retrieval failed:', e);
         }
-        if (!token && typeof window !== 'undefined' && window.GITHUB_CONFIG?.token) {
-            token = window.GITHUB_CONFIG.token; // Dev-only fallback
-        }
+        // No dev token fallback
         if (token) {
             // Initialize and (optionally) verify connection when token is available
             githubService.initialize(token);
@@ -3180,6 +3478,8 @@ function setRankFilter(rank) {
 
     // Re-render list with filters scoped by rank
     renderEvaluationsList();
+    const summary = document.querySelector('.rank-summary-grid');
+    if (summary) summary.style.display = selectedRankFilter ? 'none' : '';
 }
 
 // Only allow opening grid when a rank is selected
@@ -3194,11 +3494,26 @@ function toggleGridView(show) {
     if (show) {
         list.style.display = 'none';
         grid.style.display = 'block';
+        hideSummaryGridAnimated();
         renderProfileGrid();
     } else {
         grid.style.display = 'none';
         list.style.display = 'flex';
     }
+}
+
+function hideSummaryGridAnimated() {
+    try {
+        const summary = document.querySelector('.rank-summary-grid');
+        if (!summary) return;
+        summary.classList.add('fade-hide');
+        summary.style.pointerEvents = 'none';
+        setTimeout(() => {
+            summary.style.display = 'none';
+            summary.classList.remove('fade-hide');
+            summary.style.pointerEvents = '';
+        }, 240);
+    } catch (_) {}
 }
 
 // Apply filters: rank always required to show filters; others applied only when rank selected
@@ -3303,32 +3618,37 @@ function renderProfileGrid() {
     const renderRow = (evaluation, index) => {
         const row = document.createElement('tr');
         row.setAttribute('data-eval-id', evaluation.evaluationId);
+        row.addEventListener('click', function (e) {
+            const t = e.target;
+            if (t.closest('.icon-btn') || t.closest('.expand-icon')) return;
+            openGridDetailPanel(evaluation.evaluationId);
+        });
 
         // Build row cells using DocumentFragment for better performance
         const fragment = document.createDocumentFragment();
 
-        // Create cells efficiently
+        // Create cells efficiently - include data-label for mobile card view
         const cells = [
-            { text: evaluation.rank, className: '' },
-            { text: evaluation.marineRankNorm || '-', className: '' },
-            { text: evaluation.marineName, className: '', style: 'text-align: left;' },
-            { text: evaluation.occasion, className: '' },
-            { text: evaluation.endDate, className: '' },
-            { text: evaluation.grades['Performance'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Proficiency'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Courage'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Stress Tolerance'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Initiative'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Leading'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Developing Others'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Setting the Example'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Well-Being/Health'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Communication Skills'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Professional Military Education'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Decision Making'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Judgement'] || '-', className: 'grade-cell' },
-            { text: evaluation.grades['Evals'], className: 'grade-cell' },
-            { text: evaluation.average, className: 'avg-cell' }
+            { text: evaluation.rank, className: '', label: '#' },
+            { text: evaluation.marineRankNorm || '-', className: '', label: 'Rank' },
+            { text: evaluation.marineName, className: '', style: 'text-align: left;', label: 'Marine' },
+            { text: evaluation.occasion, className: '', label: 'Occasion' },
+            { text: evaluation.endDate, className: '', label: 'End Date' },
+            { text: evaluation.grades['Performance'] || '-', className: 'grade-cell', label: 'Performance' },
+            { text: evaluation.grades['Proficiency'] || '-', className: 'grade-cell', label: 'Proficiency' },
+            { text: evaluation.grades['Courage'] || '-', className: 'grade-cell', label: 'Courage' },
+            { text: evaluation.grades['Stress Tolerance'] || '-', className: 'grade-cell', label: 'Stress Tol.' },
+            { text: evaluation.grades['Initiative'] || '-', className: 'grade-cell', label: 'Initiative' },
+            { text: evaluation.grades['Leading'] || '-', className: 'grade-cell', label: 'Leading' },
+            { text: evaluation.grades['Developing Others'] || '-', className: 'grade-cell', label: 'Dev. Others' },
+            { text: evaluation.grades['Setting the Example'] || '-', className: 'grade-cell', label: 'Set Example' },
+            { text: evaluation.grades['Well-Being/Health'] || '-', className: 'grade-cell', label: 'Well-Being' },
+            { text: evaluation.grades['Communication Skills'] || '-', className: 'grade-cell', label: 'Comm Skills' },
+            { text: evaluation.grades['Professional Military Education'] || '-', className: 'grade-cell', label: 'PME' },
+            { text: evaluation.grades['Decision Making'] || '-', className: 'grade-cell', label: 'Decision' },
+            { text: evaluation.grades['Judgement'] || '-', className: 'grade-cell', label: 'Judgement' },
+            { text: evaluation.grades['Evals'], className: 'grade-cell', label: 'Eval' },
+            { text: evaluation.average, className: 'avg-cell', label: 'FitRep Score' }
         ];
 
         cells.forEach(cellData => {
@@ -3336,42 +3656,21 @@ function renderProfileGrid() {
             td.textContent = cellData.text;
             if (cellData.className) td.className = cellData.className;
             if (cellData.style) td.setAttribute('style', cellData.style);
+            if (cellData.label) td.setAttribute('data-label', cellData.label);
             fragment.appendChild(td);
         });
 
         // RV badge cell
         const rvCell = document.createElement('td');
         rvCell.innerHTML = badgeForRv(evaluation.rv);
+        rvCell.setAttribute('data-label', 'RV');
         fragment.appendChild(rvCell);
 
         // Cumulative RV badge cell
         const cumRvCell = document.createElement('td');
         cumRvCell.innerHTML = badgeForRv(evaluation.cumRv);
+        cumRvCell.setAttribute('data-label', 'Cum RV');
         fragment.appendChild(cumRvCell);
-
-        // Actions cell
-        const actionsCell = document.createElement('td');
-        actionsCell.className = 'actions-cell';
-        actionsCell.style.textAlign = 'right';
-
-        const syncStatus = document.createElement('span');
-        syncStatus.className = `sync-status ${evaluation.syncStatus || 'pending'}`;
-        syncStatus.textContent = evaluation.syncStatus === 'synced' ? '✓ Synced' : '⏳ Pending';
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'icon-btn';
-        deleteBtn.textContent = '🗑️';
-        deleteBtn.onclick = () => deleteEvaluation(evaluation.evaluationId);
-
-        const expandIcon = document.createElement('span');
-        expandIcon.className = 'expand-icon';
-        expandIcon.textContent = '▼';
-        expandIcon.onclick = function () { toggleGridDetails(this); };
-
-        actionsCell.appendChild(syncStatus);
-        actionsCell.appendChild(deleteBtn);
-        actionsCell.appendChild(expandIcon);
-        fragment.appendChild(actionsCell);
 
         row.appendChild(fragment);
 
@@ -3396,9 +3695,94 @@ function renderProfileGrid() {
 
         // Update summary from the Avg column cells that were just rendered
         renderRankSummaryFromDom();
+
+        try {
+            validateRvCalculations(evals, rvMap, cumRvMap, evaluationsWithData);
+        } catch (_) {}
+
+        (async function populateTraitCells() {
+            const needsDetails = evals.filter(e => {
+                const items = Object.values(e.traitEvaluations || {});
+                return items.length === 0;
+            });
+            for (const e of needsDetails) {
+                try {
+                    const headers = { 'Accept': 'application/json' };
+                    try { const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || ''); if (csrf) headers['X-CSRF-Token'] = csrf; } catch (_) {}
+                    try { const sessTok = sessionStorage.getItem('fitrep_session_token') || ''; if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`; } catch (_) {}
+                    const base = window.API_BASE_URL || location.origin;
+                    const endpoint = new URL(`/api/evaluation/${encodeURIComponent(e.evaluationId)}`, base).toString();
+                    const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
+                        ? window.githubService.getFetchCredentials(endpoint)
+                        : 'include';
+                    const resp = await fetch(endpoint, { method: 'GET', credentials: credentialsMode, headers });
+                    if (!resp || !resp.ok) continue;
+                    const data = await resp.json().catch(() => ({}));
+                    const full = (data && data.evaluation) ? data.evaluation : data;
+                    const grades = getTraitGrades(full);
+                    const row = tbody.querySelector(`tr[data-eval-id="${e.evaluationId}"]`);
+                    if (!row) continue;
+                    const setCell = (label, val) => {
+                        const td = row.querySelector(`td[data-label="${label}"]`);
+                        if (td) td.textContent = val || '-';
+                    };
+                    setCell('Performance', grades['Performance'] || '-');
+                    setCell('Proficiency', grades['Proficiency'] || '-');
+                    setCell('Courage', grades['Courage'] || '-');
+                    setCell('Stress Tol.', grades['Stress Tolerance'] || '-');
+                    setCell('Initiative', grades['Initiative'] || '-');
+                    setCell('Leading', grades['Leading'] || '-');
+                    setCell('Dev. Others', grades['Developing Others'] || '-');
+                    setCell('Set Example', grades['Setting the Example'] || '-');
+                    setCell('Well-Being', grades['Well-Being/Health'] || '-');
+                    setCell('Comm Skills', grades['Communication Skills'] || '-');
+                    setCell('PME', grades['Professional Military Education'] || '-');
+                    setCell('Decision', grades['Decision Making'] || '-');
+                    setCell('Judgement', grades['Judgement'] || '-');
+                    setCell('Eval', grades['Evals'] || 'H');
+                    const detailsRow = row.nextElementSibling;
+                    if (detailsRow && detailsRow.classList.contains('grid-details-row')) {
+                        const cell = detailsRow.querySelector('td');
+                        if (cell) cell.innerHTML = renderEvaluationDetails(full);
+                    }
+                    const target = evaluationsWithData.find(it => it.evaluationId === e.evaluationId);
+                    if (target) {
+                        target.grades = grades;
+                        target.traitEvaluations = full.traitEvaluations || [];
+                        rafQueue.add(() => {
+                            tableRenderer.updateTable(evaluationsWithData, renderRow);
+                        });
+                    }
+                } catch (_) {}
+            }
+        })();
     });
 }
 
+function validateRvCalculations(evals, rvMap, cumRvMap, evaluationsWithData) {
+    const byIdDisplay = new Map(evaluationsWithData.map(e => [e.evaluationId, { rv: e.rv, cumRv: e.cumRv }]));
+    let mismatches = 0;
+    for (const e of evals) {
+        const compRv = rvMap.get(e.evaluationId);
+        const compCum = cumRvMap.get(e.evaluationId);
+        const disp = byIdDisplay.get(e.evaluationId) || {};
+        const dRv = disp.rv;
+        const dCum = disp.cumRv;
+        const rvOk = (Number.isFinite(compRv) && Number.isFinite(dRv)) ? Math.abs(compRv - dRv) < 0.01 : compRv === dRv;
+        const cumOk = (Number.isFinite(compCum) && Number.isFinite(dCum)) ? Math.abs(compCum - dCum) < 0.01 : compCum === dCum;
+        if (!rvOk || !cumOk) {
+            mismatches += 1;
+            console.warn('RV validation mismatch', {
+                id: e.evaluationId,
+                endDate: e.marineInfo?.evaluationPeriod?.to || e.completedDate || '',
+                avg: e.fitrepAverage,
+                display: { rv: dRv, cumRv: dCum },
+                computed: { rv: compRv, cumRv: compCum }
+            });
+        }
+    }
+    console.log('RV validation summary:', { total: evals.length, mismatches });
+}
 // Helpers for grid view
 function getTraitGrades(evaluation) {
     const columnAliases = {
@@ -3466,10 +3850,17 @@ function computeRvValues(evals) {
     // Excel-based RV per row: within evaluations with date <= current row date
     // Formula: RV = MAX(80, 90 + 10 * (score - avgPast) / (maxPast - avgPast)) if countPast >= 3, else 'N/A'
     const rvMap = new Map();
-    const byDate = [...evals].sort((a, b) => new Date(a.completedDate || 0) - new Date(b.completedDate || 0));
+    const byDate = [...evals].sort((a, b) => {
+        const da = new Date(a.marineInfo?.evaluationPeriod?.to || a.completedDate || 0).getTime();
+        const db = new Date(b.marineInfo?.evaluationPeriod?.to || b.completedDate || 0).getTime();
+        return da - db;
+    });
     byDate.forEach((curr, idx) => {
-        const currDate = new Date(curr.completedDate || 0);
-        const past = byDate.filter(e => new Date(e.completedDate || 0) <= currDate);
+        const currDate = new Date(curr.marineInfo?.evaluationPeriod?.to || curr.completedDate || 0);
+        const past = byDate.filter(e => {
+            const d = new Date(e.marineInfo?.evaluationPeriod?.to || e.completedDate || 0);
+            return d <= currDate;
+        });
         const scores = past.map(e => parseFloat(e.fitrepAverage || '0')).filter(s => Number.isFinite(s));
         if (scores.length < 3) {
             rvMap.set(curr.evaluationId, 'N/A');
@@ -3492,41 +3883,27 @@ function computeRvValues(evals) {
 }
 
 function computeCumulativeRv(evals, rvMap) {
-    // Excel-based Cum RV per row: use all non-zero FitRep scores in subset
-    // Formula: CumRV = if score==0 -> 80
-    // else if countNonZero >= 3 -> MAX(80, 90 + 10 * (score - avgNZ) / (maxNZ - avgNZ))
-    // else 'N/A'
+    // Cum RV = running average of RV values up to and including each row's ending date
     const cumMap = new Map();
-    const scoresNZ = evals
-        .map(e => parseFloat(e.fitrepAverage || '0'))
-        .filter(s => Number.isFinite(s) && s > 0);
-    const countNZ = scoresNZ.length;
-    const avgNZ = countNZ > 0 ? (scoresNZ.reduce((a, b) => a + b, 0) / countNZ) : 0;
-    const maxNZ = countNZ > 0 ? Math.max(...scoresNZ) : 0;
-    const denomNZ = maxNZ - avgNZ;
-
-    evals.forEach(e => {
-        const score = parseFloat(e.fitrepAverage || '0');
-        if (!Number.isFinite(score)) {
+    const byDate = [...evals].sort((a, b) => {
+        const da = new Date(a.marineInfo?.evaluationPeriod?.to || a.completedDate || 0).getTime();
+        const db = new Date(b.marineInfo?.evaluationPeriod?.to || b.completedDate || 0).getTime();
+        return da - db;
+    });
+    let acc = 0;
+    let cnt = 0;
+    byDate.forEach(e => {
+        const val = rvMap.get(e.evaluationId);
+        if (Number.isFinite(val)) {
+            acc += val;
+            cnt += 1;
+        }
+        if (cnt === 0) {
             cumMap.set(e.evaluationId, 'N/A');
-            return;
-        }
-        if (score === 0) {
-            cumMap.set(e.evaluationId, 80);
-            return;
-        }
-        if (countNZ < 3) {
-            cumMap.set(e.evaluationId, 'N/A');
-            return;
-        }
-        let rv;
-        if (!Number.isFinite(denomNZ) || denomNZ <= 0) {
-            rv = 90;
         } else {
-            rv = 90 + 10 * ((score - avgNZ) / denomNZ);
+            const avg = Math.round((acc / cnt) * 100) / 100;
+            cumMap.set(e.evaluationId, avg);
         }
-        rv = Math.max(80, rv);
-        cumMap.set(e.evaluationId, Math.round(rv * 100) / 100);
     });
     return cumMap;
 }
@@ -3535,7 +3912,7 @@ function badgeForRv(rv) {
     if (rv === 'N/A' || !Number.isFinite(rv)) {
         return `<span class="rv-badge rv-mid">N/A</span>`;
     }
-    const cls = rv >= 90 ? 'rv-high' : rv >= 75 ? 'rv-mid' : 'rv-low';
+    const cls = rv >= 90 ? 'rv-high' : rv >= 80 ? 'rv-mid' : 'rv-low';
     const display = Number.isFinite(rv) ? rv.toFixed(2) : 'N/A';
     return `<span class="rv-badge ${cls}">${display}</span>`;
 }
@@ -3624,12 +4001,113 @@ function exportProfileGridCsv() {
 function toggleGridDetails(btn) {
     const row = btn.closest('tr');
     if (!row) return;
-    const detailsRow = row.nextElementSibling;
-    if (!detailsRow || !detailsRow.classList.contains('grid-details-row')) return;
+    const evalId = row.getAttribute('data-eval-id');
+    if (!evalId) return;
+    openGridDetailPanel(evalId);
+}
 
-    const isHidden = detailsRow.style.display === 'none' || !detailsRow.style.display;
-    detailsRow.style.display = isHidden ? 'table-row' : 'none';
-    btn.textContent = isHidden ? 'Details ▲' : 'Details ▼';
+function ensureGridDetailPanelDOM() {
+    let backdrop = document.getElementById('gridDetailBackdrop');
+    let panel = document.getElementById('gridDetailPanel');
+    if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.id = 'gridDetailBackdrop';
+        backdrop.className = 'grid-detail-backdrop';
+        document.body.appendChild(backdrop);
+        backdrop.addEventListener('click', closeGridDetailPanel);
+    }
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'gridDetailPanel';
+        panel.className = 'grid-detail-panel';
+        document.body.appendChild(panel);
+    }
+}
+
+async function openGridDetailPanel(evalId) {
+    ensureGridDetailPanelDOM();
+    const backdrop = document.getElementById('gridDetailBackdrop');
+    const panel = document.getElementById('gridDetailPanel');
+    if (!panel || !backdrop) return;
+    let evaluation = profileEvaluations.find(e => (e.evaluationId || e.id) === evalId) || {};
+    let itemsLen = 0;
+    if (evaluation && evaluation.traitEvaluations) {
+        if (Array.isArray(evaluation.traitEvaluations)) itemsLen = evaluation.traitEvaluations.length;
+        else if (typeof evaluation.traitEvaluations === 'object') itemsLen = Object.keys(evaluation.traitEvaluations).length;
+    }
+    let needsFullDetails = false;
+    if (itemsLen > 0) {
+        const arr = Array.isArray(evaluation.traitEvaluations)
+            ? evaluation.traitEvaluations
+            : Object.values(evaluation.traitEvaluations || {});
+        needsFullDetails = arr.some(t => !t || !t.justification || String(t.justification).trim().length === 0);
+    }
+    if (itemsLen === 0 || needsFullDetails) {
+        try {
+            const headers = { 'Accept': 'application/json' };
+            try { const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || ''); if (csrf) headers['X-CSRF-Token'] = csrf; } catch (_) {}
+            try { const sessTok = sessionStorage.getItem('fitrep_session_token') || ''; if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`; } catch (_) {}
+            const base = window.API_BASE_URL || location.origin;
+            const endpoint = new URL(`/api/evaluation/${encodeURIComponent(evalId)}`, base).toString();
+            const credentialsMode = (typeof window !== 'undefined' && window.githubService && typeof window.githubService.getFetchCredentials === 'function')
+                ? window.githubService.getFetchCredentials(endpoint)
+                : 'include';
+            const resp = await fetch(endpoint, { method: 'GET', credentials: credentialsMode, headers });
+            if (resp && resp.ok) {
+                const data = await resp.json().catch(() => ({}));
+                const full = (data && data.evaluation) ? data.evaluation : data;
+                if (full && full.evaluationId) evaluation = full;
+            }
+        } catch (_) {}
+    }
+    const marine = evaluation.marineInfo || evaluation.marine || {};
+    const hdr = `
+        <div class="panel-header">
+            <div class="panel-title">
+                <div class="panel-marine">${escapeHtml(marine.name || '-')} <span class="panel-rank">${escapeHtml(marine.rank || '')}</span></div>
+                <div class="panel-meta">
+                    <span>${escapeHtml(evaluation.occasion || '')}</span>
+                    <span>${escapeHtml((marine.evaluationPeriod || {}).from || '')} to ${escapeHtml((marine.evaluationPeriod || {}).to || '')}</span>
+                    <span>Avg: ${escapeHtml(String(evaluation.fitrepAverage || ''))}</span>
+                </div>
+            </div>
+            <div class="panel-actions">
+                <button class="panel-delete" id="gridDetailDeleteBtn" title="Delete this evaluation">🗑️ Delete</button>
+                <button class="panel-close" id="gridDetailCloseBtn">✕</button>
+            </div>
+        </div>
+    `;
+    const body = `
+        <div class="panel-body">
+            ${renderEvaluationDetails(evaluation)}
+        </div>
+    `;
+    panel.innerHTML = hdr + body;
+    backdrop.classList.add('active');
+    panel.classList.add('active');
+    const closeBtn = document.getElementById('gridDetailCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', closeGridDetailPanel);
+    const deleteBtn = document.getElementById('gridDetailDeleteBtn');
+    if (deleteBtn) deleteBtn.addEventListener('click', function() { deleteEvaluation(evalId); });
+    try {
+        document.addEventListener('keydown', gridDetailEscHandler, true);
+    } catch (_) {}
+}
+
+function closeGridDetailPanel() {
+    const backdrop = document.getElementById('gridDetailBackdrop');
+    const panel = document.getElementById('gridDetailPanel');
+    if (panel) panel.classList.remove('active');
+    if (backdrop) backdrop.classList.remove('active');
+    try {
+        document.removeEventListener('keydown', gridDetailEscHandler, true);
+    } catch (_) {}
+}
+
+function gridDetailEscHandler(e) {
+    if (e.key === 'Escape') {
+        closeGridDetailPanel();
+    }
 }
 
 function normalizeRankLabel(rank) {
@@ -3683,152 +4161,22 @@ function openProfileDashboardFromLogin() {
     }
 
     // Hydrate session from storage snapshot
+    const storedEvals = stored.evaluations || [];
+    const { evaluations: _ignoredEvals, ...storedProfile } = stored;
     window.currentProfile = {
-        rsName: stored.rsName,
-        rsEmail: stored.rsEmail,
-        rsRank: stored.rsRank,
-        totalEvaluations: (stored.evaluations || []).length,
+        ...storedProfile,
+        totalEvaluations: storedEvals.length,
         lastUpdated: stored.lastUpdated || new Date().toISOString()
     };
-    window.profileEvaluations = stored.evaluations || [];
+    window.profileEvaluations = storedEvals;
 
     // Render consistently via the dashboard entrypoint
     showProfileDashboard();
 }
 
-// Auto-open Dashboard on load if a profile exists
-function showProfileDashboardOnLoad() {
-    const loginCard = document.getElementById('profileLoginCard');
-    const dashboardCard = document.getElementById('profileDashboardCard');
-    const modeCard = document.getElementById('modeSelectionCard');
-    if (!loginCard || !dashboardCard) return;
+// NOTE: showProfileDashboardOnLoad() is defined earlier in this file (around line 2850)
+// DO NOT duplicate it here - the earlier version is correct and persists sessions properly
 
-    // Only auto-open if the user explicitly logged in in THIS SESSION
-    const hasProfile = localStorage.getItem('has_profile') === 'true';
-    const loginSource = sessionStorage.getItem('login_source'); // session-scoped, not persistent
-    if (!hasProfile || loginSource !== 'form') {
-        // Default to Mode Selection on initial load
-        if (modeCard) { modeCard.classList.add('active'); modeCard.style.display = 'block'; }
-        loginCard.classList.remove('active');
-        loginCard.style.display = 'none';
-        dashboardCard.classList.remove('active');
-        dashboardCard.style.display = 'none';
-
-        const setupCard = document.getElementById('setupCard');
-        if (setupCard) {
-            setupCard.classList.remove('active');
-            setupCard.style.display = 'none';
-        }
-        return;
-    }
-
-    const stored = loadProfileFromStorage();
-    if (!stored) return;
-
-    window.currentProfile = {
-        rsName: stored.rsName,
-        rsEmail: stored.rsEmail,
-        rsRank: stored.rsRank,
-        totalEvaluations: (stored.evaluations || []).length,
-        lastUpdated: stored.lastUpdated || new Date().toISOString()
-    };
-    window.profileEvaluations = stored.evaluations || [];
-
-    showProfileDashboard();
-
-    // Prefer showing Dashboard instead of login/setup when a profile exists
-    loginCard.style.display = 'none';
-    dashboardCard.style.display = 'block';
-
-    const setupCard = document.getElementById('setupCard');
-    if (setupCard) setupCard.style.display = 'none';
-}
-
-// Profile persistence helpers and GitHub stubs (added)
-function generateProfileKey(name, email) {
-    const n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
-    const e = String(email || '').toLowerCase().trim();
-    return `rs:${n}|${e}`;
-}
-
-function loadProfileFromLocal(profileKey) {
-    try {
-        return JSON.parse(localStorage.getItem(`profile:${profileKey}`) || 'null');
-    } catch (err) {
-        console.warn('loadProfileFromLocal failed:', err);
-        return null;
-    }
-}
-
-function saveProfileToLocal(profileKey, profile) {
-    try {
-        localStorage.setItem(`profile:${profileKey}`, JSON.stringify(profile));
-    } catch (err) {
-        console.warn('saveProfileToLocal failed:', err);
-    }
-}
-
-function loadEvaluationsFromLocal(profileKey) {
-    try {
-        return JSON.parse(localStorage.getItem(`evaluations:${profileKey}`) || '[]');
-    } catch (err) {
-        console.warn('loadEvaluationsFromLocal failed:', err);
-        return [];
-    }
-}
-
-function saveEvaluationsToLocal(profileKey, evaluations) {
-    try {
-        localStorage.setItem(`evaluations:${profileKey}`, JSON.stringify(evaluations));
-    } catch (err) {
-        console.warn('saveEvaluationsToLocal failed:', err);
-    }
-}
-
-// Optional GitHub integration stubs (safe no-ops)
-async function fetchProfileFromGitHub(profileKey) {
-    // No GitHub configured; return null to keep app fully offline-capable
-    return null;
-}
-
-function mergeProfiles(local, remote) {
-    if (!local) return remote || null;
-    if (!remote) return local;
-    return {
-        ...local,
-        ...remote,
-        totalEvaluations: Math.max(local.totalEvaluations || 0, remote.totalEvaluations || 0),
-        lastUpdated: new Date().toISOString()
-    };
-}
-
-async function syncEvaluationToGitHub(evaluation) {
-    try {
-        const userEmail = (currentProfile && currentProfile.rsEmail) || (evaluation?.rsInfo?.email) || '';
-        if (!userEmail || userEmail === 'offline@local') return false;
-        const endpoint = (window.CONSTANTS?.ROUTES?.API?.EVALUATION_SAVE) || '/api/evaluation/save';
-        const base = window.API_BASE_URL || location.origin;
-        const url = new URL(endpoint, base).toString();
-        const headers = { 'Content-Type': 'application/json' };
-        try {
-            const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : (sessionStorage.getItem('fitrep_csrf_token') || '');
-            if (csrf) headers['X-CSRF-Token'] = csrf;
-        } catch (_) {}
-        try {
-            const sessTok = sessionStorage.getItem('fitrep_session_token') || '';
-            if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
-        } catch (_) {}
-        const resp = await fetch(url, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ evaluation, userEmail }) });
-        const data = await resp.json().catch(() => ({}));
-        if (resp.ok && data?.ok) { evaluation.syncStatus = 'synced'; return true; }
-        evaluation.syncStatus = 'error';
-        console.error('Supabase sync failed:', data?.error || resp.statusText);
-        return false;
-    } catch (error) {
-        console.error('Error during Supabase sync:', error);
-        return false;
-    }
-}
 // Inline availability feedback for Create Account username input
 function initUsernameAvailabilityWatcher() {
     // No-op: availability UI removed; server will enforce uniqueness on create

@@ -6,6 +6,7 @@ const fetch = require('node-fetch');
 
 // Config constants (align with server.js defaults)
 const DATA_REPO = process.env.DATA_REPO || 'SemperAdmin/Fitness-Report-Evaluator-Data';
+const SERVER_DATA_TOKEN = process.env.FITREP_DATA || process.env.FITREP_DATA_ADMIN || '';
 // Align local data dir with server.js behavior: allow env override
 const LOCAL_BASE_DIR = process.env.LOCAL_DATA_DIR || path.join(__dirname, 'local-data');
 const LOCAL_DATA_DIR = path.join(LOCAL_BASE_DIR, 'users');
@@ -53,8 +54,7 @@ router.post('/logout', (req, res) => {
 // Admin metrics: overview counts
 router.get('/metrics/overview', requireAdmin, async (req, res) => {
   try {
-const SERVER_DATA_TOKEN = process.env.FITREP_DATA || process.env.FITREP_DATA_ADMIN || '';
-const token = SERVER_DATA_TOKEN || '';
+    const token = SERVER_DATA_TOKEN || '';
     const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
     const window24h = now - DAY;
@@ -201,7 +201,7 @@ router.get('/metrics/performance', requireAdmin, async (req, res) => {
     const gradeValues = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7 };
     const bySectionValues = { D: [], E: [], F: [], G: [] };
 
-    async function processEvaluationObject(obj) {
+    const processEvaluationObject = async (obj) => {
       try {
         const ev = obj && obj.evaluation ? obj.evaluation : obj;
         const traits = ev?.traitEvaluations || {};
@@ -222,7 +222,7 @@ router.get('/metrics/performance', requireAdmin, async (req, res) => {
           }
         });
       } catch (_) { /* ignore */ }
-    }
+    };
 
     // Prefer GitHub-backed aggregation (attempt without token for public repos; include token when provided)
     try {
@@ -310,7 +310,7 @@ router.get('/metrics/performance', requireAdmin, async (req, res) => {
     const highGradePercent = totalTraits > 0 ? parseFloat(((highCount / totalTraits) * 100).toFixed(2)) : 0;
     const lowGradePercent = totalTraits > 0 ? parseFloat(((lowCount / totalTraits) * 100).toFixed(2)) : 0;
 
-    function mean(arr) { return arr.length ? parseFloat((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2)) : 0; }
+    const mean = (arr) => (arr.length ? parseFloat((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2)) : 0);
     const avgGradeBySection = {
       D_mission: mean(bySectionValues.D),
       E_character: mean(bySectionValues.E),
@@ -340,7 +340,7 @@ router.get('/metrics/engagement', requireAdmin, async (req, res) => {
     const recentRegistrations = [];
     const userRankDistribution = {};
 
-    function pushRecent(profile) {
+    const pushRecent = (profile) => {
       try {
         recentRegistrations.push({
           email: profile.rsEmail || profile.email || '',
@@ -349,13 +349,13 @@ router.get('/metrics/engagement', requireAdmin, async (req, res) => {
           createdDate: profile.createdDate || profile.created || ''
         });
       } catch (_) { /* ignore */ }
-    }
+    };
 
-    function addRank(rank) {
+    const addRank = (rank) => {
       const r = String(rank || '').trim();
       if (!r) return;
       userRankDistribution[r] = (userRankDistribution[r] || 0) + 1;
-    }
+    };
 
     // Prefer GitHub-backed aggregation (attempt without token for public repos; include token when provided)
     try {
@@ -549,7 +549,7 @@ router.get('/users/list', requireAdmin, async (req, res) => {
 
     // Helper to normalize a user record
     const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'semperadmin').trim().toLowerCase();
-    function normalizeUser(prefix, obj) {
+    const normalizeUser = (prefix, obj) => {
       const name = obj?.rsName || obj?.name || '';
       const email = obj?.rsEmail || obj?.email || '';
       const rank = obj?.rsRank || obj?.rank || '';
@@ -559,7 +559,7 @@ router.get('/users/list', requireAdmin, async (req, res) => {
       const type = isAdmin ? 'Admin' : 'User';
       const deleted = obj?.deleted === true;
       return { username: prefix, name, email, rank, created, lastUpdated, evalCount: 0, status: obj?.status || '', isAdmin, type, deleted };
-    }
+    };
 
     // Aggregate users either from GitHub or local filesystem
     let users = [];

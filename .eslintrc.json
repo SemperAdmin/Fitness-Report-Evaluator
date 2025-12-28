@@ -9,10 +9,53 @@
     "ecmaVersion": 12,
     "sourceType": "script"
   },
+  "overrides": [
+    {
+      "files": ["js/**/*.js"],
+      "env": {
+        "browser": true,
+        "es2021": true
+      },
+      "rules": {
+        "no-implicit-globals": "off",
+        "no-undef": "warn"
+      }
+    },
+    {
+      "files": ["server-example.js"],
+      "env": {
+        "node": true,
+        "es2021": true
+      },
+      "rules": {
+        "no-useless-catch": "off"
+      }
+    },
+    {
+      "files": ["server/**/*.js", "scripts/**/*.js", "tests/**/*.js"],
+      "env": {
+        "node": true,
+        "es2021": true
+      }
+    },
+    {
+      "files": ["tests/**/*.js"],
+      "rules": {
+        "no-implicit-globals": "off",
+        "jsdoc/require-jsdoc": "off",
+        "no-empty": "off"
+      },
+      "globals": {
+        "describe": "readonly",
+        "it": "readonly"
+      }
+    }
+  ],
   "rules": {
     "no-implicit-globals": "error",
     "no-undef": "error",
     "no-unused-vars": ["warn", { "args": "none" }],
+    "no-empty": ["error", { "allowEmptyCatch": true }],
     "prefer-const": "warn",
     "no-magic-numbers": [
       "warn",

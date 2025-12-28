@@ -40,6 +40,15 @@ class CachedGitHubService {
         this.tokenCache = null;
     }
 
+    getFetchCredentials(endpointUrl) {
+        try {
+            if (this.service && typeof this.service.getFetchCredentials === 'function') {
+                return this.service.getFetchCredentials(endpointUrl);
+            }
+        } catch (_) {}
+        return 'omit';
+    }
+
     /**
      * Initialize service with caching
      * Ensures only one initialization happens even if called multiple times

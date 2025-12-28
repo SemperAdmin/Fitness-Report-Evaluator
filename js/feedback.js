@@ -18,7 +18,16 @@
 
   const sanitizeString = (str) => {
     if (!str) return '';
-    return String(str).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    const s = String(str);
+    let out = '';
+    for (let i = 0; i < s.length; i += 1) {
+      const code = s.charCodeAt(i);
+      if ((code >= 0 && code <= 8) || (code >= 11 && code <= 12) || (code >= 14 && code <= 31) || code === 127) {
+        continue;
+      }
+      out += s[i];
+    }
+    return out;
   };
 
   const captureContext = () => {
@@ -182,11 +191,13 @@
         const base = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : '';
         const FEEDBACK_ROUTE = (window.CONSTANTS?.ROUTES?.API?.FEEDBACK) || '/api/feedback';
         const url = base ? new URL(FEEDBACK_ROUTE, base).toString() : FEEDBACK_ROUTE;
-        // Include CSRF token when a session exists (set on login)
-        const m = (typeof document !== 'undefined') ? document.cookie.match(/(?:^|; )fitrep_csrf=([^;]*)/) : null;
-        const csrf = m ? decodeURIComponent(m[1]) : '';
         const headers = { 'Content-Type': 'application/json' };
+        const csrf = (typeof getCsrfToken === 'function') ? getCsrfToken() : '';
         if (csrf) headers['X-CSRF-Token'] = csrf;
+        try {
+          const sessTok = (typeof sessionStorage !== 'undefined') ? (sessionStorage.getItem('fitrep_session_token') || '') : '';
+          if (sessTok) headers['Authorization'] = `Bearer ${sessTok}`;
+        } catch (_) {}
         const resp = await fetch(url, {
           method: 'POST',
           headers,

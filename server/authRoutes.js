@@ -13,13 +13,14 @@
 
 const bcrypt = require('bcryptjs');
 const supabaseClient = require('./supabaseClient');
-const { getStorageMode, isSupabaseAvailable, supabase, supabaseAdmin } = supabaseClient;
+const { getStorageMode, isSupabaseAvailable, supabase, supabaseAdmin, USERS_TABLE } = supabaseClient;
 const MilitaryData = require('../js/militaryData.js');
 const { createUser, getUserByEmail } = require('./supabaseService');
 
 const crypto = require('crypto');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-weak-secret-change-in-prod';
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 60 * 60 * 1000);
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'semperadmin').trim().toLowerCase();
 const inferredHostedSecure = (
   process.env.COOKIE_SECURE === 'true' ||
   process.env.NODE_ENV === 'production' ||
@@ -210,14 +211,12 @@ async function createAccountSupabase({ username, name, rank, branch, password },
     let userError = null;
     try {
       const resp = await adminClient
-        .from('users')
+        .from(USERS_TABLE)
         .insert({
           id: userId,
-          email: authEmail,
-          name: name,
-          rank: rank,
-          branch: branch || 'USMC',
-          username: username,
+          rs_email: authEmail,
+          rs_name: name,
+          rs_rank: rank,
           password_hash: passwordHash,
           created_date: new Date().toISOString(),
           last_updated: new Date().toISOString(),
@@ -234,14 +233,11 @@ async function createAccountSupabase({ username, name, rank, branch, password },
       console.warn('Admin insert failed; attempting anon insert:', userError?.message || userError);
       try {
         const resp2 = await supabase
-          .from('users')
+          .from(USERS_TABLE)
           .insert({
-            // omit id to use DB default when auth user missing
-            email: authEmail,
-            name: name,
-            rank: rank,
-            branch: branch || 'USMC',
-            username: username,
+            rs_email: authEmail,
+            rs_name: name,
+            rs_rank: rank,
             password_hash: passwordHash,
             created_date: new Date().toISOString(),
             last_updated: new Date().toISOString(),
@@ -263,7 +259,7 @@ async function createAccountSupabase({ username, name, rank, branch, password },
     return res.json({
       ok: true,
       userId: userId,
-      email: userData.email,
+      email: userData.rs_email,
       method: 'supabase',
     });
   } catch (err) {
@@ -336,47 +332,51 @@ async function loginSupabase({ username, password }, req, res) {
     if (authError) {
       console.error(`[DEBUG LOGIN] Supabase Auth failed:`, authError.message);
       try {
-        const { getClient } = require('./supabaseClient');
-        let rows = null;
-        try {
-          const adminClient = getClient(true);
-          const { data } = await adminClient
-            .from('users')
-            .select('*')
-            .ilike('username', username)
-            .limit(1);
-          rows = data;
-        } catch (e) {
-          const { supabase } = require('./supabaseClient');
-          const { data } = await supabase
-            .from('users')
-            .select('*')
-            .ilike('username', username)
-            .limit(1);
-          rows = data;
+        const { getClient, supabase } = require('./supabaseClient');
+        let client = null;
+        try { client = getClient(true); } catch (_) { client = supabase; }
+
+        // Try multiple identifiers in order: rs_email, username
+        const candidates = [
+          { column: 'rs_email', value: authEmail },
+          { column: 'username', value: username }
+        ];
+        let userRow = null;
+        for (const c of candidates) {
+          try {
+            const { data, error } = await client
+              .from(USERS_TABLE)
+              .select('*')
+              .ilike(c.column, c.value)
+              .limit(1);
+            if (!error && Array.isArray(data) && data.length) {
+              userRow = data[0];
+              console.log(`[DEBUG LOGIN] Fallback match on ${c.column}:`, !!userRow);
+              break;
+            }
+          } catch (qErr) {
+            console.warn(`[DEBUG LOGIN] Lookup error on ${c.column}:`, qErr?.message || qErr);
+            continue;
+          }
         }
-        const byEmail = Array.isArray(rows) ? rows[0] : rows;
-        console.log('[DEBUG LOGIN] Fallback lookup rs_email match:', !!byEmail, 'has hash:', byEmail && typeof byEmail.password_hash === 'string' && byEmail.password_hash.length > 0);
+        console.log('[DEBUG LOGIN] Fallback resolved row:', !!userRow, 'has hash:', userRow && typeof userRow.password_hash === 'string' && userRow.password_hash.length > 0);
         const allowNoHash = String(process.env.ALLOW_DEV_LOGIN_NO_HASH || '').trim().toLowerCase() === 'true';
-        if (!byEmail) {
-          return res.status(401).json({ error: 'Invalid username or password' });
-        }
         let ok = false;
-        if (byEmail.password_hash && typeof byEmail.password_hash === 'string' && byEmail.password_hash.length) {
-          ok = await bcrypt.compare(password, byEmail.password_hash);
+        if (userRow.password_hash && typeof userRow.password_hash === 'string' && userRow.password_hash.length) {
+          ok = await bcrypt.compare(password, userRow.password_hash);
         } else if (allowNoHash) {
           ok = true;
         }
         if (!ok) {
           return res.status(401).json({ error: 'Invalid username or password' });
         }
-        const userData = byEmail;
-        console.log('[DEBUG LOGIN] Fallback verified via users.password_hash for', userData.username || userData.email);
+        const userData = userRow;
+        console.log('[DEBUG LOGIN] Fallback verified via users.password_hash for', userData.rs_email);
         let csrfToken = null;
         let sessionToken = null;
         try {
           const now = Date.now();
-          const payload = { u: String(userData.username || userData.email || userData.user_email || userData.rs_email || '').trim(), iat: now, exp: now + SESSION_TTL_MS };
+        const payload = { u: String(userData.rs_email || '').trim(), iat: now, exp: now + SESSION_TTL_MS };
           sessionToken = signSessionPayload(payload);
           csrfToken = crypto.randomBytes(32).toString('hex');
           const cookies = [
@@ -384,18 +384,25 @@ async function loginSupabase({ username, password }, req, res) {
             serializeCookie('fitrep_csrf', csrfToken, { httpOnly: false, path: '/', sameSite: COOKIE_SAMESITE, secure: COOKIE_SECURE, maxAge: SESSION_TTL_MS / 1000 })
           ];
           res.setHeader('Set-Cookie', cookies);
-        } catch (_) {}
+        } catch (_) {
+          console.warn('Failed to set session cookies');
+        }
+        const fallbackUsername = String(userData.rs_email || '').trim().toLowerCase();
+        const fallbackIsAdmin = fallbackUsername === ADMIN_USERNAME;
+
         return res.json({
           ok: true,
           user: {
             id: userData.id,
-            email: userData.email || userData.user_email || userData.rs_email,
-            full_name: userData.name || userData.full_name || userData.rs_name,
-            rank: userData.rank || userData.rs_rank,
+            username: fallbackUsername,
+            email: userData.rs_email,
+            full_name: userData.rs_name,
+            rank: userData.rs_rank,
             branch: userData.branch,
-            rsEmail: userData.email || userData.user_email || userData.rs_email,
-            rsName: userData.name || userData.full_name || userData.rs_name,
-            rsRank: userData.rank || userData.rs_rank,
+            rsEmail: userData.rs_email,
+            rsName: userData.rs_name,
+            rsRank: userData.rs_rank,
+            isAdmin: fallbackIsAdmin,
           },
           csrfToken,
           sessionToken,
@@ -411,7 +418,7 @@ async function loginSupabase({ username, password }, req, res) {
 
     // 2. Fetch user data from public.users
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from(USERS_TABLE)
       .select('*')
       .eq('id', user.id)
       .single();
@@ -436,7 +443,8 @@ async function loginSupabase({ username, password }, req, res) {
     let sessionToken = null;
     try {
       const now = Date.now();
-      const payload = { u: String(resolvedUser.username || resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email || '').trim(), iat: now, exp: now + SESSION_TTL_MS };
+      const loginEmail = String(resolvedUser.rs_email || resolvedUser.email || authEmail || '').trim().toLowerCase();
+      const payload = { u: loginEmail, iat: now, exp: now + SESSION_TTL_MS };
       sessionToken = signSessionPayload(payload);
       csrfToken = crypto.randomBytes(32).toString('hex');
       const cookies = [
@@ -454,7 +462,7 @@ async function loginSupabase({ username, password }, req, res) {
     } catch (_) { /* best-effort */ }
 
     // Save session (if using express-session)
-    if (req.session.save) {
+    if (req.session && req.session.save) {
       return new Promise((resolve) => {
         req.session.save((err) => {
           if (err) {
@@ -462,17 +470,22 @@ async function loginSupabase({ username, password }, req, res) {
             return res.status(500).json({ error: 'Login failed' });
           }
 
+          const loginUsername = String(resolvedUser.username || resolvedUser.rs_email || resolvedUser.email || '').trim().toLowerCase();
+          const userIsAdmin = loginUsername === ADMIN_USERNAME;
+
           return res.json({
             ok: true,
             user: {
               id: user.id,
-              email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
-              full_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
-              rank: resolvedUser.rank || resolvedUser.rs_rank,
+              username: loginUsername,
+              email: resolvedUser.rs_email || resolvedUser.email,
+              full_name: resolvedUser.rs_name || resolvedUser.name || resolvedUser.full_name,
+              rank: resolvedUser.rs_rank || resolvedUser.rank,
               branch: resolvedUser.branch,
-              rsEmail: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
-              rsName: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
-              rsRank: resolvedUser.rank || resolvedUser.rs_rank,
+              rsEmail: resolvedUser.rs_email || resolvedUser.email,
+              rsName: resolvedUser.rs_name || resolvedUser.name || resolvedUser.full_name,
+              rsRank: resolvedUser.rs_rank || resolvedUser.rank,
+              isAdmin: userIsAdmin,
             },
             csrfToken,
             sessionToken,
@@ -483,17 +496,22 @@ async function loginSupabase({ username, password }, req, res) {
     }
 
     // No session middleware, return user data
+    const loginUsername2 = String(resolvedUser.username || resolvedUser.rs_email || resolvedUser.email || '').trim().toLowerCase();
+    const userIsAdmin2 = loginUsername2 === ADMIN_USERNAME;
+
     return res.json({
       ok: true,
       user: {
         id: user.id,
-        email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
-        full_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
-        rank: resolvedUser.rank || resolvedUser.rs_rank,
+        username: loginUsername2,
+        email: resolvedUser.rs_email || resolvedUser.email,
+        full_name: resolvedUser.rs_name || resolvedUser.name || resolvedUser.full_name,
+        rank: resolvedUser.rs_rank || resolvedUser.rank,
         branch: resolvedUser.branch,
-        rs_email: resolvedUser.email || resolvedUser.user_email || resolvedUser.rs_email,
-        rs_name: resolvedUser.name || resolvedUser.full_name || resolvedUser.rs_name,
-        rs_rank: resolvedUser.rank || resolvedUser.rs_rank,
+        rs_email: resolvedUser.rs_email || resolvedUser.email,
+        rs_name: resolvedUser.rs_name || resolvedUser.name || resolvedUser.full_name,
+        rs_rank: resolvedUser.rs_rank || resolvedUser.rank,
+        isAdmin: userIsAdmin2,
       },
       csrfToken,
       sessionToken,
@@ -505,6 +523,81 @@ async function loginSupabase({ username, password }, req, res) {
   }
 }
 
+async function resetPasswordHandler(req, res) {
+  try {
+    const { rsEmail, username, newPassword, confirmPassword } = req.body || {};
+    const u = String(username || '').trim();
+    const e = String(rsEmail || '').trim();
+    const np = String(newPassword || '');
+    const cp = String(confirmPassword || '');
+    if (!u || !e || !np || !cp) {
+      return res.status(400).json({ error: 'Missing fields: rsEmail, username, newPassword, confirmPassword' });
+    }
+    if (!isValidUsername(u)) {
+      return res.status(400).json({ error: 'Invalid username format' });
+    }
+    if (!isStrongPassword(np)) {
+      return res.status(400).json({ error: 'Weak password: use at least 8 chars with upper, lower, and number' });
+    }
+    if (np !== cp) {
+      return res.status(400).json({ error: 'Passwords do not match' });
+    }
+    const storageMode = getStorageMode();
+    if (!(storageMode === 'supabase' && isSupabaseAvailable())) {
+      return res.status(501).json({ error: 'Legacy storage mode - use original endpoint' });
+    }
+    const toAuthEmail = (s) => {
+      const t = String(s || '').trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(t) ? t : `${t}@local.dev`;
+    };
+    const emailAuth = toAuthEmail(e);
+    const usernameAuth = toAuthEmail(u);
+    const { getClient } = require('./supabaseClient');
+    let client = null;
+    try { client = getClient(true); } catch (_) { client = supabase; }
+    let userRow = null;
+    try {
+      const { data } = await client.from(USERS_TABLE).select('*').ilike('rs_email', emailAuth).limit(1);
+      userRow = Array.isArray(data) ? data[0] : data;
+    } catch (_) {}
+    if (!userRow) {
+      const { data } = await client.from(USERS_TABLE).select('*').ilike('username', u).limit(1);
+      userRow = Array.isArray(data) ? data[0] : data;
+    }
+    if (!userRow) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    const unameMatch = String(userRow.username || '').trim().toLowerCase() === String(u).toLowerCase();
+    const emailMatch = String(userRow.rs_email || '').trim().toLowerCase() === String(emailAuth).toLowerCase();
+    if (!unameMatch && !emailMatch) {
+      return res.status(403).json({ error: 'Provided email and username do not match account' });
+    }
+    const hash = await bcrypt.hash(np, 12);
+    let authUpdated = false;
+    try {
+      if (userRow.id && supabaseAdmin) {
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(userRow.id, { password: np });
+        authUpdated = !authErr;
+      }
+    } catch (_) {
+      authUpdated = false;
+    }
+    const { error: updErr } = await client
+      .from(USERS_TABLE)
+      .update({ password_hash: hash, last_updated: new Date().toISOString() })
+      .eq('rs_email', userRow.rs_email)
+      .select()
+      .single();
+    if (updErr) {
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+    return res.json({ ok: true, method: 'supabase', authUpdated });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to reset password' });
+  }
+}
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -512,6 +605,7 @@ async function loginSupabase({ username, password }, req, res) {
 module.exports = {
   createAccountHandler,
   loginHandler,
+  resetPasswordHandler,
 
   // Export validators for reuse
   isValidUsername,

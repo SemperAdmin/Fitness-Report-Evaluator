@@ -147,9 +147,7 @@ class GitHubDataService {
     getFetchCredentials(endpointUrl) {
         try {
             const pageOrigin = (typeof window !== 'undefined' && window.location?.origin) || '';
-            const pageProtocol = (typeof window !== 'undefined' && window.location?.protocol) || '';
             const endpointOrigin = new URL(endpointUrl).origin;
-            const endpointProtocol = new URL(endpointUrl).protocol;
 
             // Include credentials for same-origin
             if (pageOrigin && endpointOrigin === pageOrigin) {
@@ -157,29 +155,8 @@ class GitHubDataService {
                 return 'include';
             }
 
-            // Allow credentials for allowlisted cross-origin endpoints ONLY in secure (HTTPS) contexts
-            // Browsers block cross-site cookies on insecure HTTP; avoid 'include' to prevent CORS failures
-            const allowlist = this._isApiOriginsDefined()
-                ? window.API_ALLOWED_ORIGINS
-                : [];
-            const isSecureContext = (pageProtocol === 'https:' && endpointProtocol === 'https:');
-
-            debugLog('[credentials] cross-origin check:', {
-                endpointUrl,
-                endpointOrigin,
-                pageOrigin,
-                allowlist,
-                isSecureContext,
-                isInAllowlist: allowlist.includes(endpointOrigin)
-            });
-
-            if (allowlist.includes(endpointOrigin) && isSecureContext) {
-                debugLog('[credentials] allowlisted cross-origin + HTTPS, using include');
-                return 'include';
-            }
-
             // Default to omit to avoid unintended CORS issues
-            debugLog('[credentials] defaulting to omit (not in allowlist or not secure)');
+            debugLog('[credentials] cross-origin detected, using omit:', endpointUrl);
             return 'omit';
         } catch (e) {
             // Fallback for invalid URLs or non-browser environments
@@ -225,29 +202,7 @@ class GitHubDataService {
      * @throws {Error} On unexpected failures during backend fetch.
      */
     async getTokenFromEnvironment() {
-        if (typeof window !== 'undefined') {
-            // Approach 0: Dev-only global config (if explicitly injected)
-            if (window.GITHUB_CONFIG?.token) {
-                return window.GITHUB_CONFIG.token;
-            }
-
-            // Approach 0b: Dev-only localStorage to avoid editing files
-            try {
-                const devToken = window.localStorage.getItem('FITREP_DEV_TOKEN');
-                if (devToken) return devToken;
-            } catch (_) { /* ignore */ }
-
-            // Approach 0c: Assembled token when explicitly enabled (dev or temporary prod)
-            try {
-                const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-                const devEnabled = !!window.DEV_ENABLE_EMBEDDED_TOKEN;
-                const prodFlag = window.USE_ASSEMBLED_TOKEN === true;
-                if (typeof window.assembleToken === 'function' && ( (isLocal && devEnabled) || prodFlag ) ) {
-                    const assembled = window.assembleToken();
-                    if (assembled) return assembled;
-                }
-            } catch (_) { /* ignore */ }
-        }
+        // Client must not use embedded tokens. Prefer backend or server-side env.
 
         // Approach 1: Backend API proxy (RECOMMENDED for client-side apps)
         // In production, skip calling this endpoint unless explicitly enabled.
@@ -513,7 +468,7 @@ class GitHubDataService {
         let traits = [];
         try {
             const afterHeader = yamlStr.split('traitEvaluations:')[1] || '';
-            const itemRe = /-\s*\r?\n(?:\s{2,}section:\s*"([^"]+)")\s*\r?\n(?:\s{2,}trait:\s*"([^"]+)")\s*\r?\n(?:\s{2,}grade:\s*"([A-G])")\s*\r?\n(?:\s{2,}gradeNumber:\s*([0-9]+))\s*\r?\n(?:\s{2,}justification:\s*"([^\"]*)")/g;
+            const itemRe = /-\s*\r?\n(?:\s{2,}section:\s*"([^"]+)")\s*\r?\n(?:\s{2,}trait:\s*"([^"]+)")\s*\r?\n(?:\s{2,}grade:\s*"([A-G])")\s*\r?\n(?:\s{2,}gradeNumber:\s*([0-9]+))\s*\r?\n(?:\s{2,}justification:\s*"([^"]*)")/g;
             let m;
             while ((m = itemRe.exec(afterHeader)) !== null) {
                 traits.push({
@@ -893,28 +848,22 @@ class GitHubDataService {
         }
         const cfg = this.getConfig();
         const url = `${cfg.apiBase}/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
+        const response = await fetch(url, this._getGitHubApiRequestOptions('GET'));
 
-        try {
-            const response = await fetch(url, this._getGitHubApiRequestOptions('GET'));
+        if (response.status === 404) {
+            return null; // File doesn't exist
+        }
 
-            if (response.status === 404) {
-                return null; // File doesn't exist
-            }
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                const error = new Error(`GitHub API error: ${errorData.message || response.statusText}`);
-                error.status = response.status;
-                error.response = response;
-                throw error;
-            }
-
-            const data = await response.json();
-            return data.sha;
-
-        } catch (error) {
+        if (!response.ok) {
+            const errorData = await response.json();
+            const error = new Error(`GitHub API error: ${errorData.message || response.statusText}`);
+            error.status = response.status;
+            error.response = response;
             throw error;
         }
+
+        const data = await response.json();
+        return data.sha;
     }
 
     /**
@@ -1161,7 +1110,7 @@ class GitHubDataService {
                     return { success: false, error: 'Untrusted origin', message: 'Backend save blocked' };
                 }
 
-                // Build headers; include CSRF token and optionally assembled token when enabled
+                // Build headers
                 const headers = { 'Content-Type': 'application/json' };
                 const csrf = getCsrfToken();
                 if (csrf) {
@@ -1177,19 +1126,13 @@ class GitHubDataService {
                         debugLog('[auth] Set Authorization Bearer for saveUserData');
                     }
                 } catch (_) { /* ignore */ }
-                let assembledToken = null;
-                try {
-                    if (typeof window !== 'undefined' && typeof window.assembleToken === 'function' && window.USE_ASSEMBLED_TOKEN === true) {
-                        assembledToken = window.assembleToken();
-                    }
-                } catch (_) { /* ignore */ }
-                if (assembledToken) {
-                    headers['X-GitHub-Token'] = assembledToken;
-                }
-
-                const payload = assembledToken
-                    ? { userData: normalized, token: assembledToken }
-                    : { userData: normalized };
+                const payload = {
+                    rsEmail: normalized.rsEmail,
+                    rsName: normalized.rsName,
+                    rsRank: normalized.rsRank,
+                    ...(normalized.previousEmail ? { previousEmail: normalized.previousEmail } : {}),
+                    userData: { ...normalized }
+                };
 
                 // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
                 const credentials = this.getFetchCredentials(endpoint.url);
@@ -1417,7 +1360,7 @@ class GitHubDataService {
                     });
                     const data = await resp.json().catch(() => ({}));
                     if (resp.ok && data?.ok) {
-                        return { success: true, message: 'Evaluation saved via backend (Supabase)', backend: data };
+                        return { success: true, message: 'Evaluation saved via backend', backend: data };
                     }
                 }
             } catch (e) {
@@ -1515,16 +1458,13 @@ class GitHubDataService {
             } else {
                 debugWarn('[csrf] No CSRF token available for saveEvaluation');
             }
-            // Dev-only optional header token if present and explicitly allowed
-            let assembledToken = null;
             try {
-                if (typeof window !== 'undefined' && window.USE_ASSEMBLED_TOKEN && window.GITHUB_CONFIG?.token) {
-                    assembledToken = window.GITHUB_CONFIG.token;
+                const sessTok = (typeof sessionStorage !== 'undefined') ? (sessionStorage.getItem('fitrep_session_token') || '') : '';
+                if (sessTok) {
+                    headers['Authorization'] = `Bearer ${sessTok}`;
+                    debugLog('[auth] Set Authorization Bearer for saveEvaluation');
                 }
             } catch (_) {}
-            if (assembledToken) {
-                headers['X-GitHub-Token'] = assembledToken;
-            }
 
             // Use credentials only for same-origin; omit for cross-origin to avoid CORS issues on mobile
             const credentials = this.getFetchCredentials(ep.url);

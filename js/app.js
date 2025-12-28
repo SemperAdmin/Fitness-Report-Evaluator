@@ -24,11 +24,43 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dashboard) { dashboard.classList.remove(UI.CSS.ACTIVE); dashboard.style.display = UI.DISPLAY.HIDE; }
     if (setup) { setup.classList.remove(UI.CSS.ACTIVE); setup.style.display = UI.DISPLAY.HIDE; }
 
-    setTimeout(() => {
-        if (typeof showProfileDashboardOnLoad === 'function') {
-            try { showProfileDashboardOnLoad(); } catch (e) { console.warn('showProfileDashboardOnLoad failed:', e); }
+    try {
+        const url = new URL(window.location.href);
+        const forceLogin = (url.searchParams.get('login') === '1') || (url.searchParams.get('logout') === '1') || (url.hash === '#login');
+        if (forceLogin) {
+            try { if (typeof showRSLoginFirst === 'function') showRSLoginFirst(); } catch (_) {}
+        } else {
+            setTimeout(() => {
+                try {
+                    if (typeof showProfileDashboardOnLoad === 'function') {
+                        const lsrc = (function(){ try { return localStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
+                        const ssrc = (function(){ try { return sessionStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
+                        const preferDashboard = (!lsrc || lsrc === 'offline') && (!ssrc || ssrc === '');
+                        if (preferDashboard) {
+                            showProfileDashboardOnLoad();
+                        } else {
+                            if (typeof showRSLoginFirst === 'function') showRSLoginFirst();
+                        }
+                    }
+                } catch (e) { console.warn('boot route failed:', e); }
+            }, 0);
         }
-    }, 0);
+    } catch (_) {
+        setTimeout(() => {
+            try {
+                if (typeof showProfileDashboardOnLoad === 'function') {
+                    const lsrc = (function(){ try { return localStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
+                    const ssrc = (function(){ try { return sessionStorage.getItem('login_source') || ''; } catch(_) { return ''; } })();
+                    const preferDashboard = (!lsrc || lsrc === 'offline') && (!ssrc || ssrc === '');
+                    if (preferDashboard) {
+                        showProfileDashboardOnLoad();
+                    } else {
+                        if (typeof showRSLoginFirst === 'function') showRSLoginFirst();
+                    }
+                }
+            } catch (e) { console.warn('boot route failed:', e); }
+        }, 0);
+    }
 
     // Set default dates
     const today = new Date();
@@ -125,24 +157,47 @@ function startStandaloneMode() {
 
 // Login-first routing helper
 function showRSLoginFirst() {
-    // Ensure global header chrome is visible on the login card
-    try { document.body.classList.remove('auth-login'); document.body.classList.remove('home-mode'); } catch (_) {}
+    try {
+        console.log('[app] showRSLoginFirst called');
+        document.body.classList.remove('auth-login');
+        document.body.classList.remove('home-mode');
+    } catch (_) {}
+
     const login = document.getElementById('profileLoginCard');
     const loginFields = document.getElementById('loginFields');
     const createSection = document.getElementById('createAccountSection');
     const typewriter = login ? login.querySelector('.typewriter-wrapper') : null;
+    
+    // Debug elements
+    if (!login) console.warn('[app] profileLoginCard not found');
+    if (!loginFields) console.warn('[app] loginFields not found');
+
     const header = document.querySelector('.header');
     const warning = document.getElementById('dataWarning');
     const mode = document.getElementById('modeSelectionCard');
+    
     const cards = [
-        'profileDashboardCard', // ensure dashboard is hidden
-        'setupCard','howItWorksCard','evaluationContainer',
-        'reviewCard','sectionIGenerationCard','directedCommentsCard','summaryCard'
+        'profileDashboardCard',
+        'setupCard',
+        'howItWorksCard',
+        'evaluationContainer',
+        'reviewCard',
+        'sectionIGenerationCard',
+        'directedCommentsCard',
+        'summaryCard'
     ];
 
-    const UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
+    // Ensure UI constants are available
+    let UI = (window.CONSTANTS && window.CONSTANTS.UI_SETTINGS)
         ? window.CONSTANTS.UI_SETTINGS
         : { DISPLAY: { SHOW: 'block', HIDE: 'none' }, CSS: { ACTIVE: 'active' } };
+        
+    // Fallback if SHOW/HIDE are missing in CONSTANTS (double safety)
+    if (!UI.DISPLAY.SHOW) UI.DISPLAY.SHOW = 'block';
+    if (!UI.DISPLAY.HIDE) UI.DISPLAY.HIDE = 'none';
+
+    console.log('[app] UI settings:', UI);
+
     if (header) header.style.display = UI.DISPLAY.SHOW;
     if (warning) warning.style.display = UI.DISPLAY.HIDE;
     if (mode) { mode.classList.remove(UI.CSS.ACTIVE); mode.style.display = UI.DISPLAY.HIDE; }
@@ -275,3 +330,60 @@ function hideDynamicTooltip() {
 function showProfileLogin() {
     return showRSLoginFirst();
 }
+
+// --- Theme Toggle ---
+function toggleTheme() {
+    const body = document.body;
+    const isDark = body.classList.toggle('dark-mode');
+
+    // Save preference
+    try {
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    } catch (_) {}
+
+    // Update toggle button
+    updateThemeToggleButton(isDark);
+}
+
+function updateThemeToggleButton(isDark) {
+    const toggle = document.getElementById('themeToggle');
+    if (!toggle) return;
+
+    const icon = toggle.querySelector('.theme-icon');
+    const label = toggle.querySelector('.theme-label');
+
+    if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+    if (label) label.textContent = isDark ? 'Light' : 'Dark';
+    try {
+        toggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    } catch (_) {}
+}
+
+function initializeTheme() {
+    try {
+        const savedTheme = localStorage.getItem('theme');
+        const isDark = savedTheme === 'dark';
+
+        if (isDark) {
+            document.body.classList.add('dark-mode');
+        }
+
+        updateThemeToggleButton(isDark);
+    } catch (_) {}
+}
+
+try {
+    if (typeof window !== 'undefined') {
+        window.toggleTheme = toggleTheme;
+        window.initializeTheme = initializeTheme;
+    }
+} catch (_) {}
+
+try {
+    const apply = () => { try { initializeTheme(); } catch (_) {} };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', apply);
+    } else {
+        apply();
+    }
+} catch (_) {}

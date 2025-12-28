@@ -149,11 +149,7 @@
       const entry = this.stack.push(id);
 
       // Visuals: backdrop per modal for strict stacking
-      const backdrop = document.createElement('div');
-      backdrop.className = 'sa-modal-backdrop';
-      backdrop.dataset.modalId = id;
-      backdrop.style.zIndex = String(entry.zIndexBackdrop);
-      document.body.appendChild(backdrop);
+      const backdrop = null;
 
       // Modal visuals and semantics
       modal.style.zIndex = String(entry.zIndexModal);
@@ -192,7 +188,7 @@
 
       // Backdrop click-to-close if enabled
       const closeOnBackdrop = opts.closeOnBackdrop !== false;
-      if (closeOnBackdrop) {
+      if (closeOnBackdrop && backdrop) {
         backdrop.addEventListener('click', () => this.closeById(id));
       }
 

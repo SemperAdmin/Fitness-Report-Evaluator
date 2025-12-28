@@ -8,6 +8,9 @@
  * - DELETE /api/evaluation/:id - Delete an evaluation
  */
 
+// Support node-fetch v3 in CommonJS via dynamic import wrapper
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
 const { getStorageMode, isSupabaseAvailable } = require('./supabaseClient');
 const {
   saveEvaluation,
@@ -16,6 +19,10 @@ const {
   getEvaluationById,
   deleteEvaluation,
 } = require('./supabaseService');
+
+// GitHub configuration for repository_dispatch
+const DISPATCH_TOKEN = process.env.DISPATCH_TOKEN;
+const MAIN_REPO = process.env.MAIN_REPO || 'SemperAdmin/Fitness-Report-Evaluator';
 
 // ============================================================================
 // SAVE EVALUATION
@@ -62,7 +69,12 @@ async function saveEvaluationHandler(req, res) {
         fitrepAverage: ev?.fitrepAverage,
         marineInfo: ev?.marineInfo || {},
         sectionIComments: ev?.sectionIComments || '',
-        traitEvaluations: Array.isArray(ev?.traitEvaluations) ? ev.traitEvaluations : [],
+        directedComments: ev?.directedComments || '',
+        traitEvaluations: Array.isArray(ev?.traitEvaluations)
+          ? ev.traitEvaluations
+          : (ev?.traitEvaluations && typeof ev.traitEvaluations === 'object'
+            ? Object.values(ev.traitEvaluations)
+            : []),
         rsInfo: ev?.rsInfo || { email: userEmail, name: '', rank: '' },
         savedAt: ev?.savedAt || new Date().toISOString(),
         syncStatus: ev?.syncStatus || 'synced'
@@ -80,10 +92,16 @@ async function saveEvaluationHandler(req, res) {
 
     // Optional: Verify user owns this evaluation (based on session)
     const sessionEmail = req.session?.rsEmail || req.sessionUser || '';
-    if (sessionEmail && sessionEmail !== evaluationData.rsEmail) {
+    if (sessionEmail) {
+      const s1 = String(sessionEmail || '').trim().toLowerCase();
+      const r1 = String(evaluationData.rsEmail || '').trim().toLowerCase();
+      const sKey = s1.includes('@') ? s1.split('@')[0] : s1;
+      const rKey = r1.includes('@') ? r1.split('@')[0] : r1;
+      if (sKey && rKey && sKey !== rKey) {
       return res.status(403).json({
         error: 'Cannot save evaluation for another user',
       });
+    }
     }
 
     const storageMode = getStorageMode();
@@ -117,6 +135,71 @@ async function saveEvaluationSupabase(evaluationData, res) {
       });
     }
 
+    const SUPABASE_ONLY = String(process.env.SUPABASE_ONLY || 'false').toLowerCase() === 'true';
+    if (DISPATCH_TOKEN && !SUPABASE_ONLY) {
+      try {
+        // Destructure evaluation data for cleaner payload construction
+        const {
+          evaluationId,
+          occasion,
+          completedDate,
+          fitrepAverage,
+          marineInfo,
+          rsName,
+          rsEmail,
+          rsRank,
+          sectionIComments,
+          directedComments,
+          traitEvaluations,
+        } = evaluationData;
+
+        const payload = {
+          event_type: 'save-evaluation',
+          client_payload: {
+            evaluation: {
+              evaluationId,
+              occasion,
+              completedDate,
+              fitrepAverage,
+              marineInfo,
+              rsInfo: {
+                rsName,
+                rsEmail,
+                rsRank,
+              },
+              sectionIComments,
+              directedComments,
+              traitEvaluations,
+            },
+            createdBy: {
+              name: rsName,
+              email: rsEmail,
+              rank: rsRank,
+            },
+          },
+        };
+
+        const resp = await fetch(`https://api.github.com/repos/${MAIN_REPO}/dispatches`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${DISPATCH_TOKEN}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          console.error('⚠ GitHub workflow dispatch failed:', text);
+        }
+      } catch (dispatchErr) {
+        console.error('⚠ GitHub workflow dispatch error:', dispatchErr.message);
+      }
+    } else {
+      // Supabase-only or no dispatch token; skip GitHub workflow
+    }
+
     return res.json({
       ok: true,
       evaluation: {
@@ -145,15 +228,18 @@ async function saveEvaluationSupabase(evaluationData, res) {
  */
 async function listEvaluationsHandler(req, res) {
   try {
-    const rsEmail = req.query.email || req.session?.rsEmail || req.sessionUser;
-
-    if (!rsEmail) {
+    let rsEmail = req.query.email || req.session?.rsEmail || req.sessionUser;
+    const sessionEmail = req.session?.rsEmail || req.sessionUser;
+    const s1 = String(sessionEmail || '').trim();
+    let rEmail = String(rsEmail || '').trim();
+    if (!rEmail) {
       return res.status(400).json({ error: 'Email required' });
     }
+    if (!rEmail.includes('@') && s1.includes('@')) {
+      rEmail = s1;
+    }
 
-    // Optional: Ensure user can only list their own evaluations
-    const sessionEmail = req.session?.rsEmail || req.sessionUser;
-    if (sessionEmail && sessionEmail !== rsEmail) {
+    if (s1 && s1 !== rEmail && s1.split('@')[0] !== rEmail.split('@')[0]) {
       return res.status(403).json({
         error: 'Cannot list evaluations for another user',
       });
@@ -162,7 +248,7 @@ async function listEvaluationsHandler(req, res) {
     const storageMode = getStorageMode();
 
     if (storageMode === 'supabase' && isSupabaseAvailable()) {
-      return await listEvaluationsSupabase(rsEmail, res);
+      return await listEvaluationsSupabase(rEmail, res);
     } else {
       return res.status(501).json({
         error: 'Legacy storage mode - use original endpoint',
@@ -180,25 +266,15 @@ async function listEvaluationsHandler(req, res) {
  */
 async function listEvaluationsSupabase(rsEmail, res) {
   try {
-    const { data: evaluations, error } = await getEvaluationsByUser(rsEmail);
+    const { data: fullEvaluations, error } = await getFullEvaluationsByUser(rsEmail);
 
     if (error) {
       console.error('Error listing evaluations:', error);
       return res.status(500).json({ error: 'Failed to list evaluations' });
     }
 
-    // Format for frontend compatibility
-    const formatted = evaluations.map((eval) => ({
-      evaluationId: eval.evaluation_id,
-      marineName: eval.marine_name,
-      marineRank: eval.marine_rank,
-      occasion: eval.occasion,
-      completedDate: eval.completed_date,
-      fitrepAverage: eval.fitrep_average?.toString(),
-      syncStatus: eval.sync_status,
-      createdAt: eval.created_at,
-      updatedAt: eval.updated_at,
-    }));
+    // Return evaluation objects including traitEvaluations for grid rendering
+    const formatted = (fullEvaluations || []).map((obj) => obj.evaluation);
 
     return res.json({
       evaluations: formatted,
@@ -261,7 +337,10 @@ async function getEvaluationSupabase(evaluationId, req, res) {
 
     // Optional: Verify user owns this evaluation
     const sessionEmail = req.session?.rsEmail || req.sessionUser;
-    if (sessionEmail && sessionEmail !== evaluation.rsEmail) {
+    if (
+      sessionEmail &&
+      String(sessionEmail).trim().toLowerCase() !== String(evaluation.rsEmail || '').trim().toLowerCase()
+    ) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -317,7 +396,10 @@ async function deleteEvaluationSupabase(evaluationId, req, res) {
     }
 
     const sessionEmailDel = req.session?.rsEmail || req.sessionUser;
-    if (sessionEmailDel && sessionEmailDel !== evaluation.rsEmail) {
+    if (
+      sessionEmailDel &&
+      String(sessionEmailDel).trim().toLowerCase() !== String(evaluation.rsEmail || '').trim().toLowerCase()
+    ) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

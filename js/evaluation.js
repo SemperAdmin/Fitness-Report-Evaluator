@@ -2,7 +2,7 @@
  * Evaluation Module: encapsulates evaluation workflow and state to avoid globals.
  * Provides backward-compatible shims so existing inline handlers continue to work.
  */
-;(function (global) {
+(function (global) {
     'use strict';
 
     /**
@@ -237,46 +237,74 @@ function initializeTraits() {
     // Clear array without reassigning to preserve object reference
     allTraits.length = 0;
 
-    // Debug logging
-    console.log('firepData:', firepData);
-    console.log('firepData.sections:', firepData.sections);
-    
-    ['D', 'E', 'F', 'G'].forEach(sectionKey => {
+    // Validate firepData exists and has required structure
+    if (typeof firepData === 'undefined' || !firepData) {
+        console.error('firepData is not defined. Ensure data.js is loaded before evaluation.js');
+        showToast('Error loading evaluation data. Please refresh the page.', 'error');
+        return;
+    }
+
+    if (!firepData.sections || typeof firepData.sections !== 'object') {
+        console.error('firepData.sections is missing or invalid:', firepData);
+        showToast('Error loading trait sections. Please refresh the page.', 'error');
+        return;
+    }
+
+    // Required sections for evaluation
+    const requiredSections = ['D', 'E', 'F', 'G'];
+    const missingSections = requiredSections.filter(key => !firepData.sections[key]);
+
+    if (missingSections.length > 0) {
+        console.error('Missing required sections:', missingSections);
+        showToast(`Missing evaluation sections: ${missingSections.join(', ')}. Please refresh.`, 'error');
+        return;
+    }
+
+    // Initialize traits from each section
+    requiredSections.forEach(sectionKey => {
         const section = firepData.sections[sectionKey];
-        console.log(`Section ${sectionKey}:`, section);
-        
-        if (section && section.traits) {
+
+        if (section && section.traits && typeof section.traits === 'object') {
             Object.keys(section.traits).forEach(traitKey => {
-                const trait = {
-                    sectionKey,
-                    traitKey,
-                    sectionTitle: section.title,
-                    ...section.traits[traitKey]
-                };
-                console.log(`Adding trait ${sectionKey}-${traitKey}:`, trait);
-                allTraits.push(trait);
+                const traitData = section.traits[traitKey];
+                if (traitData && traitData.name) {
+                    allTraits.push({
+                        sectionKey,
+                        traitKey,
+                        sectionTitle: section.title || `Section ${sectionKey}`,
+                        ...traitData
+                    });
+                }
             });
         }
     });
-    
+
+    // Add Section H if user is a Reporting Senior
     if (isReportingSenior) {
         const sectionH = firepData.sections.H;
-        if (sectionH && sectionH.traits) {
+        if (sectionH && sectionH.traits && typeof sectionH.traits === 'object') {
             Object.keys(sectionH.traits).forEach(traitKey => {
-                const trait = {
-                    sectionKey: 'H',
-                    traitKey,
-                    sectionTitle: sectionH.title,
-                    ...sectionH.traits[traitKey]
-                };
-                console.log(`Adding H trait ${traitKey}:`, trait);
-                allTraits.push(trait);
+                const traitData = sectionH.traits[traitKey];
+                if (traitData && traitData.name) {
+                    allTraits.push({
+                        sectionKey: 'H',
+                        traitKey,
+                        sectionTitle: sectionH.title || 'Section H',
+                        ...traitData
+                    });
+                }
             });
         }
     }
-    
-    console.log('All traits initialized:', allTraits);
-    console.log('Total traits:', allTraits.length);
+
+    // Validate at least some traits were loaded
+    if (allTraits.length === 0) {
+        console.error('No traits were loaded from firepData');
+        showToast('No evaluation traits found. Please refresh the page.', 'error');
+        return;
+    }
+
+    console.log(`Initialized ${allTraits.length} traits for evaluation`);
 }
 
 function renderCurrentTrait() {
@@ -315,7 +343,11 @@ function renderCurrentTrait() {
     const safeTraitDescription = escapeHtml(trait.description);
     const safeGradeDescription = escapeHtml(gradeDescription);
 
+    // Generate completed traits accordion (only if not re-evaluating)
+    const accordionHTML = traitBeingReevaluated ? '' : renderCompletedTraitsAccordion();
+
     container.innerHTML = `
+        ${accordionHTML}
         <div class="evaluation-card active">
             <div class="section-context">
                 <div class="section-header">
@@ -330,24 +362,24 @@ function renderCurrentTrait() {
                 <div class="section-description">${safeSectionDesc}</div>
                 <div class="section-importance">${safeSectionImportance}</div>
             </div>
-            
+
             <div class="trait-context">
                 <div class="trait-header">
                     <div class="trait-subtitle">${safeTraitName}</div>
                     <div class="trait-description">${safeTraitDescription}</div>
                 </div>
             </div>
-            
+
             <div class="grade-display ${getGradeClass(currentEvaluationLevel)}">
                 <div class="grade-description">${safeGradeDescription}</div>
             </div>
-            
+
             <div class="evaluation-guidance">
                 <div class="guidance-question">Does this Marine's performance in <strong>${safeTraitName}</strong> meet this standard?</div>
             </div>
-            
+
             <div class="action-buttons">
-                <button class="btn btn-does-not-meet" onclick="handleGradeAction('does-not-meet')" 
+                <button class="btn btn-does-not-meet" onclick="handleGradeAction('does-not-meet')"
                         ${isAtA ? 'disabled' : ''}>
                     <span class="button-label">Does Not Meet</span>
                     <span class="button-description">Select lower standard</span>
@@ -361,7 +393,7 @@ function renderCurrentTrait() {
                     <span class="button-description">Try higher standard</span>
                 </button>
             </div>
-            
+
             <div class="navigation-helper">
                 <div class="overall-progress">
                     <span>Overall Progress: ${currentTraitIndex + 1} of ${allTraits.length} traits</span>
@@ -383,6 +415,132 @@ function getGradeClass(grade) {
         'G': 'excellent'
     };
     return gradeClasses[grade] || 'acceptable';
+}
+
+/**
+ * Get accordion state from sessionStorage
+ * @returns {Object} Object mapping section titles to open state (true/false)
+ */
+function getAccordionState() {
+    try {
+        const stored = sessionStorage.getItem('accordionState');
+        return stored ? JSON.parse(stored) : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+/**
+ * Save accordion state to sessionStorage
+ * @param {string} sectionTitle - The section title
+ * @param {boolean} isOpen - Whether the section is open
+ */
+function saveAccordionState(sectionTitle, isOpen) {
+    try {
+        const state = getAccordionState();
+        state[sectionTitle] = isOpen;
+        sessionStorage.setItem('accordionState', JSON.stringify(state));
+    } catch (_) {
+        // sessionStorage not available, fail silently
+    }
+}
+
+/**
+ * Renders the completed traits accordion showing all previously evaluated traits.
+ * Groups traits by section - each section is a collapsible accordion item.
+ * Persists open/closed state in sessionStorage.
+ * @returns {string} HTML string for the accordion component
+ */
+function renderCompletedTraitsAccordion() {
+    const completedKeys = Object.keys(evaluationResults);
+    if (completedKeys.length === 0) {
+        return ''; // No completed traits yet
+    }
+
+    // Get saved accordion state
+    const accordionState = getAccordionState();
+
+    // Group results by section
+    const sectionGroups = {};
+    completedKeys.forEach(key => {
+        const result = evaluationResults[key];
+        const sectionTitle = result.section || 'Unknown Section';
+        if (!sectionGroups[sectionTitle]) {
+            sectionGroups[sectionTitle] = [];
+        }
+        sectionGroups[sectionTitle].push({ key, ...result });
+    });
+
+    // Build accordion HTML - each section is a collapsible item
+    let accordionHTML = '<div class="completed-traits-accordion">';
+    let sectionIndex = 0;
+
+    Object.keys(sectionGroups).forEach(sectionTitle => {
+        const traits = sectionGroups[sectionTitle];
+        const sectionId = `accordion-section-${sectionIndex}`;
+        const safeSectionTitle = escapeHtml(sectionTitle);
+        const traitCount = traits.length;
+
+        // Check if this section was previously open
+        const isOpen = accordionState[sectionTitle] === true;
+        const checkedAttr = isOpen ? 'checked' : '';
+        const ariaExpanded = isOpen ? 'true' : 'false';
+
+        // Build traits list HTML for this section
+        let traitsHTML = '';
+        traits.forEach(trait => {
+            const safeTraitName = escapeHtml(trait.trait || '');
+            const gradeDesc = getGradeDescription(trait.grade || 'B');
+            const safeGradeDesc = escapeHtml(gradeDesc);
+            const gradeClass = `grade-${(trait.grade || 'b').toLowerCase()}`;
+            const safeJustification = trait.justification
+                ? escapeHtml(trait.justification)
+                : '<em>No justification provided</em>';
+
+            traitsHTML += `
+                <div class="accordion-trait-item">
+                    <div class="accordion-trait-row">
+                        <span class="accordion-trait-name">${safeTraitName}</span>
+                        <span class="accordion-grade-desc ${gradeClass}">${safeGradeDesc}</span>
+                    </div>
+                    <div class="accordion-trait-justification">${safeJustification}</div>
+                    <button class="accordion-edit-btn" data-trait-key="${trait.key}">
+                        ✏️ Re-evaluate
+                    </button>
+                </div>
+            `;
+        });
+
+        // Section as accordion item with ARIA attributes for accessibility
+        // Saves state to sessionStorage when toggled
+        const contentId = `${sectionId}-content`;
+        const escapedTitle = safeSectionTitle.replace(/'/g, "\\'");
+        accordionHTML += `
+            <div class="accordion-item">
+                <input type="checkbox" id="${sectionId}" aria-hidden="true" ${checkedAttr}
+                       onchange="this.nextElementSibling.setAttribute('aria-expanded', this.checked); saveAccordionState('${escapedTitle}', this.checked);">
+                <label for="${sectionId}" class="accordion-header accordion-section-header"
+                       role="button"
+                       aria-expanded="${ariaExpanded}"
+                       aria-controls="${contentId}"
+                       tabindex="0"
+                       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+                    <div class="accordion-header-content">
+                        <span class="accordion-section-title">${safeSectionTitle}</span>
+                        <span class="accordion-trait-count">${traitCount} trait${traitCount !== 1 ? 's' : ''}</span>
+                    </div>
+                    <span class="accordion-icon" aria-hidden="true">›</span>
+                </label>
+                <div class="accordion-content" id="${contentId}" role="region" aria-labelledby="${sectionId}">
+                    ${traitsHTML}
+                </div>
+            </div>
+        `;
+        sectionIndex++;
+    });
+
+    accordionHTML += '</div>';
+    return accordionHTML;
 }
 
 function handleGradeAction(action) {
@@ -524,7 +682,7 @@ function saveJustification() {
         document.querySelectorAll('.sa-modal-backdrop[data-modal-id="justificationModal"]').forEach(b => { if (b && b.parentNode) b.parentNode.removeChild(b); });
     } catch (_) {}
     pendingEvaluation = null;
-    
+
     // Handle post-save navigation
     if (traitBeingReevaluated) {
         const returnTo = reevaluationReturnTo || 'review';
@@ -534,7 +692,22 @@ function saveJustification() {
         currentEvaluationLevel = 'B';
         document.getElementById('evaluationContainer').innerHTML = '';
 
-        // Route back to desired page
+        // Check if we're still in initial evaluation flow (not all traits completed)
+        // Find the next uncompleted trait
+        const nextUncompletedIndex = allTraits.findIndex((t, idx) => {
+            const key = `${t.sectionKey}_${t.traitKey}`;
+            return !evaluationResults[key];
+        });
+
+        // If there are still uncompleted traits, continue with evaluation flow
+        if (nextUncompletedIndex !== -1) {
+            currentTraitIndex = nextUncompletedIndex;
+            updateProgress();
+            renderCurrentTrait();
+            return;
+        }
+
+        // All traits completed - route based on returnTo
         if (returnTo === 'directedComments') {
             try {
                 if (typeof jumpToStep === 'function' && typeof STEPS !== 'undefined') {
@@ -1017,6 +1190,7 @@ const EvaluationAPI = {
     getRemainingsSections,
     updateProgress,
     renderCurrentTrait,
+    renderCompletedTraitsAccordion,
     finalizeTrait,
     handleGradeAction,
     showJustificationModal,
@@ -1064,10 +1238,34 @@ global.editTrait = EvaluationAPI.editTrait;
 global.editJustification = EvaluationAPI.editJustification;
 global.handleGradeAction = EvaluationAPI.handleGradeAction;
 global.evaluationShowSummary = EvaluationAPI.showSummary;
+global.saveAccordionState = saveAccordionState;
 // Expose mutable state objects that other modules need to read/write
 // These are object references that get mutated (not reassigned), so direct export is safe
 global.evaluationResults = evaluationResults;
 global.evaluationMeta = evaluationMeta;
 global.allTraits = allTraits;
+
+function setupAccordionEventDelegation() {
+    const hasDom = typeof document !== 'undefined' && document && typeof document.getElementById === 'function';
+    if (!hasDom) return;
+    const container = document.getElementById('evaluationContainer');
+    if (!container || typeof container.addEventListener !== 'function') return;
+    container.addEventListener('click', function(event) {
+        const editBtn = event && typeof event.target !== 'undefined' && event.target ? event.target.closest && event.target.closest('.accordion-edit-btn') : null;
+        if (editBtn && editBtn.dataset) {
+            const traitKey = editBtn.dataset.traitKey;
+            if (traitKey) {
+                editTrait(traitKey);
+            }
+        }
+    });
+}
+if (typeof document !== 'undefined' && document) {
+    if (document.readyState === 'loading' && typeof document.addEventListener === 'function') {
+        document.addEventListener('DOMContentLoaded', setupAccordionEventDelegation);
+    } else {
+        setupAccordionEventDelegation();
+    }
+}
 
 })(typeof window !== 'undefined' ? window : globalThis);

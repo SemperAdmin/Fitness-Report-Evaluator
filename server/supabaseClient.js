@@ -17,6 +17,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+const SUPABASE_USERS_TABLE = process.env.SUPABASE_USERS_TABLE || 'fit_users';
+const SUPABASE_EVALUATIONS_TABLE = process.env.SUPABASE_EVALUATIONS_TABLE || 'evaluations';
+const SUPABASE_TRAITS_TABLE = process.env.SUPABASE_TRAITS_TABLE || 'trait_evaluations';
 
 // Check if Supabase is configured
 const isSupabaseConfigured = !!(SUPABASE_URL && (SUPABASE_ANON_KEY || SUPABASE_SECRET_KEY));
@@ -104,4 +107,7 @@ module.exports = {
   isSupabaseAvailable,
   isSupabaseConfigured,
   getClient,
+  USERS_TABLE: SUPABASE_USERS_TABLE,
+  EVALUATIONS_TABLE: SUPABASE_EVALUATIONS_TABLE,
+  TRAITS_TABLE: SUPABASE_TRAITS_TABLE,
 };

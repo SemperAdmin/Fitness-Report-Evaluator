@@ -69,7 +69,7 @@ class DataIntegrityManager {
         }
 
         // Check required fields
-        if (!wrapped.hasOwnProperty('data') || !wrapped.hasOwnProperty('checksum')) {
+        if (!Object.prototype.hasOwnProperty.call(wrapped, 'data') || !Object.prototype.hasOwnProperty.call(wrapped, 'checksum')) {
             return { valid: false, error: 'Missing required fields', data: null };
         }
 
@@ -135,12 +135,15 @@ class DataIntegrityManager {
         if (!schema || typeof schema !== 'object') {
             return { valid: true }; // No schema = no validation
         }
+        if (typeof data !== 'object' || data === null) {
+            return { valid: false, error: 'Data is not an object' };
+        }
 
         try {
             // Required fields check
             if (schema.required && Array.isArray(schema.required)) {
                 for (const field of schema.required) {
-                    if (!data.hasOwnProperty(field)) {
+                    if (!Object.prototype.hasOwnProperty.call(data, field)) {
                         return { valid: false, error: `Missing required field: ${field}` };
                     }
                 }
@@ -157,7 +160,7 @@ class DataIntegrityManager {
             // Field types
             if (schema.fields && typeof schema.fields === 'object') {
                 for (const [field, expectedType] of Object.entries(schema.fields)) {
-                    if (data.hasOwnProperty(field)) {
+                    if (Object.prototype.hasOwnProperty.call(data, field)) {
                         const actualType = typeof data[field];
                         if (actualType !== expectedType) {
                             return {
@@ -216,7 +219,7 @@ class DataIntegrityManager {
             // Apply defaults for missing required fields
             if (options.defaults && typeof options.defaults === 'object') {
                 for (const [key, defaultValue] of Object.entries(options.defaults)) {
-                    if (!data.hasOwnProperty(key)) {
+                    if (!Object.prototype.hasOwnProperty.call(data, key)) {
                         data[key] = defaultValue;
                         repairs.push(`Added default for ${key}`);
                     }

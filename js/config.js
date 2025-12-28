@@ -8,17 +8,7 @@
  * This pattern helps to limit the scope of the sensitive string fragments.
  */
 function assembleToken() {
-  // Define the string fragments inside the function
-  const part1 = "ghp_";
-  const part2 = "ItHx2OIsepgkRg9";
-  const part3 = "CfxhuwW46FIRNp3";
-  const part4 = "02R76w";
-
-  // Create the array
-  const fragments = [part1, part2, part3, part4];
-
-  // Combine them and return the complete token
-  return fragments.join('');
+  return '';
 }
 
 // -------------------------------------------------------------

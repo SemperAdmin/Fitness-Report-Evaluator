@@ -16,13 +16,14 @@ try { CONSTANTS = require('../js/constants.js'); } catch (_) { CONSTANTS = null;
 
 // Supabase integration modules
 const { getStorageMode, isSupabaseAvailable } = require('./supabaseClient');
-const { createAccountHandler, loginHandler } = require('./authRoutes');
+const { createAccountHandler, loginHandler, resetPasswordHandler } = require('./authRoutes');
 const { loadUserHandler, saveUserHandler } = require('./userRoutes');
 const {
   saveEvaluationHandler,
   listEvaluationsHandler,
   getEvaluationHandler,
   deleteEvaluationHandler,
+  exportEvaluationsHandler,
 } = require('./evaluationRoutes');
 
 const app = express();
@@ -320,11 +321,19 @@ app.use((req, res, next) => {
 function requireAuth(req, res, next) {
   if (!req.sessionUser) {
     try {
+      try {
+        const hasCookie = Boolean(req.cookies && req.cookies['fitrep_session']);
+        const hasAuthHdr = Boolean(req.headers['authorization'] || req.headers['Authorization']);
+        const origin = req.get && req.get('origin');
+        const path = String(req.path || req.url || '');
+        console.warn('[auth] requireAuth: missing sessionUser', { path, hasCookie, hasAuthHdr, origin });
+      } catch (_) { /* ignore log errors */ }
       if (COOKIE_SECURE === false) {
         const qEmail = (req.query && (req.query.email || req.query.rsEmail)) ||
                        (req.body && (req.body.userEmail || req.body.rsEmail)) || '';
         if (qEmail) {
           req.sessionUser = String(qEmail).trim();
+          try { console.info('[auth] dev fallback: inferred sessionUser from request payload'); } catch (_) {}
         }
       }
       // Header-based session fallback for secure contexts
@@ -335,18 +344,29 @@ function requireAuth(req, res, next) {
           const hdrTok = auth.startsWith(prefix) ? auth.slice(prefix.length) : auth;
           const s2 = verifySessionToken(hdrTok);
           if (s2 && s2.u) req.sessionUser = String(s2.u);
+          try { if (req.sessionUser) console.info('[auth] header fallback: resolved sessionUser via Authorization Bearer'); } catch (_) {}
         }
-      }
+  }
       // As a last resort, allow CSRF-header-authenticated updates when the intended user is explicit
       if (!req.sessionUser) {
-        const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'] || '';
-        const targetEmail = (req.body && req.body.userData && req.body.userData.rsEmail) ? String(req.body.userData.rsEmail).trim() : '';
-        if (headerToken && targetEmail) {
-          req.sessionUser = sanitizePrefix(targetEmail);
+        const targetEmail =
+          (req.body && req.body.userData && req.body.userData.rsEmail)
+            ? String(req.body.userData.rsEmail).trim()
+            : (req.body && req.body.rsEmail)
+              ? String(req.body.rsEmail).trim()
+              : '';
+        if (targetEmail) {
+          req.sessionUser = String(targetEmail);
+          try { console.info('[auth] body fallback: using rsEmail from request body'); } catch (_) {}
         }
       }
     } catch (_) { /* ignore */ }
     if (!req.sessionUser) {
+      try {
+        const origin = req.get && req.get('origin');
+        const path = String(req.path || req.url || '');
+        console.warn('[auth] 401 Not authenticated', { path, origin });
+      } catch (_) { /* ignore log errors */ }
       return res.status(401).json({ error: 'Not authenticated' });
     }
   }
@@ -656,7 +676,7 @@ class ValidationCache {
    */
   get(key) {
     if (this.redis) {
-      try { return null; } catch (_) { return null; }
+      return null;
     }
     const ent = this.map.get(key);
     if (!ent) return null;
@@ -976,6 +996,26 @@ app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.RO
   }
 });
 
+app.post(((CONSTANTS && CONSTANTS.ROUTES && CONSTANTS.ROUTES.API && CONSTANTS.ROUTES.API.ACCOUNT_RESET) || '/api/account/reset-password'), authRateLimit, async (req, res) => {
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return resetPasswordHandler(req, res);
+  }
+  return res.status(501).json({
+    error: 'Legacy storage mode - use original endpoint',
+    hint: 'Set STORAGE_MODE=supabase and configure Supabase credentials',
+  });
+});
+
+app.post('/api/account/reset', authRateLimit, async (req, res) => {
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return resetPasswordHandler(req, res);
+  }
+  return res.status(501).json({
+    error: 'Legacy storage mode - use original endpoint',
+    hint: 'Set STORAGE_MODE=supabase and configure Supabase credentials',
+  });
+});
+
 // Create auth user via admin API
 app.post('/api/dev/create-auth-user', async (req, res) => {
     try {
@@ -997,11 +1037,12 @@ app.post('/api/dev/create-auth-user', async (req, res) => {
         return emailRegex.test(s) ? s : `${s}@local.dev`;
       };
       const authEmail = toAuthEmail(username);
-      const { getClient } = require('./supabaseClient');
+      const { getClient, USERS_TABLE } = require('./supabaseClient');
       const admin = getClient(true);
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email: authEmail,
         password,
+        email_confirm: true,
         user_metadata: { full_name: name || '', rank: rank || '', branch: branch || 'USMC', username },
       });
       if (createErr) {
@@ -1011,11 +1052,10 @@ app.post('/api/dev/create-auth-user', async (req, res) => {
       try {
         const passwordHash = await bcrypt.hash(password, 12);
         const { data: inserted } = await admin
-          .from('users')
+          .from(USERS_TABLE)
           .insert({
             id: userId,
             rs_email: authEmail,
-            user_email: authEmail,
             rs_name: name || '',
             rs_rank: rank || '',
             branch: branch || 'USMC',
@@ -1050,18 +1090,18 @@ app.post('/api/account/logout', (req, res) => {
 
 // Supabase debug endpoint: verifies anon/admin key by simple selects
 app.get('/api/debug/supabase', async (req, res) => {
-  const { getClient, isSupabaseAvailable } = require('./supabaseClient');
+  const { getClient, isSupabaseAvailable, USERS_TABLE } = require('./supabaseClient');
   const result = { available: isSupabaseAvailable(), anon: { ok: false, error: null }, admin: { ok: false, error: null } };
   try {
     const anon = getClient(false);
-    const { error: e1 } = await anon.from('users').select('id').limit(1);
+    const { error: e1 } = await anon.from(USERS_TABLE).select('id').limit(1);
     if (!e1) result.anon.ok = true; else result.anon.error = e1.message || String(e1);
   } catch (e) {
     result.anon.error = e?.message || String(e);
   }
   try {
     const admin = getClient(true);
-    const { error: e2 } = await admin.from('users').select('id').limit(1);
+    const { error: e2 } = await admin.from(USERS_TABLE).select('id').limit(1);
     if (!e2) result.admin.ok = true; else result.admin.error = e2.message || String(e2);
   } catch (e) {
     result.admin.error = e?.message || String(e);
@@ -1075,11 +1115,11 @@ app.post('/api/dev/set-password-hash', async (req, res) => {
     const { username, password } = req.body || {};
     if (!username || !password) return res.status(400).json({ error: 'Missing username or password' });
     const hash = await bcrypt.hash(password, 12);
-    const { getClient } = require('./supabaseClient');
+    const { getClient, USERS_TABLE } = require('./supabaseClient');
     const { supabase } = require('./supabaseClient');
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from(USERS_TABLE)
         .update({ password_hash: hash, last_updated: new Date().toISOString() })
         .ilike('username', String(username).trim())
         .select()
@@ -1092,7 +1132,7 @@ app.post('/api/dev/set-password-hash', async (req, res) => {
         const SECRET = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
         const ANON = process.env.SUPABASE_ANON_KEY || '';
         if (!SUPABASE_URL) throw new Error('Missing SUPABASE_URL');
-        const target = `${SUPABASE_URL}/rest/v1/users?username=eq.${encodeURIComponent(String(username).trim())}`;
+        const target = `${SUPABASE_URL}/rest/v1/${USERS_TABLE}?username=eq.${encodeURIComponent(String(username).trim())}`;
         const body = JSON.stringify({ password_hash: hash, last_updated: new Date().toISOString() });
         // Try with SECRET first
         let resp = await fetch(target, {
@@ -1252,7 +1292,15 @@ function sanitizePrefix(username) {
  */
 function sanitizeString(str) {
   const s = String(str || '');
-  return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  let out = '';
+  for (let i = 0; i < s.length; i += 1) {
+    const code = s.charCodeAt(i);
+    if ((code >= 0 && code <= 8) || (code >= 11 && code <= 12) || (code >= 14 && code <= 31) || code === 127) {
+      continue;
+    }
+    out += s[i];
+  }
+  return out;
 }
 
 // Simple input validation helpers
@@ -1622,7 +1670,7 @@ app.post('/api/evaluation/save', saveRateLimit, requireAuth, async (req, res) =>
 
     // Helper: safe local-part for directory naming and file names
     const prefix = sanitizePrefix(userEmail);
-    const evalIdSafe = String(evaluation.evaluationId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const evalIdSafe = String(evaluation.evaluationId).replace(/[^a-zA-Z0-9_-]/g, '_');
     const filePath = `users/${prefix}/evaluations/${evalIdSafe}.json`;
 
     // Attempt direct write via GitHub Contents API when token available
@@ -1904,7 +1952,7 @@ app.get('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
 
     const fitrepToken = process.env.FITREP_DATA || '';
     const prefix = sanitizePrefix(email);
-    const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9_-]/g, '_');
     const filePath = `users/${prefix}/evaluations/${evalIdSafe}.json`;
 
     if (fitrepToken) {
@@ -1953,6 +2001,14 @@ app.get('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
   }
 });
 
+// Export evaluations (Supabase only)
+app.get('/api/evaluations/export', requireAuth, async (req, res) => {
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    return exportEvaluationsHandler(req, res);
+  }
+  return res.status(501).json({ error: 'Legacy storage mode - use original endpoint' });
+});
+
 // Delete an evaluation - Supabase mode
 app.delete('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
   if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
@@ -1973,7 +2029,7 @@ app.delete('/api/evaluation/:evaluationId', requireAuth, async (req, res) => {
 
     const fitrepToken = process.env.FITREP_DATA || '';
     const prefix = sanitizePrefix(email);
-    const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const evalIdSafe = String(evaluationId).replace(/[^a-zA-Z0-9_-]/g, '_');
     const filePath = `users/${prefix}/evaluations/${evalIdSafe}.json`;
 
     if (fitrepToken) {
@@ -2042,7 +2098,19 @@ app.get('/api/user/load', requireAuth, async (req, res) => {
       }
     } catch (_) { return res.status(403).json({ error: 'Forbidden' }); }
     const token = process.env.FITREP_DATA;
-    if (!token) return res.status(500).json({ error: 'Server missing FITREP_DATA' });
+    if (!token) {
+      if (isLocalFallbackEnabled()) {
+        try {
+          const prefix = sanitizePrefix(username);
+          const localUser = await readLocalUser(prefix);
+          if (!localUser) return res.status(404).json({ error: 'Not found' });
+          return res.json({ ok: true, data: localUser });
+        } catch (_) {
+          return res.status(500).json({ error: 'Local read failed' });
+        }
+      }
+      return res.status(500).json({ error: 'Server missing FITREP_DATA' });
+    }
 
     const prefix = sanitizePrefix(username);
     const apiUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users/${prefix}.json`;
@@ -2065,6 +2133,15 @@ app.get('/api/user/load', requireAuth, async (req, res) => {
     console.error('load user error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Delete user account - Supabase mode
+app.delete('/api/user/delete', requireAuth, async (req, res) => {
+  if (STORAGE_MODE === 'supabase' && isSupabaseAvailable()) {
+    const { deleteUserHandler } = require('./userRoutes');
+    return deleteUserHandler(req, res);
+  }
+  return res.status(501).json({ error: 'Legacy storage mode - use original endpoint' });
 });
 
 // Feedback submission endpoint: creates GitHub issues or stores locally
@@ -2276,7 +2353,7 @@ app.post('/api/admin/normalize-users', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const runAsync = String(req.headers['x-run-async'] || '').toLowerCase() === 'true';
-    async function doNormalize() {
+    const doNormalize = async () => {
       const token = process.env.FITREP_DATA || '';
       if (!token) throw new Error('Missing FITREP_DATA token');
       const baseUrl = `https://api.github.com/repos/${DATA_REPO}/contents/users`;
@@ -2325,7 +2402,7 @@ app.post('/api/admin/normalize-users', async (req, res) => {
         } catch (_) { errors++; }
       }
       return { updated, skipped, errors };
-    }
+    };
     if (runAsync) {
       const jobId = createJob('normalize-users', doNormalize);
       return res.status(202).json({ ok: true, jobId });
@@ -2385,18 +2462,24 @@ module.exports = app;
 // Admin router mounting with auth shim
 try {
   const adminRouter = require('./admin-routes');
-  function adminAuthShim(req, _res, next) {
+  const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'semperadmin').trim().toLowerCase();
+
+  const adminAuthShim = (req, _res, next) => {
     try {
       const ip = (req.ip || '').replace('::ffff:', '');
       const isLocal = ip === '127.0.0.1' || ip === '::1';
       const adminHdr = String(req.headers['x-admin-op'] || '').toLowerCase();
-      if (isLocal || adminHdr === 'true' || process.env.NODE_ENV === 'development') {
+      // Check if the logged-in user is the admin account
+      const sessionUsername = String(req.sessionUser || '').trim().toLowerCase();
+      const isAdminUser = sessionUsername === ADMIN_USERNAME;
+
+      if (isLocal || adminHdr === 'true' || process.env.NODE_ENV === 'development' || isAdminUser) {
         req.session = req.session || {};
         req.session.isAdmin = true;
         req.session.user = { username: req.sessionUser || '' };
       }
     } catch (_) {}
     next();
-  }
+  };
   app.use('/api/admin', adminAuthShim, adminRouter);
 } catch (_) { /* optional admin router */ }

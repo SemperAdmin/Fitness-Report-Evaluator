@@ -26,6 +26,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const yaml = require('js-yaml');
 require('dotenv').config();
 
 // ============================================================================
@@ -39,11 +40,16 @@ const options = {
   usersOnly: hasArg('users-only'),
   specificUser: getArg('user'),
   verbose: hasArg('verbose'),
+  purge: hasArg('purge'),
+  localDir: getArg('local-dir'),
 };
 
 // Supabase configuration
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const USERS_TABLE = process.env.SUPABASE_USERS_TABLE || 'fit_users';
+const EVALUATIONS_TABLE = process.env.SUPABASE_EVALUATIONS_TABLE || 'evaluations';
+const TRAITS_TABLE = process.env.SUPABASE_TRAITS_TABLE || 'trait_evaluations';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('❌ Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env');
@@ -53,7 +59,9 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // Local data paths
-const LOCAL_USERS_DIR = path.join(__dirname, '../server/local-data/users');
+const LOCAL_USERS_DIR = options.localDir
+  ? path.resolve(options.localDir)
+  : path.join(__dirname, '../server/local-data/users');
 
 // Statistics
 const stats = {
@@ -68,6 +76,10 @@ const stats = {
   traitsCreated: 0,
   errors: [],
 };
+
+let HAS_DIRECTED = true;
+let HAS_SEC_I_VERSION = true;
+let HAS_DIRECTED_VERSION = true;
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -96,6 +108,16 @@ function log(message, level = 'info') {
   console.log(`${prefix} ${message}`);
 }
 
+/**
+ * Normalize a username or email into an auth-compatible email.
+ * If the input already looks like an email, return it as-is.
+ * Otherwise, append "@local.dev".
+ */
+function toAuthEmail(u) {
+  const s = String(u || '').trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(s) ? s : `${s}@local.dev`;
+}
 
 /**
  * Checks for known non-date status strings (like "pending", "local-only")
@@ -111,6 +133,22 @@ function sanitizeDate(value) {
     }
   }
   return value;
+}
+
+async function columnExists(table, column) {
+  try {
+    const { error } = await supabase.from(table).select(column).limit(1);
+    if (error) return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function initSchemaFlags() {
+  HAS_DIRECTED = await columnExists('evaluations', 'directed_comments');
+  HAS_SEC_I_VERSION = await columnExists('evaluations', 'section_i_comments_version');
+  HAS_DIRECTED_VERSION = await columnExists('evaluations', 'directed_comments_version');
 }
 
 
@@ -175,7 +213,10 @@ async function loadLocalEvaluations(rsEmail) {
 
   try {
     const files = await fs.readdir(userEvalDir);
-    const dataFiles = files.filter((f) => f.endsWith('.json') || f.endsWith('.yaml'));
+    const dataFiles = files.filter((f) => {
+      const lower = f.toLowerCase();
+      return lower.endsWith('.json') || lower.endsWith('.yaml') || lower.endsWith('.yml');
+    });
 
     log(`  Found ${dataFiles.length} evaluation files for ${rsEmail}`, 'verbose');
 
@@ -184,7 +225,13 @@ async function loadLocalEvaluations(rsEmail) {
       try {
         const filePath = path.join(userEvalDir, file);
         const content = await fs.readFile(filePath, 'utf8');
-        const evalData = JSON.parse(content);
+        const lower = file.toLowerCase();
+        let evalData;
+        if (lower.endsWith('.json')) {
+          evalData = JSON.parse(content);
+        } else {
+          evalData = yaml.load(content);
+        }
 
         evaluations.push({
           filename: file,
@@ -229,43 +276,92 @@ async function migrateUser(userData) {
   }
 
   try {
+    const authEmail = toAuthEmail(rsEmail);
     // Check if user already exists
     const { data: existing } = await supabase
-      .from('users')
+      .from(USERS_TABLE)
       .select('id, rs_email')
-      .eq('rs_email', rsEmail)
+      .eq('rs_email', authEmail)
       .single();
 
     if (existing) {
-      log(`  User already exists: ${rsEmail}`, 'verbose');
+      log(`  User already exists: ${authEmail}`, 'verbose');
       stats.usersSkipped++;
       return existing;
+    }
+    // Fallback: resolve by username if rs_email lookup did not find a row
+    let existingByUsername = null;
+    try {
+      const { data: rows } = await supabase
+        .from(USERS_TABLE)
+        .select('id, rs_email, username')
+        .ilike('username', rsEmail)
+        .limit(1);
+      existingByUsername = Array.isArray(rows) ? rows[0] : rows;
+    } catch (_) {}
+    if (existingByUsername && existingByUsername.id) {
+      log(`  User already exists by username: ${rsEmail}`, 'verbose');
+      stats.usersSkipped++;
+      return { id: existingByUsername.id, rs_email: existingByUsername.rs_email };
     }
 
     // Insert new user
     const { data, error } = await supabase
-      .from('users')
+      .from(USERS_TABLE)
       .insert([
         {
-          rs_email: rsEmail,
+          rs_email: authEmail,
           rs_name: rsName,
           rs_rank: rsRank,
           password_hash: passwordHash,
           created_date: createdDate || new Date().toISOString(),
           last_updated: new Date().toISOString(),
+          username: rsEmail
         },
       ])
       .select()
       .single();
 
     if (error) {
-      log(`  Error creating user ${rsEmail}: ${error.message}`, 'error');
-      stats.usersErrored++;
-      stats.errors.push({ type: 'user', email: rsEmail, error: error.message });
-      return null;
+      // If insert failed due to uniqueness, resolve and return existing row
+      if (/duplicate key value/i.test(error.message || '')) {
+        let resolved = null;
+        try {
+          const { data: ex1 } = await supabase
+            .from(USERS_TABLE)
+            .select('id, rs_email')
+            .eq('rs_email', authEmail)
+            .single();
+          resolved = ex1 || null;
+        } catch (_) {}
+        if (!resolved) {
+          try {
+            const { data: rows } = await supabase
+              .from(USERS_TABLE)
+              .select('id, rs_email, username')
+              .ilike('username', rsEmail)
+              .limit(1);
+            resolved = Array.isArray(rows) ? rows[0] : rows;
+          } catch (_) {}
+        }
+        if (resolved && resolved.id) {
+          log(`  User exists; using existing: ${resolved.rs_email || authEmail}`, 'verbose');
+          stats.usersSkipped++;
+          return { id: resolved.id, rs_email: resolved.rs_email || authEmail };
+        }
+        log(`  Error creating user ${authEmail}: ${error.message}`, 'error');
+        stats.usersErrored++;
+        stats.errors.push({ type: 'user', email: authEmail, error: error.message });
+        return null;
+      } else {
+        log(`  Error creating user ${authEmail}: ${error.message}`, 'error');
+        stats.usersErrored++;
+        stats.errors.push({ type: 'user', email: authEmail, error: error.message });
+        return null;
+      }
     }
 
-    log(`  ✅ Created user: ${rsEmail}`, 'success');
+    log(`  ✅ Created user: ${authEmail}`, 'success');
     stats.usersCreated++;
     return data;
   } catch (err) {
@@ -295,7 +391,7 @@ async function migrateEvaluation(evalData, userId) {
   if (options.dryRun) {
     log(`    [DRY RUN] Would create evaluation for ${evaluation.marineInfo?.name}`, 'verbose');
     stats.evaluationsCreated++;
-    if (evaluation.traitEvaluations) {
+    if (Array.isArray(evaluation.traitEvaluations)) {
       stats.traitsCreated += evaluation.traitEvaluations.length;
     }
     return;
@@ -305,14 +401,13 @@ async function migrateEvaluation(evalData, userId) {
     // Check if evaluation already exists
     const { data: existing } = await supabase
       .from('evaluations')
-      .select('id')
+      .select('id, section_i_comments, section_i_comments_version, directed_comments, directed_comments_version')
       .eq('evaluation_id', evaluation.evaluationId)
       .single();
 
+    let savedEvalId = existing ? existing.id : null;
     if (existing) {
       log(`    Evaluation already exists: ${evaluation.evaluationId}`, 'verbose');
-      stats.evaluationsSkipped++;
-      return;
     }
 
     // Prepare evaluation record
@@ -330,41 +425,96 @@ async function migrateEvaluation(evalData, userId) {
       evaluation_period_from: sanitizeDate(evaluation.marineInfo?.evaluationPeriod?.from), // UPDATED
       evaluation_period_to: sanitizeDate(evaluation.marineInfo?.evaluationPeriod?.to),     // UPDATED
       rs_name: evaluation.rsInfo?.name || evalData.rsName,
-      rs_email: evaluation.rsInfo?.email || evalData.rsEmail,
+      rs_email: toAuthEmail(evaluation.rsInfo?.email || evalData.rsEmail),
       rs_rank: evaluation.rsInfo?.rank || evalData.rsRank,
       section_i_comments: evaluation.sectionIComments,
+      ...(HAS_DIRECTED ? { directed_comments: evaluation.directedComments } : {}),
+      sync_status: evalData.syncStatus || 'synced',
       saved_at: sanitizeDate(evalData.savedAt || new Date().toISOString()),               // UPDATED
     };
 
-    // Insert evaluation
-    const { data: savedEval, error: evalError } = await supabase
-      .from('evaluations')
-      .insert([evalRecord])
-      .select()
-      .single();
+    if (!savedEvalId) {
+      if (HAS_SEC_I_VERSION) evalRecord.section_i_comments_version = 1;
+      if (HAS_DIRECTED_VERSION) evalRecord.directed_comments_version = 1;
+      const { data: savedEval, error: evalError } = await supabase
+        .from('evaluations')
+        .insert([evalRecord])
+        .select()
+        .single();
 
-    if (evalError) {
-      log(`    Error creating evaluation: ${evalError.message}`, 'error');
-      stats.evaluationsErrored++;
-      stats.errors.push({
-        type: 'evaluation',
-        id: evaluation.evaluationId,
-        error: evalError.message,
-      });
-      return;
+      if (evalError) {
+        log(`    Error creating evaluation: ${evalError.message}`, 'error');
+        stats.evaluationsErrored++;
+        stats.errors.push({
+          type: 'evaluation',
+          id: evaluation.evaluationId,
+          error: evalError.message,
+        });
+        return;
+      }
+
+      stats.evaluationsCreated++;
+      savedEvalId = savedEval.id;
+    } else {
+      if (HAS_SEC_I_VERSION) {
+        const prevComments = existing.section_i_comments || '';
+        const newComments = evaluation.sectionIComments || '';
+        const prevVer = Number(existing.section_i_comments_version || 1);
+        const nextVer = prevVer + (newComments !== prevComments ? 1 : 0);
+        evalRecord.section_i_comments_version = nextVer;
+      }
+      if (HAS_DIRECTED_VERSION && HAS_DIRECTED) {
+        const prevDirected = existing.directed_comments || '';
+        const newDirected = evaluation.directedComments || '';
+        const prevDirectedVer = Number(existing.directed_comments_version || 1);
+        const nextDirectedVer = prevDirectedVer + (newDirected !== prevDirected ? 1 : 0);
+        evalRecord.directed_comments_version = nextDirectedVer;
+      }
+      const { error: updateError } = await supabase
+        .from('evaluations')
+        .update(evalRecord)
+        .eq('id', savedEvalId);
+      if (updateError) {
+        log(`    Error updating evaluation: ${updateError.message}`, 'error');
+        stats.evaluationsErrored++;
+        stats.errors.push({
+          type: 'evaluation',
+          id: evaluation.evaluationId,
+          error: updateError.message,
+        });
+        return;
+      }
     }
 
-    stats.evaluationsCreated++;
-
     // Migrate trait evaluations
-    if (evaluation.traitEvaluations && evaluation.traitEvaluations.length > 0) {
-      const traits = evaluation.traitEvaluations.map((trait) => ({
-        evaluation_id: savedEval.id,
-        section: trait.section,
-        trait: trait.trait,
-        grade: trait.grade,
-        grade_number: trait.gradeNumber,
-      }));
+    if (Array.isArray(evaluation.traitEvaluations) && evaluation.traitEvaluations.length > 0) {
+      const sectionMap = {
+        'Mission Accomplishment': 'A',
+        'Leadership': 'B',
+        'Individual Character': 'C',
+        'Intellect and Wisdom': 'D',
+        'Fulfillment of Evaluation Responsibilities': 'E',
+      };
+      const traits = evaluation.traitEvaluations.map((trait) => {
+        const sect = trait.section;
+        const normalizedSection = typeof sect === 'string'
+          ? (sectionMap[sect] || sect)
+          : sect;
+        return {
+          evaluation_id: savedEvalId,
+          section: normalizedSection,
+          trait: trait.trait,
+          grade: trait.grade,
+          grade_number: trait.gradeNumber,
+          justification: trait.justification || null,
+        };
+      });
+
+      // Replace any existing traits for this evaluation id
+      await supabase
+        .from('trait_evaluations')
+        .delete()
+        .eq('evaluation_id', savedEvalId);
 
       const { error: traitError } = await supabase
         .from('trait_evaluations')
@@ -383,7 +533,7 @@ async function migrateEvaluation(evalData, userId) {
       }
     }
 
-    log(`    ✅ Created evaluation: ${evaluation.evaluationId}`, 'success');
+    log(`    ✅ Ensured evaluation: ${evaluation.evaluationId}`, 'success');
   } catch (err) {
     log(`    Error migrating evaluation: ${err.message}`, 'error');
     stats.evaluationsErrored++;
@@ -407,12 +557,22 @@ async function migrate() {
   log(`Source: ${options.source}`, 'info');
   log(`Dry Run: ${options.dryRun ? 'Yes' : 'No'}`, 'info');
   log(`Users Only: ${options.usersOnly ? 'Yes' : 'No'}`, 'info');
+  log(`Local Dir: ${LOCAL_USERS_DIR}`, 'info');
   if (options.specificUser) {
     log(`Specific User: ${options.specificUser}`, 'info');
   }
   console.log('');
 
   try {
+    await initSchemaFlags();
+    if (options.purge && !options.dryRun) {
+      await purgeAllData();
+      console.log('');
+    } else if (options.purge && options.dryRun) {
+      log('DRY RUN: Would purge all existing data from Supabase tables', 'warn');
+      console.log('');
+    }
+
     // Load users based on source
     let users = [];
     if (options.source === 'local') {
@@ -503,6 +663,52 @@ function printSummary() {
   }
 
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+}
+
+// ============================================================================
+// PURGE EXISTING DATA
+// ============================================================================
+
+async function fetchAllIds(table, column = 'id', pageSize = 1000) {
+  const ids = [];
+  let from = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase.from(table).select(column).range(from, to);
+    if (error) {
+      throw new Error(`Error fetching ids from ${table}: ${error.message}`);
+    }
+    if (!data || data.length === 0) break;
+    ids.push(...data.map((r) => r[column]));
+    hasMore = data.length >= pageSize;
+    from += pageSize;
+  }
+  return ids;
+}
+
+async function purgeAllData() {
+  log('⚠️  Purging existing data from Supabase (users, evaluations, traits)', 'warn');
+  try {
+    const userIds = await fetchAllIds(USERS_TABLE, 'id');
+    if (userIds.length === 0) {
+      log('No users found to purge', 'info');
+      return;
+    }
+    const chunkSize = 1000;
+    for (let i = 0; i < userIds.length; i += chunkSize) {
+      const chunk = userIds.slice(i, i + chunkSize);
+      const { error } = await supabase.from(USERS_TABLE).delete().in('id', chunk);
+      if (error) {
+        throw new Error(`Error deleting users: ${error.message}`);
+      }
+      log(`Deleted ${chunk.length} user(s) (cascade removed evaluations and traits)`, 'verbose');
+    }
+    log('✅ Purge complete', 'success');
+  } catch (err) {
+    log(`Error during purge: ${err.message}`, 'error');
+    throw err;
+  }
 }
 
 // ============================================================================
