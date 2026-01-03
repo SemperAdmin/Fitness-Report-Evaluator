@@ -509,14 +509,27 @@ body {
     bottom: 20px;
     transform: none;
     z-index: 1000;
-    padding: 10px 14px;
-    border-radius: 999px;
+    padding: 0.75rem 1.25rem;
+    border-radius: 50px;
     border: none;
-    background: #2563eb;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
     color: #fff;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
     cursor: pointer;
+    font-size: 1rem;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+.feedback-floating-btn:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+    transform: translateY(-2px);
+}
+.feedback-floating-btn:active {
+    transform: translateY(0);
 }
 .feedback-floating-btn:focus-visible {
     outline: 3px solid #93c5fd;
